@@ -1,0 +1,199 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+@layer base {
+  :root {
+    /* Warm Pizzeria Theme */
+    --background: 35 30% 97%;
+    --foreground: 25 30% 12%;
+
+    --card: 35 35% 98%;
+    --card-foreground: 25 30% 12%;
+
+    --popover: 35 35% 98%;
+    --popover-foreground: 25 30% 12%;
+
+    /* Terracotta/Amber Primary */
+    --primary: 25 85% 45%;
+    --primary-foreground: 35 30% 98%;
+
+    /* Warm Cream Secondary */
+    --secondary: 35 40% 92%;
+    --secondary-foreground: 25 30% 20%;
+
+    --muted: 35 25% 90%;
+    --muted-foreground: 25 15% 45%;
+
+    /* Golden Accent */
+    --accent: 38 92% 50%;
+    --accent-foreground: 25 30% 12%;
+
+    /* Deep Red for CTAs */
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 35 20% 85%;
+    --input: 35 20% 85%;
+    --ring: 25 85% 45%;
+
+    --radius: 0.75rem;
+
+    /* Custom Pizzeria Colors */
+    --terracotta: 15 70% 42%;
+    --terracotta-light: 15 60% 55%;
+    --amber: 38 92% 50%;
+    --amber-light: 42 95% 65%;
+    --cream: 40 40% 96%;
+    --cream-dark: 35 30% 90%;
+    --charcoal: 25 20% 18%;
+    --olive: 80 25% 35%;
+    --tomato: 8 80% 50%;
+    
+    /* Gradients */
+    --gradient-warm: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%);
+    --gradient-hero: linear-gradient(180deg, hsl(35 30% 97% / 0) 0%, hsl(35 30% 97%) 100%);
+    --gradient-card: linear-gradient(180deg, hsl(35 35% 100%) 0%, hsl(35 30% 96%) 100%);
+
+    /* Shadows */
+    --shadow-warm: 0 4px 20px -4px hsl(25 85% 45% / 0.15);
+    --shadow-card: 0 2px 12px -2px hsl(25 30% 30% / 0.08);
+    --shadow-elevated: 0 8px 30px -8px hsl(25 30% 30% / 0.12);
+
+    --sidebar-background: 35 30% 97%;
+    --sidebar-foreground: 25 30% 20%;
+    --sidebar-primary: 25 85% 45%;
+    --sidebar-primary-foreground: 35 30% 98%;
+    --sidebar-accent: 35 40% 92%;
+    --sidebar-accent-foreground: 25 30% 20%;
+    --sidebar-border: 35 20% 85%;
+    --sidebar-ring: 25 85% 45%;
+  }
+
+  .dark {
+    --background: 25 20% 8%;
+    --foreground: 35 30% 95%;
+
+    --card: 25 20% 12%;
+    --card-foreground: 35 30% 95%;
+
+    --popover: 25 20% 12%;
+    --popover-foreground: 35 30% 95%;
+
+    --primary: 30 80% 55%;
+    --primary-foreground: 25 20% 8%;
+
+    --secondary: 25 15% 18%;
+    --secondary-foreground: 35 30% 90%;
+
+    --muted: 25 15% 18%;
+    --muted-foreground: 35 20% 60%;
+
+    --accent: 38 85% 55%;
+    --accent-foreground: 25 20% 8%;
+
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 25 15% 20%;
+    --input: 25 15% 20%;
+    --ring: 30 80% 55%;
+
+    --sidebar-background: 25 20% 10%;
+    --sidebar-foreground: 35 30% 90%;
+    --sidebar-primary: 30 80% 55%;
+    --sidebar-primary-foreground: 25 20% 8%;
+    --sidebar-accent: 25 15% 15%;
+    --sidebar-accent-foreground: 35 30% 90%;
+    --sidebar-border: 25 15% 18%;
+    --sidebar-ring: 30 80% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Playfair Display', serif;
+  }
+}
+
+@layer components {
+  .btn-cta {
+    @apply bg-gradient-to-r from-primary to-accent text-primary-foreground font-semibold 
+           shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]
+           active:scale-[0.98];
+  }
+
+  .card-product {
+    @apply bg-card rounded-xl shadow-md hover:shadow-lg transition-all duration-300
+           border border-border/50 overflow-hidden;
+  }
+
+  .badge-category {
+    @apply px-3 py-1 rounded-full text-xs font-medium uppercase tracking-wide;
+  }
+
+  .badge-popular {
+    @apply bg-tomato text-white;
+  }
+
+  .badge-promo {
+    @apply bg-olive text-white;
+  }
+
+  .badge-premium {
+    @apply bg-amber text-charcoal;
+  }
+
+  .input-field {
+    @apply bg-cream border-border focus:border-primary focus:ring-2 focus:ring-primary/20
+           transition-all duration-200;
+  }
+
+  .glass-panel {
+    @apply bg-card/80 backdrop-blur-md border border-border/50;
+  }
+}
+
+@layer utilities {
+  .text-gradient-warm {
+    @apply bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent;
+  }
+
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
+  }
+
+  .animate-pulse-warm {
+    animation: pulse-warm 2s ease-in-out infinite;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes pulse-warm {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.8; }
+}
