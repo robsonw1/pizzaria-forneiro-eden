@@ -2,6 +2,7 @@ import { ShoppingCart, Menu, X, Sun, Moon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useCartStore, useUIStore } from '@/store/useStore';
+import { useSettingsStore } from '@/store/useSettingsStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -11,6 +12,7 @@ import logoForneiro from '@/assets/logo-forneiro.jpg';
 export function Header() {
   const { getItemCount } = useCartStore();
   const { setCartOpen } = useUIStore();
+  const settings = useSettingsStore((s) => s.settings);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
   const itemCount = getItemCount();
@@ -34,9 +36,9 @@ export function Header() {
               Cardápio
             </a>
             <div className="text-sm font-medium text-muted-foreground">
-              <span className="text-foreground">Entrega:</span> 60–70 min
+              <span className="text-foreground">Entrega:</span> {settings.deliveryTimeMin}–{settings.deliveryTimeMax} min
               <span className="mx-2 text-border">•</span>
-              <span className="text-foreground">Retirada:</span> 40–50 min
+              <span className="text-foreground">Retirada:</span> {settings.pickupTimeMin}–{settings.pickupTimeMax} min
             </div>
             <Link to="/admin" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
               Admin
@@ -108,10 +110,10 @@ export function Header() {
                 </a>
                 <div className="px-4 py-2 text-sm font-medium text-muted-foreground">
                   <div>
-                    <span className="text-foreground">Entrega:</span> 60–70 min
+                    <span className="text-foreground">Entrega:</span> {settings.deliveryTimeMin}–{settings.deliveryTimeMax} min
                   </div>
                   <div>
-                    <span className="text-foreground">Retirada:</span> 40–50 min
+                    <span className="text-foreground">Retirada:</span> {settings.pickupTimeMin}–{settings.pickupTimeMax} min
                   </div>
                 </div>
                 <Link 

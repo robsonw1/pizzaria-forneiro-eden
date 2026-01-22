@@ -15,7 +15,8 @@ import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useUIStore, useCartStore, useCheckoutStore } from '@/store/useStore';
-import { neighborhoodsData } from '@/data/products';
+import { useNeighborhoodsStore } from '@/store/useNeighborhoodsStore';
+import { useOrdersStore } from '@/store/useOrdersStore';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   User, 
@@ -70,6 +71,10 @@ export function CheckoutModal() {
     getDeliveryFee,
     reset,
   } = useCheckoutStore();
+
+  const neighborhoods = useNeighborhoodsStore((s) => s.neighborhoods);
+  const activeNeighborhoods = neighborhoods.filter(n => n.isActive);
+  const addOrder = useOrdersStore((s) => s.addOrder);
 
   const [step, setStep] = useState<Step>('contact');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -491,7 +496,7 @@ export function CheckoutModal() {
                         <Select 
                           value={selectedNeighborhood?.id || ''} 
                           onValueChange={(id) => {
-                            const nb = neighborhoodsData.find(n => n.id === id);
+                            const nb = activeNeighborhoods.find(n => n.id === id);
                             setSelectedNeighborhood(nb || null);
                           }}
                         >
@@ -499,7 +504,7 @@ export function CheckoutModal() {
                             <SelectValue placeholder="Selecione" />
                           </SelectTrigger>
                           <SelectContent>
-                            {neighborhoodsData.filter(n => n.isActive).map(nb => (
+                            {activeNeighborhoods.map(nb => (
                               <SelectItem key={nb.id} value={nb.id}>
                                 {nb.name} - {formatPrice(nb.deliveryFee)}
                               </SelectItem>

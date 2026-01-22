@@ -70,16 +70,16 @@ export function ProductCatalog() {
           {/* Products Grid */}
           {categories.map((category) => {
             const products = getByCategory(category.id as any);
-            const activeCount = products.filter((p) => p.isActive).length;
+            const activeProducts = products.filter((p) => p.isActive);
             return (
               <TabsContent key={category.id} value={category.id} className="mt-0">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {products.map((product, index) => (
+                  {activeProducts.map((product, index) => (
                     <ProductCard key={product.id} product={product} index={index} />
                   ))}
                 </div>
 
-                {activeCount === 0 && (
+                {activeProducts.length === 0 && (
                   <div className="text-center py-12">
                     <p className="text-muted-foreground">
                       Nenhum produto disponível nesta categoria.
