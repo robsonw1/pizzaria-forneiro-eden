@@ -1,4 +1,4 @@
-import { Flame, Clock, MapPin, Phone } from 'lucide-react';
+import { Clock, MapPin, Phone } from 'lucide-react';
 
 export function HeroSection() {
   return (
@@ -13,8 +13,8 @@ export function HeroSection() {
         <div className="max-w-3xl mx-auto text-center">
           {/* Badge */}
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary mb-6">
-            <Flame className="w-4 h-4" />
-            <span className="text-sm font-medium">Pizza artesanal desde 1995</span>
+            <span className="text-xl">🇮🇹</span>
+            <span className="text-sm font-medium">A Pizza mais recheada da cidade</span>
           </div>
 
           {/* Main Title */}
@@ -25,8 +25,8 @@ export function HeroSection() {
 
           {/* Subtitle */}
           <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-            Ingredientes frescos, massa artesanal e o carinho de uma receita 
-            passada por gerações. Peça agora e saboreie o melhor da pizza.
+            🇮🇹 A Pizza mais recheada da cidade! Ingredientes frescos, massa artesanal 
+            e o carinho de uma receita passada por gerações.
           </p>
 
           {/* CTA Buttons */}

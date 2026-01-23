@@ -14,9 +14,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useUIStore, useCartStore, useCheckoutStore } from '@/store/useStore';
 import { useNeighborhoodsStore } from '@/store/useNeighborhoodsStore';
 import { useOrdersStore } from '@/store/useOrdersStore';
+import { useSettingsStore } from '@/store/useSettingsStore';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   User, 
@@ -34,7 +36,8 @@ import {
   Loader2,
   Banknote,
   Copy,
-  Check
+  Check,
+  AlertCircle
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -75,6 +78,8 @@ export function CheckoutModal() {
   const neighborhoods = useNeighborhoodsStore((s) => s.neighborhoods);
   const activeNeighborhoods = neighborhoods.filter(n => n.isActive);
   const addOrder = useOrdersStore((s) => s.addOrder);
+  const settings = useSettingsStore((s) => s.settings);
+  const isStoreOpen = useSettingsStore((s) => s.isStoreOpen);
 
   const [step, setStep] = useState<Step>('contact');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -230,7 +235,9 @@ export function CheckoutModal() {
       delivery: {
         type: deliveryType === 'delivery' ? 'entrega' : 'retirada',
         fee: deliveryFee,
-        estimatedTime: deliveryType === 'delivery' ? 45 : 30
+        estimatedTime: deliveryType === 'delivery' 
+          ? settings.deliveryTimeMax 
+          : settings.pickupTimeMax
       },
       items: items.map(item => ({
         name: `${item.product.name}${item.size === 'grande' ? ' Grande' : item.size === 'broto' ? ' Broto' : ''}`,
@@ -250,6 +257,33 @@ export function CheckoutModal() {
 
   const sendOrderToWebhook = async (orderPayload: any) => {
     console.log('Enviando pedido para webhook:', orderPayload);
+    
+    // Add order to local store for admin panel
+    addOrder({
+      customer: {
+        name: customer.name,
+        phone: customer.phone,
+        email: customer.email,
+      },
+      address: {
+        zipCode: address.zipCode,
+        city: address.city || 'São Paulo',
+        neighborhood: selectedNeighborhood?.name || address.neighborhood,
+        street: address.street,
+        number: address.number,
+        complement: address.complement,
+        reference: address.reference,
+      },
+      deliveryType,
+      deliveryFee,
+      paymentMethod,
+      items,
+      subtotal,
+      total,
+      status: 'pending',
+      observations,
+    });
+    
     await fetch('https://n8nwebhook.aezap.site/webhook/impressao', {
       method: 'POST',
       headers: {
@@ -261,6 +295,10 @@ export function CheckoutModal() {
   };
 
   const handleSubmitOrder = async () => {
+    if (!storeOpen) {
+      toast.error('Estabelecimento fechado. Não é possível fazer pedidos no momento.');
+      return;
+    }
     if (!validateStep('payment')) return;
     
     setIsProcessing(true);
@@ -351,6 +389,8 @@ export function CheckoutModal() {
     }
   };
 
+  const storeOpen = isStoreOpen();
+
   return (
     <Dialog open={isCheckoutOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] p-0 overflow-hidden">
@@ -363,6 +403,17 @@ export function CheckoutModal() {
                  'Finalizar Pedido'}
               </DialogTitle>
             </DialogHeader>
+
+            {/* Store Closed Alert */}
+            {!storeOpen && step !== 'confirmation' && (
+              <Alert variant="destructive" className="mt-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>Estabelecimento fechado.</strong> Não é possível fazer pedidos no momento. 
+                  Consulte nosso horário de funcionamento.
+                </AlertDescription>
+              </Alert>
+            )}
 
             {/* Progress Steps */}
             {!['confirmation', 'pix'].includes(step) && (
@@ -594,7 +645,9 @@ export function CheckoutModal() {
                             <p className="text-sm text-muted-foreground">
                               Taxa: {selectedNeighborhood ? formatPrice(selectedNeighborhood.deliveryFee) : 'Selecione o bairro'}
                             </p>
-                            <p className="text-xs text-muted-foreground">30-45 min</p>
+                            <p className="text-xs text-muted-foreground">
+                              {settings.deliveryTimeMin}-{settings.deliveryTimeMax} min
+                            </p>
                           </div>
                         </Label>
                       </div>
@@ -613,7 +666,9 @@ export function CheckoutModal() {
                           <div>
                             <p className="font-semibold">Retirada na loja</p>
                             <p className="text-sm text-muted-foreground">Sem taxa</p>
-                            <p className="text-xs text-muted-foreground">20-30 min</p>
+                            <p className="text-xs text-muted-foreground">
+                              {settings.pickupTimeMin}-{settings.pickupTimeMax} min
+                            </p>
                           </div>
                         </Label>
                       </div>
