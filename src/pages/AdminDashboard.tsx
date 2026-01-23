@@ -57,6 +57,7 @@ import { OrderDetailsDialog } from '@/components/admin/OrderDetailsDialog';
 import { NeighborhoodFormDialog } from '@/components/admin/NeighborhoodFormDialog';
 import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { DateRangeFilter } from '@/components/admin/DateRangeFilter';
+import { ScheduleSettings } from '@/components/admin/ScheduleSettings';
 import { toast } from 'sonner';
 import { format, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -250,9 +251,11 @@ const AdminDashboard = () => {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-gradient-warm flex items-center justify-center">
-                  <Flame className="w-4 h-4 text-primary-foreground" />
-                </div>
+                <img 
+                  src="/src/assets/logo-forneiro.jpg" 
+                  alt="Forneiro Éden" 
+                  className="w-8 h-8 rounded-full object-cover"
+                />
                 <span className="font-display font-bold">Admin</span>
               </div>
             </div>
@@ -754,57 +757,7 @@ const AdminDashboard = () => {
 
                   <Separator />
 
-                  <h4 className="font-semibold">Horário de Funcionamento</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <Label>Segunda a Sexta</Label>
-                      <div className="flex gap-2 mt-1">
-                        <Input 
-                          value={settingsForm.weekdaysOpen}
-                          onChange={(e) => setSettingsForm({ ...settingsForm, weekdaysOpen: e.target.value })}
-                          className="w-24" 
-                        />
-                        <span className="self-center">às</span>
-                        <Input 
-                          value={settingsForm.weekdaysClose}
-                          onChange={(e) => setSettingsForm({ ...settingsForm, weekdaysClose: e.target.value })}
-                          className="w-24" 
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <Label>Sábado</Label>
-                      <div className="flex gap-2 mt-1">
-                        <Input 
-                          value={settingsForm.saturdayOpen}
-                          onChange={(e) => setSettingsForm({ ...settingsForm, saturdayOpen: e.target.value })}
-                          className="w-24" 
-                        />
-                        <span className="self-center">às</span>
-                        <Input 
-                          value={settingsForm.saturdayClose}
-                          onChange={(e) => setSettingsForm({ ...settingsForm, saturdayClose: e.target.value })}
-                          className="w-24" 
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <Label>Domingo</Label>
-                      <div className="flex gap-2 mt-1">
-                        <Input 
-                          value={settingsForm.sundayOpen}
-                          onChange={(e) => setSettingsForm({ ...settingsForm, sundayOpen: e.target.value })}
-                          className="w-24" 
-                        />
-                        <span className="self-center">às</span>
-                        <Input 
-                          value={settingsForm.sundayClose}
-                          onChange={(e) => setSettingsForm({ ...settingsForm, sundayClose: e.target.value })}
-                          className="w-24" 
-                        />
-                      </div>
-                    </div>
-                  </div>
+                  <ScheduleSettings />
 
                   <Separator />
 

@@ -4,8 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Flame, Lock, User } from 'lucide-react';
+import { Lock, User } from 'lucide-react';
 import { toast } from 'sonner';
+import logoForneiro from '@/assets/logo-forneiro.jpg';
 
 const AdminLogin = () => {
   const [username, setUsername] = useState('');
@@ -35,9 +36,11 @@ const AdminLogin = () => {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="w-16 h-16 rounded-full bg-gradient-warm flex items-center justify-center mx-auto mb-4">
-            <Flame className="w-8 h-8 text-primary-foreground" />
-          </div>
+          <img 
+            src={logoForneiro} 
+            alt="Forneiro Éden" 
+            className="w-16 h-16 rounded-full object-cover mx-auto mb-4"
+          />
           <CardTitle className="font-display text-2xl">Forneiro Éden</CardTitle>
           <CardDescription>Painel Administrativo</CardDescription>
         </CardHeader>

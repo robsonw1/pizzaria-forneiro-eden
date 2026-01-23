@@ -3,7 +3,8 @@ import { ProductCatalog } from '@/components/ProductCatalog';
 import { ProductModal } from '@/components/ProductModal';
 import { CartDrawer } from '@/components/CartDrawer';
 import { CheckoutModal } from '@/components/CheckoutModal';
-import { Flame, Instagram, Facebook, Phone, MapPin, Clock } from 'lucide-react';
+import { Instagram, Facebook, Phone, MapPin, Clock } from 'lucide-react';
+import logoForneiro from '@/assets/logo-forneiro.jpg';
 
 const Index = () => {
   return (
@@ -20,9 +21,11 @@ const Index = () => {
             {/* Brand */}
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <div className="w-10 h-10 rounded-full bg-gradient-warm flex items-center justify-center">
-                  <Flame className="w-5 h-5 text-primary-foreground" />
-                </div>
+                <img 
+                  src={logoForneiro} 
+                  alt="Forneiro Éden" 
+                  className="w-10 h-10 rounded-full object-cover"
+                />
                 <div>
                   <span className="font-display text-lg font-bold">Forneiro</span>
                   <span className="font-display text-sm text-primary block -mt-1">Éden</span>

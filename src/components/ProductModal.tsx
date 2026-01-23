@@ -41,6 +41,10 @@ export function ProductModal() {
   const [selectedDrinkId, setSelectedDrinkId] = useState<string>('');
   const [comboPizza1Id, setComboPizza1Id] = useState<string>('');
   const [comboPizza2Id, setComboPizza2Id] = useState<string>('');
+  const [comboPizza1HalfId, setComboPizza1HalfId] = useState<string>('');
+  const [comboPizza2HalfId, setComboPizza2HalfId] = useState<string>('');
+  const [isPizza1HalfHalf, setIsPizza1HalfHalf] = useState(false);
+  const [isPizza2HalfHalf, setIsPizza2HalfHalf] = useState(false);
   const [customIngredients, setCustomIngredients] = useState<string[]>([]);
 
   const allPizzas = useMemo(() => getAllPizzasFromCatalog(), [getAllPizzasFromCatalog]);
@@ -69,6 +73,10 @@ export function ProductModal() {
     setSelectedDrinkId('');
     setComboPizza1Id('');
     setComboPizza2Id('');
+    setComboPizza1HalfId('');
+    setComboPizza2HalfId('');
+    setIsPizza1HalfHalf(false);
+    setIsPizza2HalfHalf(false);
     setCustomIngredients([]);
   };
 
@@ -178,16 +186,34 @@ export function ProductModal() {
       ? availableDrinks.find(d => d.id === selectedDrinkId) 
       : undefined;
 
-    // Build combo pizza flavors array
-    const comboPizzaFlavors: Product[] = [];
+    // Build combo pizza flavors array with half-half info
+    const comboPizzaFlavors: any[] = [];
     if (isCombo) {
       if (comboPizza1Id) {
         const pizza1 = promotionalPizzas.find(p => p.id === comboPizza1Id);
-        if (pizza1) comboPizzaFlavors.push(pizza1);
+        if (pizza1) {
+          const pizza1Half = isPizza1HalfHalf && comboPizza1HalfId 
+            ? promotionalPizzas.find(p => p.id === comboPizza1HalfId) 
+            : undefined;
+          comboPizzaFlavors.push({
+            ...pizza1,
+            isHalfHalf: isPizza1HalfHalf,
+            secondHalf: pizza1Half,
+          });
+        }
       }
       if (isComboFamilia && comboPizza2Id) {
         const pizza2 = promotionalPizzas.find(p => p.id === comboPizza2Id);
-        if (pizza2) comboPizzaFlavors.push(pizza2);
+        if (pizza2) {
+          const pizza2Half = isPizza2HalfHalf && comboPizza2HalfId 
+            ? promotionalPizzas.find(p => p.id === comboPizza2HalfId) 
+            : undefined;
+          comboPizzaFlavors.push({
+            ...pizza2,
+            isHalfHalf: isPizza2HalfHalf,
+            secondHalf: pizza2Half,
+          });
+        }
       }
     }
 
@@ -516,9 +542,9 @@ export function ProductModal() {
                     </p>
                     
                     {/* Pizza 1 */}
-                    <div className="mb-3">
-                      <Label className="text-sm text-muted-foreground mb-2 block">
-                        {isComboFamilia ? 'Sabor da Pizza 1:' : 'Sabor da Pizza:'}
+                    <div className="mb-4 p-3 bg-secondary/30 rounded-lg">
+                      <Label className="text-sm font-medium mb-2 block">
+                        {isComboFamilia ? 'Pizza 1:' : 'Sabor da Pizza:'}
                       </Label>
                       <Select value={comboPizza1Id} onValueChange={setComboPizza1Id}>
                         <SelectTrigger>
@@ -532,13 +558,43 @@ export function ProductModal() {
                           ))}
                         </SelectContent>
                       </Select>
+                      
+                      {/* Half-Half for Pizza 1 in Combo Família */}
+                      {isComboFamilia && comboPizza1Id && (
+                        <div className="mt-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <Label className="text-sm">Meia-Meia?</Label>
+                            <Switch 
+                              checked={isPizza1HalfHalf} 
+                              onCheckedChange={(checked) => {
+                                setIsPizza1HalfHalf(checked);
+                                if (!checked) setComboPizza1HalfId('');
+                              }} 
+                            />
+                          </div>
+                          {isPizza1HalfHalf && (
+                            <Select value={comboPizza1HalfId} onValueChange={setComboPizza1HalfId}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Segunda metade" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {promotionalPizzas.filter(p => p.isActive && p.id !== comboPizza1Id).map(pizza => (
+                                  <SelectItem key={pizza.id} value={pizza.id}>
+                                    {pizza.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        </div>
+                      )}
                     </div>
                     
                     {/* Pizza 2 - Only for Combo Família */}
                     {isComboFamilia && (
-                      <div>
-                        <Label className="text-sm text-muted-foreground mb-2 block">
-                          Sabor da Pizza 2:
+                      <div className="p-3 bg-secondary/30 rounded-lg">
+                        <Label className="text-sm font-medium mb-2 block">
+                          Pizza 2:
                         </Label>
                         <Select value={comboPizza2Id} onValueChange={setComboPizza2Id}>
                           <SelectTrigger>
@@ -552,6 +608,36 @@ export function ProductModal() {
                             ))}
                           </SelectContent>
                         </Select>
+                        
+                        {/* Half-Half for Pizza 2 */}
+                        {comboPizza2Id && (
+                          <div className="mt-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <Label className="text-sm">Meia-Meia?</Label>
+                              <Switch 
+                                checked={isPizza2HalfHalf} 
+                                onCheckedChange={(checked) => {
+                                  setIsPizza2HalfHalf(checked);
+                                  if (!checked) setComboPizza2HalfId('');
+                                }} 
+                              />
+                            </div>
+                            {isPizza2HalfHalf && (
+                              <Select value={comboPizza2HalfId} onValueChange={setComboPizza2HalfId}>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Segunda metade" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {promotionalPizzas.filter(p => p.isActive && p.id !== comboPizza2Id).map(pizza => (
+                                    <SelectItem key={pizza.id} value={pizza.id}>
+                                      {pizza.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

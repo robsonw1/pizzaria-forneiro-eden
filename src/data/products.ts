@@ -59,7 +59,7 @@ export interface Order {
   };
   deliveryType: 'delivery' | 'pickup';
   deliveryFee: number;
-  paymentMethod: 'pix' | 'card';
+  paymentMethod: 'pix' | 'card' | 'cash';
   items: CartItem[];
   subtotal: number;
   total: number;
