@@ -207,51 +207,140 @@ export function CheckoutModal() {
       cash: 'dinheiro'
     };
 
+    // Build detailed items array with combo half-half info
+    const formattedItems = items.map(item => {
+      const isCombo = item.product.category === 'combos';
+      const isPizza = ['promocionais', 'tradicionais', 'premium', 'especiais', 'doces'].includes(item.product.category);
+      
+      // Build combo pizzas array with half-half details
+      const comboPizzas = item.comboPizzaFlavors?.map((pizza: any, index: number) => {
+        if (pizza.isHalfHalf && pizza.secondHalf) {
+          return {
+            pizzaNumber: index + 1,
+            type: 'meia-meia',
+            sabor1: pizza.name,
+            sabor2: pizza.secondHalf.name,
+            description: `Pizza ${index + 1}: Meia ${pizza.name} + Meia ${pizza.secondHalf.name}`,
+          };
+        }
+        return {
+          pizzaNumber: index + 1,
+          type: 'inteira',
+          sabor: pizza.name,
+          description: `Pizza ${index + 1}: ${pizza.name}`,
+        };
+      }) || [];
+
+      // Build pizza half-half info for regular pizzas
+      let pizzaInfo: any = {};
+      if (isPizza) {
+        if (item.isHalfHalf && item.secondHalf) {
+          pizzaInfo = {
+            type: 'meia-meia',
+            size: item.size === 'grande' ? 'Grande' : 'Broto',
+            sabor1: item.product.name,
+            sabor2: item.secondHalf.name,
+          };
+        } else {
+          pizzaInfo = {
+            type: 'inteira',
+            size: item.size === 'grande' ? 'Grande' : 'Broto',
+            sabor: item.product.name,
+          };
+        }
+      }
+
+      return {
+        id: item.id,
+        productId: item.product.id,
+        name: item.product.name,
+        category: item.product.category,
+        quantity: item.quantity,
+        unitPrice: item.totalPrice / item.quantity,
+        totalPrice: item.totalPrice,
+        // Pizza specific
+        ...(isPizza && {
+          pizza: {
+            ...pizzaInfo,
+            borda: item.border?.name || 'Sem borda',
+            adicionais: item.extras?.map(e => e.name) || [],
+          },
+        }),
+        // Combo specific
+        ...(isCombo && {
+          combo: {
+            pizzas: comboPizzas,
+            borda: item.border?.name || 'Sem borda',
+          },
+        }),
+        // Drink
+        bebida: item.drink?.name || 'Sem bebida',
+        bebidaGratis: item.isDrinkFree || false,
+        // Custom ingredients (Moda do Cliente)
+        ...(item.customIngredients && {
+          ingredientesPersonalizados: item.customIngredients,
+        }),
+        // Observations
+        observacoes: '',
+      };
+    });
+
     return {
       orderId,
       timestamp: new Date().toISOString(),
-      payment: {
-        method: paymentMethodMap[paymentMethod],
-        status: paymentMethod === 'pix' ? 'aguardando_pagamento' : 'pendente',
-        amount: total,
-        installments: 1,
-        needsChange: paymentMethod === 'cash' ? needsChange : false,
-        changeFor: paymentMethod === 'cash' && needsChange ? parseFloat(changeAmount) || 0 : 0
-      },
+      
+      // Customer info
       customer: {
         name: customer.name,
-        phone: customer.phone.replace(/\D/g, ''),
-        email: customer.email || ''
+        phone: customer.phone,
+        phoneClean: customer.phone.replace(/\D/g, ''),
+        cpf: customer.cpf,
+        email: customer.email || '',
       },
-      address: {
-        street: address.street,
-        number: address.number,
-        complement: address.complement || '',
-        neighborhood: selectedNeighborhood?.name || address.neighborhood,
-        city: address.city || 'São Paulo',
-        state: 'SP',
-        zipcode: address.zipCode
-      },
+      
+      // Delivery info
       delivery: {
-        type: deliveryType === 'delivery' ? 'entrega' : 'retirada',
+        type: deliveryType === 'delivery' ? 'ENTREGA' : 'RETIRADA',
         fee: deliveryFee,
         estimatedTime: deliveryType === 'delivery' 
-          ? settings.deliveryTimeMax 
-          : settings.pickupTimeMax
+          ? `${settings.deliveryTimeMin}-${settings.deliveryTimeMax} min`
+          : `${settings.pickupTimeMin}-${settings.pickupTimeMax} min`,
+        ...(deliveryType === 'delivery' && {
+          address: {
+            street: address.street,
+            number: address.number,
+            complement: address.complement || '',
+            neighborhood: selectedNeighborhood?.name || address.neighborhood,
+            city: address.city || 'São Paulo',
+            state: 'SP',
+            zipcode: address.zipCode,
+            reference: address.reference || '',
+          },
+        }),
       },
-      items: items.map(item => ({
-        name: `${item.product.name}${item.size === 'grande' ? ' Grande' : item.size === 'broto' ? ' Broto' : ''}`,
-        quantity: item.quantity,
-        customization: {
-          halfPizza: item.isHalfHalf || false,
-          secondHalf: item.secondHalf?.name || null,
-          border: item.border?.name || null,
-          extras: item.extras?.map(e => e.name) || []
-        },
-        price: item.totalPrice
-      })),
-      total,
-      observations: observations || ''
+      
+      // Payment info
+      payment: {
+        method: paymentMethodMap[paymentMethod],
+        methodLabel: paymentMethod === 'pix' ? 'PIX' : paymentMethod === 'card' ? 'Cartão' : 'Dinheiro',
+        status: paymentMethod === 'pix' ? 'aguardando_pagamento' : 'pendente',
+        needsChange: paymentMethod === 'cash' ? needsChange : false,
+        changeFor: paymentMethod === 'cash' && needsChange ? parseFloat(changeAmount) || 0 : null,
+      },
+      
+      // Items
+      items: formattedItems,
+      
+      // Totals
+      totals: {
+        subtotal,
+        deliveryFee,
+        total,
+        itemCount: items.reduce((sum, item) => sum + item.quantity, 0),
+      },
+      
+      // Observations
+      observations: observations || '',
     };
   };
 

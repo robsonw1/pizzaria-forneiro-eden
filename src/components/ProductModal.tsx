@@ -131,8 +131,9 @@ export function ProductModal() {
 
   // Check if combo requires pizza selection
   const isComboFamilia = selectedProduct?.id === 'combo-familia';
-  const isComboWithPizza = isCombo && !isComboFamilia;
-  const pizzaCountForCombo = isComboFamilia ? 2 : (isCombo ? 1 : 0);
+  const isComboCasal = selectedProduct?.id === 'combo-casal';
+  const isComboWithPizzaSelection = isComboFamilia || isComboCasal;
+  const pizzaCountForCombo = isComboFamilia ? 2 : (isComboCasal ? 1 : 0);
 
   const handleIngredientToggle = (ingredient: string) => {
     if (customIngredients.includes(ingredient)) {
@@ -158,7 +159,7 @@ export function ProductModal() {
         toast.error('Selecione os sabores das duas pizzas do combo');
         return;
       }
-      if (isComboWithPizza && !comboPizza1Id) {
+      if (isComboCasal && !comboPizza1Id) {
         toast.error('Selecione o sabor da pizza do combo');
         return;
       }
@@ -559,8 +560,8 @@ export function ProductModal() {
                         </SelectContent>
                       </Select>
                       
-                      {/* Half-Half for Pizza 1 in Combo Família */}
-                      {isComboFamilia && comboPizza1Id && (
+                      {/* Half-Half for Pizza 1 in Combo Família or Combo Casal */}
+                      {(isComboFamilia || isComboCasal) && comboPizza1Id && (
                         <div className="mt-3">
                           <div className="flex items-center justify-between mb-2">
                             <Label className="text-sm">Meia-Meia?</Label>

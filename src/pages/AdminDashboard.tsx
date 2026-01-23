@@ -755,6 +755,20 @@ const AdminDashboard = () => {
                     />
                   </div>
 
+                  <div>
+                    <Label htmlFor="store-slogan">Slogan / Subtítulo</Label>
+                    <Input 
+                      id="store-slogan" 
+                      value={settingsForm.slogan || ''}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, slogan: e.target.value })}
+                      placeholder="Ex: A Pizza mais recheada da cidade 🇮🇹"
+                      className="mt-1" 
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Aparece na página inicial e no rodapé da área do cliente
+                    </p>
+                  </div>
+
                   <Separator />
 
                   <ScheduleSettings />
