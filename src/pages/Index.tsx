@@ -5,8 +5,38 @@ import { CartDrawer } from '@/components/CartDrawer';
 import { CheckoutModal } from '@/components/CheckoutModal';
 import { Instagram, Facebook, Phone, MapPin, Clock } from 'lucide-react';
 import logoForneiro from '@/assets/logo-forneiro.jpg';
+import { useSettingsStore, WeekSchedule } from '@/store/useSettingsStore';
+
+const dayLabels: Record<keyof WeekSchedule, string> = {
+  monday: 'Seg',
+  tuesday: 'Ter',
+  wednesday: 'Qua',
+  thursday: 'Qui',
+  friday: 'Sex',
+  saturday: 'Sáb',
+  sunday: 'Dom',
+};
 
 const Index = () => {
+  const settings = useSettingsStore((s) => s.settings);
+
+  // Build schedule string from settings
+  const buildScheduleString = () => {
+    const schedule = settings.schedule;
+    const openDays: string[] = [];
+    const dayOrder: (keyof WeekSchedule)[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+    
+    dayOrder.forEach(day => {
+      if (schedule[day].isOpen) {
+        openDays.push(`${dayLabels[day]}: ${schedule[day].openTime} às ${schedule[day].closeTime}`);
+      }
+    });
+    
+    if (openDays.length === 0) return 'Fechado';
+    if (openDays.length <= 2) return openDays.join(' | ');
+    return `${openDays.slice(0, 2).join(' | ')} ...`;
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -23,16 +53,16 @@ const Index = () => {
               <div className="flex items-center gap-2 mb-4">
                 <img 
                   src={logoForneiro} 
-                  alt="Forneiro Éden" 
+                  alt={settings.name} 
                   className="w-10 h-10 rounded-full object-cover"
                 />
                 <div>
-                  <span className="font-display text-lg font-bold">Forneiro</span>
-                  <span className="font-display text-sm text-primary block -mt-1">Éden</span>
+                  <span className="font-display text-lg font-bold">{settings.name.split(' ')[0] || 'Forneiro'}</span>
+                  <span className="font-display text-sm text-primary block -mt-1">{settings.name.split(' ').slice(1).join(' ') || 'Éden'}</span>
                 </div>
               </div>
               <p className="text-sm text-muted-foreground">
-                Pizza artesanal desde 1995. Tradição e sabor em cada fatia.
+                {settings.slogan}
               </p>
             </div>
 
@@ -42,15 +72,15 @@ const Index = () => {
               <div className="space-y-3 text-sm text-muted-foreground">
                 <div className="flex items-center gap-2">
                   <Phone className="w-4 h-4" />
-                  <span>(11) 99999-9999</span>
+                  <span>{settings.phone}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <MapPin className="w-4 h-4" />
-                  <span>Rua das Pizzas, 123 - Centro</span>
+                  <span>{settings.address}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Clock className="w-4 h-4" />
-                  <span>Ter-Dom: 18h às 23h</span>
+                  <span>{buildScheduleString()}</span>
                 </div>
               </div>
             </div>
@@ -76,7 +106,7 @@ const Index = () => {
           </div>
 
           <div className="border-t mt-8 pt-8 text-center text-sm text-muted-foreground">
-            <p>© 2024 Forneiro Éden. Todos os direitos reservados.</p>
+            <p>© 2024 {settings.name}. Todos os direitos reservados.</p>
           </div>
         </div>
       </footer>

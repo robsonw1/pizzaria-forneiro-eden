@@ -1,6 +1,9 @@
 import { Clock, MapPin, Phone } from 'lucide-react';
+import { useSettingsStore } from '@/store/useSettingsStore';
 
 export function HeroSection() {
+  const settings = useSettingsStore((s) => s.settings);
+
   return (
     <section className="relative overflow-hidden bg-gradient-to-b from-secondary/50 to-background py-12 md:py-20">
       {/* Background Pattern */}
@@ -14,7 +17,7 @@ export function HeroSection() {
           {/* Badge */}
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary mb-6">
             <span className="text-xl">🇮🇹</span>
-            <span className="text-sm font-medium">A Pizza mais recheada da cidade</span>
+            <span className="text-sm font-medium">{settings.slogan}</span>
           </div>
 
           {/* Main Title */}
@@ -25,7 +28,7 @@ export function HeroSection() {
 
           {/* Subtitle */}
           <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-            🇮🇹 A Pizza mais recheada da cidade! Ingredientes frescos, massa artesanal 
+            {settings.slogan} Ingredientes frescos, massa artesanal 
             e o carinho de uma receita passada por gerações.
           </p>
 
@@ -53,7 +56,7 @@ export function HeroSection() {
               </div>
               <div className="text-left">
                 <p className="text-xs text-muted-foreground">Entrega em</p>
-                <p className="font-semibold text-foreground">30-45 min</p>
+                <p className="font-semibold text-foreground">{settings.deliveryTimeMin}-{settings.deliveryTimeMax} min</p>
               </div>
             </div>
 
@@ -73,7 +76,7 @@ export function HeroSection() {
               </div>
               <div className="text-left">
                 <p className="text-xs text-muted-foreground">WhatsApp</p>
-                <p className="font-semibold text-foreground">(11) 99999-9999</p>
+                <p className="font-semibold text-foreground">{settings.phone}</p>
               </div>
             </div>
           </div>

@@ -21,6 +21,7 @@ interface StoreSettings {
   name: string;
   phone: string;
   address: string;
+  slogan: string;
   schedule: WeekSchedule;
   isManuallyOpen: boolean; // Manual override for open/closed
   deliveryTimeMin: number;
@@ -59,6 +60,7 @@ const defaultSettings: StoreSettings = {
   name: 'Forneiro Éden',
   phone: '(11) 99999-9999',
   address: 'Rua das Pizzas, 123 - Centro',
+  slogan: 'A Pizza mais recheada da cidade 🇮🇹',
   schedule: defaultWeekSchedule,
   isManuallyOpen: true,
   deliveryTimeMin: 60,
@@ -150,7 +152,7 @@ export const useSettingsStore = create<SettingsStore>()(
     }),
     {
       name: 'forneiro-eden-settings',
-      version: 2,
+      version: 3,
     }
   )
 );
