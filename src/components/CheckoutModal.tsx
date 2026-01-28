@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -76,6 +76,7 @@ export function CheckoutModal() {
   } = useCheckoutStore();
 
   const neighborhoods = useNeighborhoodsStore((s) => s.neighborhoods);
+  const syncNeighborhoods = useNeighborhoodsStore((s) => s.syncFromSupabase);
   const activeNeighborhoods = neighborhoods.filter(n => n.isActive);
   const addOrder = useOrdersStore((s) => s.addOrder);
   const settings = useSettingsStore((s) => s.settings);
@@ -85,6 +86,13 @@ export function CheckoutModal() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [pixData, setPixData] = useState<PixData | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // Sincroniza bairros quando o modal abre
+  useEffect(() => {
+    if (isCheckoutOpen && activeNeighborhoods.length === 0) {
+      syncNeighborhoods();
+    }
+  }, [isCheckoutOpen, syncNeighborhoods, activeNeighborhoods.length]);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('pt-BR', {
