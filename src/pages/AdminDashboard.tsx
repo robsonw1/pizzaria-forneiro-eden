@@ -73,22 +73,26 @@ const AdminDashboard = () => {
 
   // Product store
   const productsById = useCatalogStore((s) => s.productsById);
+  const syncProducts = useCatalogStore((s) => s.syncFromSupabase);
   const toggleActive = useCatalogStore((s) => s.toggleActive);
   const removeProduct = useCatalogStore((s) => s.removeProduct);
 
   // Settings store
   const settings = useSettingsStore((s) => s.settings);
+  const syncSettings = useSettingsStore((s) => s.syncFromSupabase);
   const updateSettings = useSettingsStore((s) => s.updateSettings);
   const changePassword = useSettingsStore((s) => s.changePassword);
 
   // Neighborhoods store
   const neighborhoods = useNeighborhoodsStore((s) => s.neighborhoods);
+  const syncNeighborhoods = useNeighborhoodsStore((s) => s.syncFromSupabase);
   const toggleNeighborhoodActive = useNeighborhoodsStore((s) => s.toggleActive);
   const updateNeighborhood = useNeighborhoodsStore((s) => s.updateNeighborhood);
   const removeNeighborhood = useNeighborhoodsStore((s) => s.removeNeighborhood);
 
   // Orders store
   const orders = useOrdersStore((s) => s.orders);
+  const syncOrders = useOrdersStore((s) => s.syncFromSupabase);
   const getStats = useOrdersStore((s) => s.getStats);
   const removeOrder = useOrdersStore((s) => s.removeOrder);
 
@@ -123,7 +127,19 @@ const AdminDashboard = () => {
     if (!token) {
       navigate('/admin');
     }
-  }, [navigate]);
+
+    // Sincroniza todos os dados do Supabase ao entrar no admin
+    const syncAllData = async () => {
+      await Promise.all([
+        syncProducts(),
+        syncSettings(),
+        syncNeighborhoods(),
+        syncOrders(),
+      ]);
+    };
+
+    syncAllData();
+  }, [navigate, syncProducts, syncSettings, syncNeighborhoods, syncOrders]);
 
   useEffect(() => {
     setSettingsForm(settings);
