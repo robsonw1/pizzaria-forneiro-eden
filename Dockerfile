@@ -1,10 +1,10 @@
 # Build stage
-FROM node:20-alpine AS builder
+FROM oven/bun:latest AS builder
 
 WORKDIR /app
 
-COPY package*.json ./
-RUN npm ci
+COPY package*.json bun.lockb ./
+RUN bun install --frozen-lockfile
 
 COPY . .
 RUN npm run build
