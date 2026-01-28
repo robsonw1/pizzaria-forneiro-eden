@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ProductCard } from '@/components/ProductCard';
 import { Gift, Tag, Pizza, Crown, Star, Cake, GlassWater } from 'lucide-react';
@@ -17,6 +17,15 @@ const categories = [
 export function ProductCatalog() {
   const [activeTab, setActiveTab] = useState('combos');
   const productsById = useCatalogStore((s) => s.productsById);
+  const syncProducts = useCatalogStore((s) => s.syncFromSupabase);
+
+  // Sincroniza produtos do Supabase
+  useEffect(() => {
+    const products = Object.keys(productsById);
+    if (products.length === 0) {
+      syncProducts();
+    }
+  }, [syncProducts, productsById]);
 
   const products = useMemo(() => Object.values(productsById), [productsById]);
   const getByCategory = useMemo(() => {
