@@ -147,6 +147,12 @@ export function CheckoutModal() {
       case 'delivery':
         return true;
       case 'payment':
+        if (paymentMethod === 'pix') {
+          if (!customer.cpf || customer.cpf.replace(/\D/g, '').length !== 11) {
+            toast.error('Por favor, informe um CPF válido para PIX');
+            return false;
+          }
+        }
         if (paymentMethod === 'cash' && needsChange && !changeAmount) {
           toast.error('Por favor, informe o valor para troco');
           return false;
@@ -583,39 +589,6 @@ export function CheckoutModal() {
                         />
                       </div>
                     </div>
-
-                    {paymentMethod === 'pix' && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                      >
-                        <Label htmlFor="cpf">CPF para PIX *</Label>
-                        <Input
-                          id="cpf"
-                          placeholder="000.000.000-00"
-                          value={customer.cpf}
-                          onChange={(e) => handleCpfInput(e.target.value)}
-                          className="mt-1"
-                          maxLength={14}
-                        />
-                      </motion.div>
-                    )}
-
-                    <div>
-                      <Label htmlFor="email">Email (opcional)</Label>
-                      <div className="relative mt-1">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input
-                          id="email"
-                          type="email"
-                          placeholder="seu@email.com"
-                          value={customer.email}
-                          onChange={(e) => setCustomer({ email: e.target.value })}
-                          className="pl-10"
-                        />
-                      </div>
-                    </div>
                   </div>
                 </motion.div>
               )}
@@ -869,6 +842,31 @@ export function CheckoutModal() {
                       </div>
                     </div>
                   </RadioGroup>
+
+                  {/* CPF para PIX */}
+                  {paymentMethod === 'pix' && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="bg-secondary/50 rounded-xl p-4 space-y-4"
+                    >
+                      <div>
+                        <Label htmlFor="pix-cpf">CPF para PIX *</Label>
+                        <Input
+                          id="pix-cpf"
+                          placeholder="000.000.000-00"
+                          value={customer.cpf}
+                          onChange={(e) => handleCpfInput(e.target.value)}
+                          className="mt-1"
+                          maxLength={14}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          O CPF é necessário para gerar o pagamento PIX
+                        </p>
+                      </div>
+                    </motion.div>
+                  )}
 
                   {/* Opção de troco para dinheiro */}
                   {paymentMethod === 'cash' && (
