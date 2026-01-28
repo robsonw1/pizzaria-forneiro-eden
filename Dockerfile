@@ -7,7 +7,7 @@ COPY package*.json bun.lockb ./
 RUN bun install
 
 COPY . .
-RUN npm run build
+RUN bun run build
 
 # Production stage
 FROM nginx:alpine
