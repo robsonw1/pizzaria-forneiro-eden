@@ -129,13 +129,6 @@ export function CheckoutModal() {
           toast.error('Por favor, informe um telefone válido');
           return false;
         }
-        // CPF é obrigatório apenas se o método de pagamento for PIX
-        if (paymentMethod === 'pix') {
-          if (!customer.cpf || customer.cpf.replace(/\D/g, '').length !== 11) {
-            toast.error('Por favor, informe um CPF válido para PIX');
-            return false;
-          }
-        }
         return true;
       case 'address':
         if (deliveryType === 'pickup') return true;
