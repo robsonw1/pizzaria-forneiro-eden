@@ -129,9 +129,12 @@ export function CheckoutModal() {
           toast.error('Por favor, informe um telefone válido');
           return false;
         }
-        if (!customer.cpf || customer.cpf.replace(/\D/g, '').length !== 11) {
-          toast.error('Por favor, informe um CPF válido');
-          return false;
+        // CPF é obrigatório apenas se o método de pagamento for PIX
+        if (paymentMethod === 'pix') {
+          if (!customer.cpf || customer.cpf.replace(/\D/g, '').length !== 11) {
+            toast.error('Por favor, informe um CPF válido para PIX');
+            return false;
+          }
         }
         return true;
       case 'address':
@@ -581,17 +584,23 @@ export function CheckoutModal() {
                       </div>
                     </div>
 
-                    <div>
-                      <Label htmlFor="cpf">CPF *</Label>
-                      <Input
-                        id="cpf"
-                        placeholder="000.000.000-00"
-                        value={customer.cpf}
-                        onChange={(e) => handleCpfInput(e.target.value)}
-                        className="mt-1"
-                        maxLength={14}
-                      />
-                    </div>
+                    {paymentMethod === 'pix' && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                      >
+                        <Label htmlFor="cpf">CPF para PIX *</Label>
+                        <Input
+                          id="cpf"
+                          placeholder="000.000.000-00"
+                          value={customer.cpf}
+                          onChange={(e) => handleCpfInput(e.target.value)}
+                          className="mt-1"
+                          maxLength={14}
+                        />
+                      </motion.div>
+                    )}
 
                     <div>
                       <Label htmlFor="email">Email (opcional)</Label>
@@ -651,7 +660,7 @@ export function CheckoutModal() {
                           <SelectTrigger className="mt-1">
                             <SelectValue placeholder="Selecione" />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent portal={false}>
                             {activeNeighborhoods.map(nb => (
                               <SelectItem key={nb.id} value={nb.id}>
                                 {nb.name} - {formatPrice(nb.deliveryFee)}
