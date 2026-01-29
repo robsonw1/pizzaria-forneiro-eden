@@ -1,12 +1,55 @@
+// @ts-ignore - Deno imports are dynamically resolved at runtime
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+declare const Deno: {
+  env: {
+    get(name: string): string | undefined;
+  };
+};
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-serve(async (req) => {
+// Validate webhook signature using HMAC-SHA256
+async function validateWebhookSignature(body: string, signature: string): Promise<boolean> {
+  const webhookSecret = Deno.env.get('MERCADO_PAGO_WEBHOOK_SECRET');
+  
+  if (!webhookSecret) {
+    console.warn('MERCADO_PAGO_WEBHOOK_SECRET not configured, skipping signature validation');
+    return true; // Allow if secret not configured (for testing)
+  }
+
+  try {
+    const encoder = new TextEncoder();
+    const keyData = encoder.encode(webhookSecret);
+    const bodyData = encoder.encode(body);
+    
+    // Use HMAC-SHA256 instead of plain SHA-256
+    const key = await crypto.subtle.importKey(
+      'raw',
+      keyData,
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign']
+    );
+    
+    const hashBuffer = await crypto.subtle.sign('HMAC', key, bodyData);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const computedSignature = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    
+    console.log('Computed signature:', computedSignature);
+    console.log('Received signature:', signature);
+    
+    return computedSignature === signature;
+  } catch (error) {
+    console.error('Signature validation error:', error);
+    return false;
+  }
+}
+
+serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -15,15 +58,36 @@ serve(async (req) => {
     const accessToken = Deno.env.get('MERCADO_PAGO_ACCESS_TOKEN');
     
     if (!accessToken) {
-      throw new Error('MERCADO_PAGO_ACCESS_TOKEN not configured');
+      console.error('MERCADO_PAGO_ACCESS_TOKEN not configured');
+      return new Response(JSON.stringify({ error: 'Access token not configured' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
-    const body = await req.json();
-    console.log('Webhook received:', JSON.stringify(body, null, 2));
+    const body = await req.text();
+    const signature = req.headers.get('x-signature') || '';
+    
+    console.log('Webhook request received');
+    console.log('Body length:', body.length);
+    console.log('Signature header present:', !!signature);
+    
+    // Validate signature
+    const isValid = await validateWebhookSignature(body, signature);
+    if (!isValid) {
+      console.warn('Invalid webhook signature detected');
+      return new Response(JSON.stringify({ error: 'Invalid signature' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    const payloadData = JSON.parse(body);
+    console.log('Webhook received:', JSON.stringify(payloadData, null, 2));
 
     // Handle payment notification
-    if (body.type === 'payment' && body.data?.id) {
-      const paymentId = body.data.id;
+    if (payloadData.type === 'payment' && payloadData.data?.id) {
+      const paymentId = payloadData.data.id;
       
       // Get payment details from Mercado Pago
       const paymentResponse = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
