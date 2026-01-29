@@ -1,6 +1,0 @@
-{
-  "compilerOptions": {
-    "lib": ["deno.window", "dom"],
-    "types": ["./types.d.ts"]
-  }
-}
