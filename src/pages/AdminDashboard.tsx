@@ -41,6 +41,8 @@ import {
   Plus,
   CheckCircle,
   XCircle,
+  Moon,
+  Sun,
 } from 'lucide-react';
 import {
   Product,
@@ -61,9 +63,11 @@ import { ScheduleSettings } from '@/components/admin/ScheduleSettings';
 import { toast } from 'sonner';
 import { format, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useTheme } from '@/hooks/use-theme';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
+  const { theme, toggleTheme } = useTheme();
   const [activeTab, setActiveTab] = useState('overview');
   const [isNewProductOpen, setIsNewProductOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -270,13 +274,25 @@ const AdminDashboard = () => {
                 <img 
                   src="/src/assets/logo-forneiro.jpg" 
                   alt="Forneiro Éden" 
-                  className="w-8 h-8 rounded-full object-cover"
+                  className="w-10 h-10 rounded-full object-cover shadow-sm"
                 />
-                <span className="font-display font-bold">Admin</span>
+                <span className="font-display font-bold text-lg">Admin</span>
               </div>
             </div>
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={toggleTheme}
+                className="gap-2"
+              >
+                {theme === 'light' ? (
+                  <Moon className="w-4 h-4" />
+                ) : (
+                  <Sun className="w-4 h-4" />
+                )}
+              </Button>
               <Link to="/">
                 <Button variant="ghost" size="sm" className="gap-2">
                   <Home className="w-4 h-4" />
