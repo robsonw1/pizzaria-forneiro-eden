@@ -210,154 +210,95 @@ export function CheckoutModal() {
     }
   };
 
-  const buildOrderPayload = (orderId: string) => {
+  const buildOrderPayload = (baseOrderId: string) => {
     const paymentMethodMap = {
-      pix: 'pix',
-      card: 'cartao_maquina',
-      cash: 'dinheiro'
+      pix: 'PIX',
+      card: 'Cartão de Crédito',
+      cash: 'Dinheiro'
     };
 
-    // Build detailed items array with combo half-half info
-    const formattedItems = items.map(item => {
+    // Format item description
+    const formatItemDescription = (item: any): string => {
       const isCombo = item.product.category === 'combos';
       const isPizza = ['promocionais', 'tradicionais', 'premium', 'especiais', 'doces'].includes(item.product.category);
       
-      // Build combo pizzas array with half-half details
-      const comboPizzas = item.comboPizzaFlavors?.map((pizza: any, index: number) => {
-        if (pizza.isHalfHalf && pizza.secondHalf) {
-          return {
-            pizzaNumber: index + 1,
-            type: 'meia-meia',
-            sabor1: pizza.name,
-            sabor2: pizza.secondHalf.name,
-            description: `Pizza ${index + 1}: Meia ${pizza.name} + Meia ${pizza.secondHalf.name}`,
-          };
-        }
-        return {
-          pizzaNumber: index + 1,
-          type: 'inteira',
-          sabor: pizza.name,
-          description: `Pizza ${index + 1}: ${pizza.name}`,
-        };
-      }) || [];
-
-      // Build pizza half-half info for regular pizzas
-      let pizzaInfo: any = {};
+      let description = '';
+      
       if (isPizza) {
+        const size = item.size === 'grande' ? 'Grande' : 'Broto';
+        
         if (item.isHalfHalf && item.secondHalf) {
-          pizzaInfo = {
-            type: 'meia-meia',
-            size: item.size === 'grande' ? 'Grande' : 'Broto',
-            sabor1: item.product.name,
-            sabor2: item.secondHalf.name,
-          };
+          description = `Pizza ${size} (${item.size === 'grande' ? '8' : '6'} fatias) - Sabores: ${item.product.name} (${item.extras?.[0]?.name || 'Natural'})`;
+          if (item.secondHalf) {
+            description += `, 1/2 ${item.secondHalf.name} (${item.extras?.[0]?.name || 'Natural'})`;
+          }
         } else {
-          pizzaInfo = {
-            type: 'inteira',
-            size: item.size === 'grande' ? 'Grande' : 'Broto',
-            sabor: item.product.name,
-          };
+          description = `Pizza ${size} (${item.size === 'grande' ? '8' : '6'} fatias) - Sabores: ${item.product.name}`;
+          if (item.extras && item.extras.length > 0) {
+            description += ` (${item.extras.map((e: any) => e.name).join(', ')})`;
+          }
         }
+        
+        if (item.border?.name && item.border.name !== 'Sem borda') {
+          description += `, Borda: ${item.border.name}`;
+        }
+      } else if (isCombo) {
+        description = `${item.product.name}`;
+        if (item.comboPizzaFlavors && item.comboPizzaFlavors.length > 0) {
+          const pizzas = item.comboPizzaFlavors.map((p: any, idx: number) => {
+            if (p.isHalfHalf && p.secondHalf) {
+              return `Meia ${p.name} + Meia ${p.secondHalf.name}`;
+            }
+            return p.name;
+          }).join(' e ');
+          description += ` - Pizzas: ${pizzas}`;
+        }
+        if (item.border?.name && item.border.name !== 'Sem borda') {
+          description += `, Borda: ${item.border.name}`;
+        }
+      } else {
+        description = item.product.name;
       }
+      
+      // Add drink if exists
+      if (item.drink?.name) {
+        description += `; ${item.drink.name}`;
+      }
+      
+      return description;
+    };
 
+    // Create a separate order payload for each item
+    const orderPayloads = items.map((item, itemIndex) => {
+      // Create separate order ID for each item (Pedido 1, Pedido 2, etc.)
+      const orderId = items.length > 1 ? `${baseOrderId}-P${itemIndex + 1}` : baseOrderId;
+      const deliveryFeeForItem = items.length > 1 ? 0 : deliveryFee;
+      const totalForItem = item.totalPrice + deliveryFeeForItem;
+      
       return {
-        id: item.id,
-        productId: item.product.id,
-        name: item.product.name,
-        category: item.product.category,
-        quantity: item.quantity,
-        unitPrice: item.totalPrice / item.quantity,
-        totalPrice: item.totalPrice,
-        // Pizza specific
-        ...(isPizza && {
-          pizza: {
-            ...pizzaInfo,
-            borda: item.border?.name || 'Sem borda',
-            adicionais: item.extras?.map(e => e.name) || [],
-          },
-        }),
-        // Combo specific
-        ...(isCombo && {
-          combo: {
-            pizzas: comboPizzas,
-            borda: item.border?.name || 'Sem borda',
-          },
-        }),
-        // Drink
-        bebida: item.drink?.name || 'Sem bebida',
-        bebidaGratis: item.isDrinkFree || false,
-        // Custom ingredients (Moda do Cliente)
-        ...(item.customIngredients && {
-          ingredientesPersonalizados: item.customIngredients,
-        }),
-        // Observations
-        observacoes: '',
+        pedido_id: orderId,
+        status: 'registrado',
+        data_hora: new Date().toLocaleString('pt-BR'),
+        cliente: customer.name,
+        endereco: deliveryType === 'delivery' ? `${address.street}, ${address.number}${address.complement ? ` - ${address.complement}` : ''}` : 'Retirada na loja',
+        bairro: deliveryType === 'delivery' ? (selectedNeighborhood?.name || address.neighborhood) : 'Local',
+        tipo_pedido: deliveryType === 'delivery' ? 'Entrega' : 'Retirada',
+        taxa_entrega: deliveryFeeForItem.toFixed(2),
+        pagamento: paymentMethodMap[paymentMethod],
+        itens: formatItemDescription(item),
+        observacao: observations || '',
+        total: totalForItem.toFixed(2),
       };
     });
 
-    return {
-      orderId,
-      timestamp: new Date().toISOString(),
-      
-      // Customer info
-      customer: {
-        name: customer.name,
-        phone: customer.phone,
-        phoneClean: customer.phone.replace(/\D/g, ''),
-        cpf: customer.cpf,
-        email: customer.email || '',
-      },
-      
-      // Delivery info
-      delivery: {
-        type: deliveryType === 'delivery' ? 'ENTREGA' : 'RETIRADA',
-        fee: deliveryFee,
-        estimatedTime: deliveryType === 'delivery' 
-          ? `${settings.deliveryTimeMin}-${settings.deliveryTimeMax} min`
-          : `${settings.pickupTimeMin}-${settings.pickupTimeMax} min`,
-        ...(deliveryType === 'delivery' && {
-          address: {
-            street: address.street,
-            number: address.number,
-            complement: address.complement || '',
-            neighborhood: selectedNeighborhood?.name || address.neighborhood,
-            city: address.city || 'São Paulo',
-            state: 'SP',
-            zipcode: address.zipCode,
-            reference: address.reference || '',
-          },
-        }),
-      },
-      
-      // Payment info
-      payment: {
-        method: paymentMethodMap[paymentMethod],
-        methodLabel: paymentMethod === 'pix' ? 'PIX' : paymentMethod === 'card' ? 'Cartão' : 'Dinheiro',
-        status: paymentMethod === 'pix' ? 'aguardando_pagamento' : 'pendente',
-        needsChange: paymentMethod === 'cash' ? needsChange : false,
-        changeFor: paymentMethod === 'cash' && needsChange ? parseFloat(changeAmount) || 0 : null,
-      },
-      
-      // Items
-      items: formattedItems,
-      
-      // Totals
-      totals: {
-        subtotal,
-        deliveryFee,
-        total,
-        itemCount: items.reduce((sum, item) => sum + item.quantity, 0),
-      },
-      
-      // Observations
-      observations: observations || '',
-    };
+    return orderPayloads;
   };
 
-  const sendOrderToWebhook = async (orderPayload: any) => {
-    console.log('Enviando pedido para webhook:', orderPayload);
+  const sendOrderToWebhook = async (orderPayloads: any[]) => {
+    console.log('Enviando pedidos para webhook:', orderPayloads);
     
-    // Add order to local store for admin panel
+    // Add order to local store for admin panel (use first payload as base)
+    const basePayload = orderPayloads[0];
     addOrder({
       customer: {
         name: customer.name,
@@ -383,14 +324,17 @@ export function CheckoutModal() {
       observations,
     });
     
-    await fetch('https://n8nwebhook.aezap.site/webhook/impressao', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      mode: 'no-cors',
-      body: JSON.stringify(orderPayload),
-    });
+    // Send each order payload separately to webhook
+    for (const payload of orderPayloads) {
+      await fetch('https://n8nwebhook.aezap.site/webhook/impressao', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        mode: 'no-cors',
+        body: JSON.stringify(payload),
+      });
+    }
   };
 
   const handleSubmitOrder = async () => {
@@ -402,7 +346,7 @@ export function CheckoutModal() {
     
     setIsProcessing(true);
     const orderId = `PED-${Date.now().toString().slice(-5)}`;
-    const orderPayload = buildOrderPayload(orderId);
+    const orderPayloads = buildOrderPayload(orderId);
 
     try {
       if (paymentMethod === 'pix') {
@@ -435,16 +379,16 @@ export function CheckoutModal() {
             expirationDate: mpData.expirationDate
           });
           
-          // Send order to webhook
-          await sendOrderToWebhook(orderPayload);
+          // Send orders to webhook
+          await sendOrderToWebhook(orderPayloads);
           
           setStep('pix');
         } else {
           throw new Error('QR Code não gerado');
         }
       } else {
-        // For card and cash, just send order directly
-        await sendOrderToWebhook(orderPayload);
+        // For card and cash, just send orders directly
+        await sendOrderToWebhook(orderPayloads);
         
         toast.success('Pedido enviado com sucesso!');
         setStep('confirmation');
