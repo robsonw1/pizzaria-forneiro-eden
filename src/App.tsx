@@ -11,50 +11,48 @@ import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
 
-const App = () => {
-  useEffect(() => {
-    // Update meta tags for social media preview
-    document.title = "Pizzaria Forneiro Eden - Cardápio Digital";
-    
-    const updateMetaTag = (name: string, content: string, isProperty: boolean = false) => {
-      let element = document.querySelector(
-        isProperty ? `meta[property="${name}"]` : `meta[name="${name}"]`
-      );
-      if (!element) {
-        element = document.createElement("meta");
-        isProperty ? element.setAttribute("property", name) : element.setAttribute("name", name);
-        document.head.appendChild(element);
-      }
-      element.setAttribute("content", content);
-    };
+// Update meta tags once when app loads
+if (typeof document !== 'undefined') {
+  document.title = "Pizzaria Forneiro Eden - Cardápio Digital";
+  
+  const updateMeta = (name: string, content: string, isProperty = false) => {
+    let el = document.querySelector(
+      isProperty ? `meta[property="${name}"]` : `meta[name="${name}"]`
+    );
+    if (!el) {
+      el = document.createElement("meta");
+      isProperty ? el.setAttribute("property", name) : el.setAttribute("name", name);
+      document.head.appendChild(el);
+    }
+    el.setAttribute("content", content);
+  };
 
-    updateMetaTag("description", "Cardápio digital da Pizzaria Forneiro Eden. Peça sua pizza deliciosa online.");
-    updateMetaTag("og:title", "Pizzaria Forneiro Eden", true);
-    updateMetaTag("og:description", "Cardápio digital - Peça sua pizza deliciosa agora!", true);
-    updateMetaTag("og:type", "website", true);
-    updateMetaTag("og:image", "/logo-forneiro.jpg", true);
-    updateMetaTag("twitter:title", "Pizzaria Forneiro Eden");
-    updateMetaTag("twitter:description", "Cardápio digital - Peça sua pizza deliciosa agora!");
-    updateMetaTag("twitter:image", "/logo-forneiro.jpg");
-  }, []);
+  updateMeta("description", "Cardápio digital da Pizzaria Forneiro Eden. Peça sua pizza deliciosa online.");
+  updateMeta("og:title", "Pizzaria Forneiro Eden", true);
+  updateMeta("og:description", "Cardápio digital - Peça sua pizza deliciosa agora!", true);
+  updateMeta("og:type", "website", true);
+  updateMeta("og:image", "/logo-forneiro.jpg", true);
+  updateMeta("twitter:title", "Pizzaria Forneiro Eden");
+  updateMeta("twitter:description", "Cardápio digital - Peça sua pizza deliciosa agora!");
+  updateMeta("twitter:image", "/logo-forneiro.jpg");
+}
 
-  return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/admin" element={<AdminLogin />} />
-            <Route path="/admin/dashboard" element={<AdminDashboard />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
-  );
-};
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <TooltipProvider>
+      <Toaster />
+      <Sonner />
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Index />} />
+          <Route path="/admin" element={<AdminLogin />} />
+          <Route path="/admin/dashboard" element={<AdminDashboard />} />
+          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </BrowserRouter>
+    </TooltipProvider>
+  </QueryClientProvider>
+);
 
 export default App;
