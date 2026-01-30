@@ -10,32 +10,6 @@ import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
 
-// Update meta tags once when app loads
-if (typeof document !== 'undefined') {
-  document.title = "Pizzaria Forneiro Eden - Cardápio Digital";
-  
-  const updateMeta = (name: string, content: string, isProperty = false) => {
-    let el = document.querySelector(
-      isProperty ? `meta[property="${name}"]` : `meta[name="${name}"]`
-    );
-    if (!el) {
-      el = document.createElement("meta");
-      isProperty ? el.setAttribute("property", name) : el.setAttribute("name", name);
-      document.head.appendChild(el);
-    }
-    el.setAttribute("content", content);
-  };
-
-  updateMeta("description", "Cardápio digital da Pizzaria Forneiro Eden. Peça sua pizza deliciosa online.");
-  updateMeta("og:title", "Pizzaria Forneiro Eden", true);
-  updateMeta("og:description", "Cardápio digital - Peça sua pizza deliciosa agora!", true);
-  updateMeta("og:type", "website", true);
-  updateMeta("og:image", "/logo-forneiro.jpg", true);
-  updateMeta("twitter:title", "Pizzaria Forneiro Eden");
-  updateMeta("twitter:description", "Cardápio digital - Peça sua pizza deliciosa agora!");
-  updateMeta("twitter:image", "/logo-forneiro.jpg");
-}
-
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
