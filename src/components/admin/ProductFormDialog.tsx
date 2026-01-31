@@ -113,27 +113,30 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
     // Atualizar estado local (Zustand)
     upsertProduct(nextProduct);
 
-    // Salvar no Supabase
+    // Salvar no Supabase com formato JSONB correto
     try {
-      const dataToSave = {
-        id: nextProduct.id,
-        name: nextProduct.name,
+      const dataJson = {
         description: nextProduct.description,
         category: nextProduct.category,
-        price: nextProduct.price || nextProduct.priceSmall || 0,
+        price: nextProduct.price || undefined,
         price_small: nextProduct.priceSmall || null,
         price_large: nextProduct.priceLarge || null,
         ingredients: nextProduct.ingredients || [],
-        image: nextProduct.image || '',
-        is_active: nextProduct.isActive,
+        image: nextProduct.image || undefined,
+        is_active: nextProduct.isActive !== false,
         is_popular: nextProduct.isPopular || false,
         is_vegetarian: nextProduct.isVegetarian || false,
         is_customizable: nextProduct.isCustomizable || false,
+        is_new: nextProduct.isNew || false,
       };
 
       const { error } = await (supabase as any)
         .from('products')
-        .upsert(dataToSave, { onConflict: 'id' });
+        .upsert({
+          id: nextProduct.id,
+          name: nextProduct.name,
+          data: dataJson,
+        }, { onConflict: 'id' });
 
       if (error) {
         toast.error('Erro ao salvar produto no banco');
