@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import type { Product } from "@/data/products";
 import { categoryLabels } from "@/data/products";
 import { useCatalogStore } from "@/store/useCatalogStore";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 import {
   Dialog,
@@ -90,7 +92,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
     return Number.isFinite(n) && n > 0 ? n : undefined;
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const trimmed = name.trim();
     if (!trimmed) return;
 
@@ -108,7 +110,44 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
       priceLarge: isPizzaCategory ? toNumberOrUndefined(priceLarge) : undefined,
     };
 
+    // Atualizar estado local (Zustand)
     upsertProduct(nextProduct);
+
+    // Salvar no Supabase
+    try {
+      const dataToSave = {
+        id: nextProduct.id,
+        name: nextProduct.name,
+        description: nextProduct.description,
+        category: nextProduct.category,
+        price: nextProduct.price || nextProduct.priceSmall || 0,
+        price_small: nextProduct.priceSmall || null,
+        price_large: nextProduct.priceLarge || null,
+        ingredients: nextProduct.ingredients || [],
+        image: nextProduct.image || '',
+        is_active: nextProduct.isActive,
+        is_popular: nextProduct.isPopular || false,
+        is_vegetarian: nextProduct.isVegetarian || false,
+        is_customizable: nextProduct.isCustomizable || false,
+      };
+
+      const { error } = await (supabase as any)
+        .from('products')
+        .upsert(dataToSave, { onConflict: 'id' });
+
+      if (error) {
+        toast.error('Erro ao salvar produto no banco');
+        console.error('Erro Supabase:', error);
+        return;
+      }
+
+      toast.success(isEdit ? 'Produto atualizado!' : 'Produto criado!');
+    } catch (error) {
+      toast.error('Erro ao salvar produto');
+      console.error(error);
+      return;
+    }
+
     reset();
     onOpenChange(false);
   };
