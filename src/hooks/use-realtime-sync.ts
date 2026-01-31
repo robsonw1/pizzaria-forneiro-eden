@@ -7,11 +7,82 @@ import { useSettingsStore } from '@/store/useSettingsStore';
 import type { Product, Order, Neighborhood } from '@/data/products';
 
 /**
+ * Converte os dados do Supabase (JSON) para o formato Product esperado
+ */
+const parseProductFromSupabase = (supabaseData: any): Product => {
+  const data = supabaseData.data || {};
+  return {
+    id: supabaseData.id,
+    name: supabaseData.name || data.name,
+    description: data.description || '',
+    ingredients: data.ingredients || [],
+    category: data.category || 'combos',
+    price: data.price || undefined,
+    priceSmall: data.price_small || undefined,
+    priceLarge: data.price_large || undefined,
+    image: data.image,
+    isPopular: data.is_popular || false,
+    isNew: data.is_new || false,
+    isVegetarian: data.is_vegetarian || false,
+    isActive: data.is_active !== false,
+    isCustomizable: data.is_customizable || false,
+  };
+};
+
+/**
  * Hook que sincroniza os dados da aplicação com o Supabase em tempo real
- * Escuta mudanças em produtos, pedidos, bairros e configurações
+ * Carrega os dados iniciais e escuta mudanças em produtos, pedidos, bairros e configurações
  */
 export const useRealtimeSync = () => {
   useEffect(() => {
+    // Função para carregar dados iniciais
+    const loadInitialData = async () => {
+      try {
+        // Adicionar pequeno delay para garantir que o store foi inicializado com localStorage
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // Carregar produtos
+        const { data: products } = await (supabase as any)
+          .from('products')
+          .select('*');
+        
+        if (products) {
+          const catalogStore = useCatalogStore.getState();
+          for (const product of products) {
+            catalogStore.upsertProduct(parseProductFromSupabase(product));
+          }
+        }
+
+        // Carregar settings
+        const { data: settings } = await (supabase as any)
+          .from('settings')
+          .select('*');
+        
+        if (settings) {
+          const settingsStore = useSettingsStore.getState();
+          for (const setting of settings) {
+            settingsStore.setSetting((setting as any).key as any, (setting as any).value);
+          }
+        }
+
+        // Carregar bairros
+        const { data: neighborhoods } = await (supabase as any)
+          .from('neighborhoods')
+          .select('*');
+        
+        if (neighborhoods) {
+          const neighborhoodsStore = useNeighborhoodsStore.getState();
+          for (const neighborhood of neighborhoods) {
+            neighborhoodsStore.upsertNeighborhood(neighborhood as Neighborhood);
+          }
+        }
+      } catch (error) {
+        console.error('Erro ao carregar dados iniciais:', error);
+      }
+    };
+
+    loadInitialData();
+
     // Sincronizar Produtos (Catálogo)
     const productsChannel = supabase
       .channel('products')
@@ -22,9 +93,11 @@ export const useRealtimeSync = () => {
           const catalogStore = useCatalogStore.getState();
           
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-            catalogStore.upsertProduct(payload.new as Product);
+            const product = parseProductFromSupabase(payload.new);
+            catalogStore.upsertProduct(product);
           } else if (payload.eventType === 'DELETE') {
-            catalogStore.removeProduct((payload.old as Product).id);
+            const oldProduct = payload.old as any;
+            catalogStore.removeProduct(oldProduct.id);
           }
         }
       )
