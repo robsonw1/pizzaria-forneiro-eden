@@ -303,25 +303,75 @@ const AdminDashboard = () => {
   const handleSaveSettings = async () => {
     updateSettings(settingsForm);
     
-    // Salvar cada setting no Supabase
+    // Salvar settings no Supabase com otimização
     try {
-      const settingsToSave = [
-        { key: 'name', value: settingsForm.name },
-        { key: 'phone', value: settingsForm.phone },
-        { key: 'address', value: settingsForm.address },
-        { key: 'slogan', value: settingsForm.slogan },
-        { key: 'schedule', value: settingsForm.schedule },
-        { key: 'deliveryTimeMin', value: settingsForm.deliveryTimeMin },
-        { key: 'deliveryTimeMax', value: settingsForm.deliveryTimeMax },
-        { key: 'pickupTimeMin', value: settingsForm.pickupTimeMin },
-        { key: 'pickupTimeMax', value: settingsForm.pickupTimeMax },
-        { key: 'isManuallyOpen', value: settingsForm.isManuallyOpen },
-      ];
+      // Criar array de updates para fazer batch
+      const updates = [];
+      
+      if (settingsForm.name !== settings.name) {
+        updates.push(async () => (supabase as any).from('settings').upsert(
+          { key: 'name', value: settingsForm.name }, 
+          { onConflict: 'key' }
+        ));
+      }
+      if (settingsForm.phone !== settings.phone) {
+        updates.push(async () => (supabase as any).from('settings').upsert(
+          { key: 'phone', value: settingsForm.phone }, 
+          { onConflict: 'key' }
+        ));
+      }
+      if (settingsForm.address !== settings.address) {
+        updates.push(async () => (supabase as any).from('settings').upsert(
+          { key: 'address', value: settingsForm.address }, 
+          { onConflict: 'key' }
+        ));
+      }
+      if (settingsForm.slogan !== settings.slogan) {
+        updates.push(async () => (supabase as any).from('settings').upsert(
+          { key: 'slogan', value: settingsForm.slogan }, 
+          { onConflict: 'key' }
+        ));
+      }
+      if (JSON.stringify(settingsForm.schedule) !== JSON.stringify(settings.schedule)) {
+        updates.push(async () => (supabase as any).from('settings').upsert(
+          { key: 'schedule', value: settingsForm.schedule }, 
+          { onConflict: 'key' }
+        ));
+      }
+      if (settingsForm.deliveryTimeMin !== settings.deliveryTimeMin) {
+        updates.push(async () => (supabase as any).from('settings').upsert(
+          { key: 'deliveryTimeMin', value: settingsForm.deliveryTimeMin }, 
+          { onConflict: 'key' }
+        ));
+      }
+      if (settingsForm.deliveryTimeMax !== settings.deliveryTimeMax) {
+        updates.push(async () => (supabase as any).from('settings').upsert(
+          { key: 'deliveryTimeMax', value: settingsForm.deliveryTimeMax }, 
+          { onConflict: 'key' }
+        ));
+      }
+      if (settingsForm.pickupTimeMin !== settings.pickupTimeMin) {
+        updates.push(async () => (supabase as any).from('settings').upsert(
+          { key: 'pickupTimeMin', value: settingsForm.pickupTimeMin }, 
+          { onConflict: 'key' }
+        ));
+      }
+      if (settingsForm.pickupTimeMax !== settings.pickupTimeMax) {
+        updates.push(async () => (supabase as any).from('settings').upsert(
+          { key: 'pickupTimeMax', value: settingsForm.pickupTimeMax }, 
+          { onConflict: 'key' }
+        ));
+      }
+      if (settingsForm.isManuallyOpen !== settings.isManuallyOpen) {
+        updates.push(async () => (supabase as any).from('settings').upsert(
+          { key: 'isManuallyOpen', value: settingsForm.isManuallyOpen }, 
+          { onConflict: 'key' }
+        ));
+      }
 
-      for (const setting of settingsToSave) {
-        await (supabase as any)
-          .from('settings')
-          .upsert({ key: setting.key, value: setting.value }, { onConflict: 'key' });
+      // Executar apenas as atualizações necessárias
+      for (const update of updates) {
+        await update();
       }
 
       toast.success('Configurações salvas com sucesso!');
