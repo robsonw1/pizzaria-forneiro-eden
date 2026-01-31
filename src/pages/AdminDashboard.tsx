@@ -221,12 +221,28 @@ const AdminDashboard = () => {
       updateSettings({ ...settingsForm, schedule: newSchedule });
 
       // Salvar no Supabase
-      await (supabase as any)
+      const { error } = await (supabase as any)
         .from('settings')
-        .upsert({
-          key: 'schedule',
-          value: newSchedule,
-        }, { onConflict: 'key' });
+        .update({ 
+          value: {
+            name: settingsForm.name,
+            phone: settingsForm.phone,
+            address: settingsForm.address,
+            slogan: settingsForm.slogan,
+            schedule: newSchedule,
+            deliveryTimeMin: settingsForm.deliveryTimeMin,
+            deliveryTimeMax: settingsForm.deliveryTimeMax,
+            pickupTimeMin: settingsForm.pickupTimeMin,
+            pickupTimeMax: settingsForm.pickupTimeMax,
+            isManuallyOpen: settingsForm.isManuallyOpen,
+          }
+        })
+        .eq('id', 'store-settings');
+
+      if (error) {
+        console.error('Erro ao sincronizar horário:', error);
+        toast.error('Erro ao salvar horário');
+      }
     } catch (error) {
       console.error('Erro ao sincronizar horário:', error);
       toast.error('Erro ao salvar horário');
@@ -241,12 +257,28 @@ const AdminDashboard = () => {
       updateSettings({ ...settingsForm, isManuallyOpen: newState });
 
       // Salvar no Supabase
-      await (supabase as any)
+      const { error } = await (supabase as any)
         .from('settings')
-        .upsert({
-          key: 'isManuallyOpen',
-          value: newState,
-        }, { onConflict: 'key' });
+        .update({ 
+          value: {
+            name: settingsForm.name,
+            phone: settingsForm.phone,
+            address: settingsForm.address,
+            slogan: settingsForm.slogan,
+            schedule: settingsForm.schedule,
+            deliveryTimeMin: settingsForm.deliveryTimeMin,
+            deliveryTimeMax: settingsForm.deliveryTimeMax,
+            pickupTimeMin: settingsForm.pickupTimeMin,
+            pickupTimeMax: settingsForm.pickupTimeMax,
+            isManuallyOpen: newState,
+          }
+        })
+        .eq('id', 'store-settings');
+
+      if (error) {
+        console.error('Erro ao sincronizar status da loja:', error);
+        toast.error('Erro ao atualizar status da loja');
+      }
     } catch (error) {
       console.error('Erro ao sincronizar status da loja:', error);
       toast.error('Erro ao atualizar status da loja');
@@ -305,74 +337,33 @@ const AdminDashboard = () => {
     updateSettings(settingsForm);
     
     try {
-      const updates = [];
-      
-      // Salvar apenas os campos que mudaram - usar UPDATE ao invés de UPSERT
-      if (settingsForm.name !== settings.name) {
-        updates.push(
-          (supabase as any).from('settings').update({ value: settingsForm.name }).eq('key', 'name')
-        );
-      }
-      if (settingsForm.phone !== settings.phone) {
-        updates.push(
-          (supabase as any).from('settings').update({ value: settingsForm.phone }).eq('key', 'phone')
-        );
-      }
-      if (settingsForm.address !== settings.address) {
-        updates.push(
-          (supabase as any).from('settings').update({ value: settingsForm.address }).eq('key', 'address')
-        );
-      }
-      if (settingsForm.slogan !== settings.slogan) {
-        updates.push(
-          (supabase as any).from('settings').update({ value: settingsForm.slogan }).eq('key', 'slogan')
-        );
-      }
-      if (JSON.stringify(settingsForm.schedule) !== JSON.stringify(settings.schedule)) {
-        updates.push(
-          (supabase as any).from('settings').update({ value: settingsForm.schedule }).eq('key', 'schedule')
-        );
-      }
-      if (settingsForm.deliveryTimeMin !== settings.deliveryTimeMin) {
-        updates.push(
-          (supabase as any).from('settings').update({ value: settingsForm.deliveryTimeMin }).eq('key', 'deliveryTimeMin')
-        );
-      }
-      if (settingsForm.deliveryTimeMax !== settings.deliveryTimeMax) {
-        updates.push(
-          (supabase as any).from('settings').update({ value: settingsForm.deliveryTimeMax }).eq('key', 'deliveryTimeMax')
-        );
-      }
-      if (settingsForm.pickupTimeMin !== settings.pickupTimeMin) {
-        updates.push(
-          (supabase as any).from('settings').update({ value: settingsForm.pickupTimeMin }).eq('key', 'pickupTimeMin')
-        );
-      }
-      if (settingsForm.pickupTimeMax !== settings.pickupTimeMax) {
-        updates.push(
-          (supabase as any).from('settings').update({ value: settingsForm.pickupTimeMax }).eq('key', 'pickupTimeMax')
-        );
-      }
-      if (settingsForm.isManuallyOpen !== settings.isManuallyOpen) {
-        updates.push(
-          (supabase as any).from('settings').update({ value: settingsForm.isManuallyOpen }).eq('key', 'isManuallyOpen')
-        );
+      // Preparar o objeto completo de settings para salvar
+      const settingsObject = {
+        name: settingsForm.name,
+        phone: settingsForm.phone,
+        address: settingsForm.address,
+        slogan: settingsForm.slogan,
+        schedule: settingsForm.schedule,
+        deliveryTimeMin: settingsForm.deliveryTimeMin,
+        deliveryTimeMax: settingsForm.deliveryTimeMax,
+        pickupTimeMin: settingsForm.pickupTimeMin,
+        pickupTimeMax: settingsForm.pickupTimeMax,
+        isManuallyOpen: settingsForm.isManuallyOpen,
+      };
+
+      // Salvar como um único objeto JSON na tabela settings
+      const { error } = await (supabase as any)
+        .from('settings')
+        .update({ value: settingsObject })
+        .eq('id', 'store-settings');
+
+      if (error) {
+        console.error('❌ Erro ao salvar settings:', error);
+        toast.error('Erro ao salvar configurações');
+        return;
       }
 
-      // Executar todos os updates em paralelo
-      if (updates.length > 0) {
-        const results = await Promise.all(updates);
-        
-        // Verificar erros
-        const errors = results.filter((r: any) => r.error);
-        if (errors.length > 0) {
-          console.error('❌ Erros ao salvar:', errors);
-          toast.error('Erro ao salvar algumas configurações');
-          return;
-        }
-      }
-
-      console.log('✅ Configurações salvas com sucesso no Supabase');
+      console.log('✅ Configurações salvas com sucesso no Supabase:', settingsObject);
       toast.success('Configurações salvas com sucesso!');
     } catch (error) {
       console.error('❌ Erro ao salvar settings:', error);
