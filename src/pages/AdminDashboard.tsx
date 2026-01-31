@@ -307,63 +307,72 @@ const AdminDashboard = () => {
     try {
       const updates = [];
       
-      // Salvar apenas os campos que mudaram
+      // Salvar apenas os campos que mudaram - usar UPDATE ao invés de UPSERT
       if (settingsForm.name !== settings.name) {
         updates.push(
-          (supabase as any).from('settings').upsert({ key: 'name', value: settingsForm.name })
+          (supabase as any).from('settings').update({ value: settingsForm.name }).eq('key', 'name')
         );
       }
       if (settingsForm.phone !== settings.phone) {
         updates.push(
-          (supabase as any).from('settings').upsert({ key: 'phone', value: settingsForm.phone })
+          (supabase as any).from('settings').update({ value: settingsForm.phone }).eq('key', 'phone')
         );
       }
       if (settingsForm.address !== settings.address) {
         updates.push(
-          (supabase as any).from('settings').upsert({ key: 'address', value: settingsForm.address })
+          (supabase as any).from('settings').update({ value: settingsForm.address }).eq('key', 'address')
         );
       }
       if (settingsForm.slogan !== settings.slogan) {
         updates.push(
-          (supabase as any).from('settings').upsert({ key: 'slogan', value: settingsForm.slogan })
+          (supabase as any).from('settings').update({ value: settingsForm.slogan }).eq('key', 'slogan')
         );
       }
       if (JSON.stringify(settingsForm.schedule) !== JSON.stringify(settings.schedule)) {
         updates.push(
-          (supabase as any).from('settings').upsert({ key: 'schedule', value: settingsForm.schedule })
+          (supabase as any).from('settings').update({ value: settingsForm.schedule }).eq('key', 'schedule')
         );
       }
       if (settingsForm.deliveryTimeMin !== settings.deliveryTimeMin) {
         updates.push(
-          (supabase as any).from('settings').upsert({ key: 'deliveryTimeMin', value: settingsForm.deliveryTimeMin })
+          (supabase as any).from('settings').update({ value: settingsForm.deliveryTimeMin }).eq('key', 'deliveryTimeMin')
         );
       }
       if (settingsForm.deliveryTimeMax !== settings.deliveryTimeMax) {
         updates.push(
-          (supabase as any).from('settings').upsert({ key: 'deliveryTimeMax', value: settingsForm.deliveryTimeMax })
+          (supabase as any).from('settings').update({ value: settingsForm.deliveryTimeMax }).eq('key', 'deliveryTimeMax')
         );
       }
       if (settingsForm.pickupTimeMin !== settings.pickupTimeMin) {
         updates.push(
-          (supabase as any).from('settings').upsert({ key: 'pickupTimeMin', value: settingsForm.pickupTimeMin })
+          (supabase as any).from('settings').update({ value: settingsForm.pickupTimeMin }).eq('key', 'pickupTimeMin')
         );
       }
       if (settingsForm.pickupTimeMax !== settings.pickupTimeMax) {
         updates.push(
-          (supabase as any).from('settings').upsert({ key: 'pickupTimeMax', value: settingsForm.pickupTimeMax })
+          (supabase as any).from('settings').update({ value: settingsForm.pickupTimeMax }).eq('key', 'pickupTimeMax')
         );
       }
       if (settingsForm.isManuallyOpen !== settings.isManuallyOpen) {
         updates.push(
-          (supabase as any).from('settings').upsert({ key: 'isManuallyOpen', value: settingsForm.isManuallyOpen })
+          (supabase as any).from('settings').update({ value: settingsForm.isManuallyOpen }).eq('key', 'isManuallyOpen')
         );
       }
 
       // Executar todos os updates em paralelo
       if (updates.length > 0) {
-        await Promise.all(updates);
+        const results = await Promise.all(updates);
+        
+        // Verificar erros
+        const errors = results.filter((r: any) => r.error);
+        if (errors.length > 0) {
+          console.error('❌ Erros ao salvar:', errors);
+          toast.error('Erro ao salvar algumas configurações');
+          return;
+        }
       }
 
+      console.log('✅ Configurações salvas com sucesso no Supabase');
       toast.success('Configurações salvas com sucesso!');
     } catch (error) {
       console.error('❌ Erro ao salvar settings:', error);
