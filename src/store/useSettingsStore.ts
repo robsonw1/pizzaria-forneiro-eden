@@ -73,92 +73,84 @@ const defaultSettings: StoreSettings = {
 
 const dayNames: (keyof WeekSchedule)[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
-export const useSettingsStore = create<SettingsStore>()(
-  persist(
-    (set, get) => ({
-      settings: defaultSettings,
+export const useSettingsStore = create<SettingsStore>((set, get) => ({
+  settings: defaultSettings,
 
-      updateSettings: (newSettings) =>
-        set((state) => ({
-          settings: { ...state.settings, ...newSettings },
-        })),
+  updateSettings: (newSettings) =>
+    set((state) => ({
+      settings: { ...state.settings, ...newSettings },
+    })),
 
-      setSetting: (key, value) =>
-        set((state) => ({
-          settings: { ...state.settings, [key]: value },
-        })),
+  setSetting: (key, value) =>
+    set((state) => ({
+      settings: { ...state.settings, [key]: value },
+    })),
 
-      updateDaySchedule: (day, schedule) =>
-        set((state) => ({
-          settings: {
-            ...state.settings,
-            schedule: {
-              ...state.settings.schedule,
-              [day]: { ...state.settings.schedule[day], ...schedule },
-            },
-          },
-        })),
-
-      toggleManualOpen: () =>
-        set((state) => ({
-          settings: { ...state.settings, isManuallyOpen: !state.settings.isManuallyOpen },
-        })),
-
-      changePassword: (currentPassword, newPassword) => {
-        const { settings } = get();
-        if (currentPassword !== settings.adminPassword) {
-          return { success: false, message: 'Senha atual incorreta' };
-        }
-        if (newPassword.length < 6) {
-          return { success: false, message: 'A nova senha deve ter pelo menos 6 caracteres' };
-        }
-        set((state) => ({
-          settings: { ...state.settings, adminPassword: newPassword },
-        }));
-        return { success: true, message: 'Senha alterada com sucesso!' };
+  updateDaySchedule: (day, schedule) =>
+    set((state) => ({
+      settings: {
+        ...state.settings,
+        schedule: {
+          ...state.settings.schedule,
+          [day]: { ...state.settings.schedule[day], ...schedule },
+        },
       },
+    })),
 
-      isStoreOpen: () => {
-        const { settings } = get();
-        
-        // If manually closed, store is closed
-        if (!settings.isManuallyOpen) {
-          return false;
-        }
+  toggleManualOpen: () =>
+    set((state) => ({
+      settings: { ...state.settings, isManuallyOpen: !state.settings.isManuallyOpen },
+    })),
 
-        const now = new Date();
-        const currentDay = dayNames[now.getDay()];
-        const daySchedule = settings.schedule[currentDay];
-
-        // If day is marked as closed
-        if (!daySchedule.isOpen) {
-          return false;
-        }
-
-        // Check current time against schedule
-        const currentHour = now.getHours();
-        const currentMinute = now.getMinutes();
-        const currentTime = currentHour * 60 + currentMinute;
-
-        const [openHour, openMinute] = daySchedule.openTime.split(':').map(Number);
-        const [closeHour, closeMinute] = daySchedule.closeTime.split(':').map(Number);
-        
-        const openTime = openHour * 60 + openMinute;
-        let closeTime = closeHour * 60 + closeMinute;
-        
-        // Handle closing time past midnight (e.g., 00:00 means midnight)
-        if (closeTime <= openTime) {
-          closeTime += 24 * 60; // Add 24 hours
-          const adjustedCurrentTime = currentTime < openTime ? currentTime + 24 * 60 : currentTime;
-          return adjustedCurrentTime >= openTime && adjustedCurrentTime < closeTime;
-        }
-
-        return currentTime >= openTime && currentTime < closeTime;
-      },
-    }),
-    {
-      name: 'forneiro-eden-settings',
-      version: 3,
+  changePassword: (currentPassword, newPassword) => {
+    const { settings } = get();
+    if (currentPassword !== settings.adminPassword) {
+      return { success: false, message: 'Senha atual incorreta' };
     }
-  )
-);
+    if (newPassword.length < 6) {
+      return { success: false, message: 'A nova senha deve ter pelo menos 6 caracteres' };
+    }
+    set((state) => ({
+      settings: { ...state.settings, adminPassword: newPassword },
+    }));
+    return { success: true, message: 'Senha alterada com sucesso!' };
+  },
+
+  isStoreOpen: () => {
+    const { settings } = get();
+    
+    // If manually closed, store is closed
+    if (!settings.isManuallyOpen) {
+      return false;
+    }
+
+    const now = new Date();
+    const currentDay = dayNames[now.getDay()];
+    const daySchedule = settings.schedule[currentDay];
+
+    // If day is marked as closed
+    if (!daySchedule.isOpen) {
+      return false;
+    }
+
+    // Check current time against schedule
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+    const currentTime = currentHour * 60 + currentMinute;
+
+    const [openHour, openMinute] = daySchedule.openTime.split(':').map(Number);
+    const [closeHour, closeMinute] = daySchedule.closeTime.split(':').map(Number);
+    
+    const openTime = openHour * 60 + openMinute;
+    let closeTime = closeHour * 60 + closeMinute;
+    
+    // Handle closing time past midnight (e.g., 00:00 means midnight)
+    if (closeTime <= openTime) {
+      closeTime += 24 * 60; // Add 24 hours
+      const adjustedCurrentTime = currentTime < openTime ? currentTime + 24 * 60 : currentTime;
+      return adjustedCurrentTime >= openTime && adjustedCurrentTime < closeTime;
+    }
+
+    return currentTime >= openTime && currentTime < closeTime;
+  },
+}));
