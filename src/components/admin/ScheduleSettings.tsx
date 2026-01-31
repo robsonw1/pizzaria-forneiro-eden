@@ -26,13 +26,28 @@ const dayOrder: (keyof WeekSchedule)[] = [
   'sunday',
 ];
 
-export function ScheduleSettings() {
+interface ScheduleSettingsProps {
+  onScheduleChange?: (day: keyof WeekSchedule, updates: any) => void;
+  onManualOpenToggle?: () => void;
+}
+
+export function ScheduleSettings({ onScheduleChange, onManualOpenToggle }: ScheduleSettingsProps) {
   const settings = useSettingsStore((s) => s.settings);
   const updateDaySchedule = useSettingsStore((s) => s.updateDaySchedule);
   const toggleManualOpen = useSettingsStore((s) => s.toggleManualOpen);
   const isStoreOpen = useSettingsStore((s) => s.isStoreOpen);
 
   const storeOpen = isStoreOpen();
+
+  const handleDayScheduleChange = (day: keyof WeekSchedule, updates: any) => {
+    updateDaySchedule(day, updates);
+    onScheduleChange?.(day, updates);
+  };
+
+  const handleManualOpenToggle = () => {
+    toggleManualOpen();
+    onManualOpenToggle?.();
+  };
 
   return (
     <div className="space-y-6">
@@ -58,7 +73,7 @@ export function ScheduleSettings() {
           <Button
             variant={settings.isManuallyOpen ? 'destructive' : 'default'}
             size="sm"
-            onClick={toggleManualOpen}
+            onClick={handleManualOpenToggle}
           >
             {settings.isManuallyOpen ? 'Fechar Loja' : 'Abrir Loja'}
           </Button>
@@ -81,10 +96,10 @@ export function ScheduleSettings() {
                 schedule.isOpen ? 'bg-card' : 'bg-secondary/30 opacity-60'
               }`}
             >
-              <div className="flex items-center gap-4 flex-1">
+        <div className="flex items-center gap-4 flex-1">
                 <Switch
                   checked={schedule.isOpen}
-                  onCheckedChange={(checked) => updateDaySchedule(day, { isOpen: checked })}
+                  onCheckedChange={(checked) => handleDayScheduleChange(day, { isOpen: checked })}
                 />
                 <span className="font-medium w-32">{dayLabels[day]}</span>
               </div>
@@ -94,14 +109,14 @@ export function ScheduleSettings() {
                   <Input
                     type="time"
                     value={schedule.openTime}
-                    onChange={(e) => updateDaySchedule(day, { openTime: e.target.value })}
+                    onChange={(e) => handleDayScheduleChange(day, { openTime: e.target.value })}
                     className="w-28"
                   />
                   <span className="text-muted-foreground">às</span>
                   <Input
                     type="time"
                     value={schedule.closeTime}
-                    onChange={(e) => updateDaySchedule(day, { closeTime: e.target.value })}
+                    onChange={(e) => handleDayScheduleChange(day, { closeTime: e.target.value })}
                     className="w-28"
                   />
                 </div>
