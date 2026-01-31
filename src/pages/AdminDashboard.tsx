@@ -142,6 +142,117 @@ const AdminDashboard = () => {
     }).format(price);
   };
 
+  // Ativar/Desativar Produto e sincronizar com Supabase
+  const handleToggleProductActive = async (productId: string) => {
+    const product = productsById[productId];
+    if (!product) return;
+
+    toggleActive(productId);
+
+    try {
+      const newActiveState = !product.isActive;
+      const dataJson = {
+        description: product.description,
+        category: product.category,
+        price: product.price || undefined,
+        price_small: product.priceSmall || null,
+        price_large: product.priceLarge || null,
+        ingredients: product.ingredients || [],
+        image: product.image || undefined,
+        is_active: newActiveState,
+        is_popular: product.isPopular || false,
+        is_vegetarian: product.isVegetarian || false,
+        is_customizable: product.isCustomizable || false,
+        is_new: product.isNew || false,
+      };
+
+      await (supabase as any)
+        .from('products')
+        .update({ data: dataJson })
+        .eq('id', productId);
+    } catch (error) {
+      console.error('Erro ao sincronizar ativação do produto:', error);
+      toast.error('Erro ao sincronizar produto');
+    }
+  };
+
+  // Atualizar Bairro e sincronizar com Supabase
+  const handleUpdateNeighborhood = async (neighborhoodId: string, updates: any) => {
+    updateNeighborhood(neighborhoodId, updates);
+
+    try {
+      await (supabase as any)
+        .from('neighborhoods')
+        .update(updates)
+        .eq('id', neighborhoodId);
+    } catch (error) {
+      console.error('Erro ao sincronizar bairro:', error);
+      toast.error('Erro ao sincronizar bairro');
+    }
+  };
+
+  // Ativar/Desativar Bairro e sincronizar com Supabase
+  const handleToggleNeighborhoodActive = async (neighborhoodId: string) => {
+    const neighborhood = neighborhoods.find(n => n.id === neighborhoodId);
+    if (!neighborhood) return;
+
+    toggleNeighborhoodActive(neighborhoodId);
+
+    try {
+      const newActiveState = !neighborhood.isActive;
+      await (supabase as any)
+        .from('neighborhoods')
+        .update({ isActive: newActiveState })
+        .eq('id', neighborhoodId);
+    } catch (error) {
+      console.error('Erro ao sincronizar ativação do bairro:', error);
+      toast.error('Erro ao sincronizar bairro');
+    }
+  };
+
+  // Atualizar horário e sincronizar com Supabase
+  const handleScheduleChange = async (day: any, updates: any) => {
+    try {
+      const newSchedule = {
+        ...settingsForm.schedule,
+        [day]: { ...settingsForm.schedule[day], ...updates },
+      };
+      setSettingsForm({ ...settingsForm, schedule: newSchedule });
+      updateSettings({ ...settingsForm, schedule: newSchedule });
+
+      // Salvar no Supabase
+      await (supabase as any)
+        .from('settings')
+        .upsert({
+          key: 'schedule',
+          value: newSchedule,
+        }, { onConflict: 'key' });
+    } catch (error) {
+      console.error('Erro ao sincronizar horário:', error);
+      toast.error('Erro ao salvar horário');
+    }
+  };
+
+  // Alternar aberto/fechado manualmente e sincronizar com Supabase
+  const handleManualOpenToggle = async () => {
+    try {
+      const newState = !settingsForm.isManuallyOpen;
+      setSettingsForm({ ...settingsForm, isManuallyOpen: newState });
+      updateSettings({ ...settingsForm, isManuallyOpen: newState });
+
+      // Salvar no Supabase
+      await (supabase as any)
+        .from('settings')
+        .upsert({
+          key: 'isManuallyOpen',
+          value: newState,
+        }, { onConflict: 'key' });
+    } catch (error) {
+      console.error('Erro ao sincronizar status da loja:', error);
+      toast.error('Erro ao atualizar status da loja');
+    }
+  };
+
   const allProducts: Product[] = useMemo(() => Object.values(productsById), [productsById]);
 
   const filteredProducts = useMemo(() => {
@@ -532,7 +643,7 @@ const AdminDashboard = () => {
                           <TableCell>
                             <Switch
                               checked={product.isActive}
-                              onCheckedChange={() => toggleActive(product.id)}
+                              onCheckedChange={() => handleToggleProductActive(product.id)}
                             />
                           </TableCell>
                           <TableCell>
@@ -703,7 +814,7 @@ const AdminDashboard = () => {
                             onChange={(e) => {
                               const value = parseFloat(e.target.value);
                               if (!isNaN(value) && value >= 0) {
-                                updateNeighborhood(nb.id, { deliveryFee: value });
+                                handleUpdateNeighborhood(nb.id, { deliveryFee: value });
                               }
                             }}
                           />
@@ -711,7 +822,7 @@ const AdminDashboard = () => {
                         <TableCell>
                           <Switch 
                             checked={nb.isActive} 
-                            onCheckedChange={() => toggleNeighborhoodActive(nb.id)}
+                            onCheckedChange={() => handleToggleNeighborhoodActive(nb.id)}
                           />
                         </TableCell>
                         <TableCell>
@@ -810,7 +921,10 @@ const AdminDashboard = () => {
 
                   <Separator />
 
-                  <ScheduleSettings />
+                  <ScheduleSettings 
+                    onScheduleChange={handleScheduleChange}
+                    onManualOpenToggle={handleManualOpenToggle}
+                  />
 
                   <Separator />
 
