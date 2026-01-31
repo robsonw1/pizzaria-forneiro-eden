@@ -189,9 +189,35 @@ const AdminDashboard = () => {
     });
   }, [orders, dateRange]);
 
-  const handleSaveSettings = () => {
+  const handleSaveSettings = async () => {
     updateSettings(settingsForm);
-    toast.success('Configurações salvas com sucesso!');
+    
+    // Salvar cada setting no Supabase
+    try {
+      const settingsToSave = [
+        { key: 'name', value: settingsForm.name },
+        { key: 'phone', value: settingsForm.phone },
+        { key: 'address', value: settingsForm.address },
+        { key: 'slogan', value: settingsForm.slogan },
+        { key: 'schedule', value: settingsForm.schedule },
+        { key: 'deliveryTimeMin', value: settingsForm.deliveryTimeMin },
+        { key: 'deliveryTimeMax', value: settingsForm.deliveryTimeMax },
+        { key: 'pickupTimeMin', value: settingsForm.pickupTimeMin },
+        { key: 'pickupTimeMax', value: settingsForm.pickupTimeMax },
+        { key: 'isManuallyOpen', value: settingsForm.isManuallyOpen },
+      ];
+
+      for (const setting of settingsToSave) {
+        await (supabase as any)
+          .from('settings')
+          .upsert({ key: setting.key, value: setting.value }, { onConflict: 'key' });
+      }
+
+      toast.success('Configurações salvas com sucesso!');
+    } catch (error) {
+      console.error('Erro ao salvar settings:', error);
+      toast.error('Erro ao salvar configurações');
+    }
   };
 
   const handleChangePassword = () => {
