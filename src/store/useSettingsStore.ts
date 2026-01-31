@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { supabase } from '@/integrations/supabase/client';
 
 export interface DaySchedule {
   isOpen: boolean;
@@ -24,7 +23,7 @@ interface StoreSettings {
   address: string;
   slogan: string;
   schedule: WeekSchedule;
-  isManuallyOpen: boolean;
+  isManuallyOpen: boolean; // Manual override for open/closed
   deliveryTimeMin: number;
   deliveryTimeMax: number;
   pickupTimeMin: number;
@@ -34,13 +33,11 @@ interface StoreSettings {
 
 interface SettingsStore {
   settings: StoreSettings;
-  isLoading: boolean;
-  isSynced: boolean;
-  updateSettings: (settings: Partial<StoreSettings>) => Promise<void>;
-  updateDaySchedule: (day: keyof WeekSchedule, schedule: Partial<DaySchedule>) => Promise<void>;
-  toggleManualOpen: () => Promise<void>;
+  updateSettings: (settings: Partial<StoreSettings>) => void;
+  setSetting: (key: keyof StoreSettings, value: any) => void;
+  updateDaySchedule: (day: keyof WeekSchedule, schedule: Partial<DaySchedule>) => void;
+  toggleManualOpen: () => void;
   changePassword: (currentPassword: string, newPassword: string) => { success: boolean; message: string };
-  syncFromSupabase: () => Promise<void>;
   isStoreOpen: () => boolean;
 }
 
@@ -80,31 +77,18 @@ export const useSettingsStore = create<SettingsStore>()(
   persist(
     (set, get) => ({
       settings: defaultSettings,
-      isLoading: false,
-      isSynced: false,
 
-      updateSettings: async (newSettings) => {
-        // Update local state
+      updateSettings: (newSettings) =>
         set((state) => ({
           settings: { ...state.settings, ...newSettings },
-        }));
+        })),
 
-        // Sync to Supabase
-        try {
-          await ((supabase as any)
-            .from('settings'))
-            .upsert({
-              id: 'store-settings',
-              key: 'store',
-              value: { ...get().settings },
-            });
-        } catch (err) {
-          console.error('Error saving settings:', err);
-        }
-      },
+      setSetting: (key, value) =>
+        set((state) => ({
+          settings: { ...state.settings, [key]: value },
+        })),
 
-      updateDaySchedule: async (day, schedule) => {
-        // Update local state
+      updateDaySchedule: (day, schedule) =>
         set((state) => ({
           settings: {
             ...state.settings,
@@ -113,41 +97,12 @@ export const useSettingsStore = create<SettingsStore>()(
               [day]: { ...state.settings.schedule[day], ...schedule },
             },
           },
-        }));
+        })),
 
-        // Sync to Supabase
-        try {
-          await ((supabase as any)
-            .from('settings'))
-            .upsert({
-              id: 'store-settings',
-              key: 'store',
-              value: { ...get().settings },
-            });
-        } catch (err) {
-          console.error('Error saving schedule:', err);
-        }
-      },
-
-      toggleManualOpen: async () => {
-        // Update local state
+      toggleManualOpen: () =>
         set((state) => ({
           settings: { ...state.settings, isManuallyOpen: !state.settings.isManuallyOpen },
-        }));
-
-        // Sync to Supabase
-        try {
-          await ((supabase as any)
-            .from('settings'))
-            .upsert({
-              id: 'store-settings',
-              key: 'store',
-              value: { ...get().settings },
-            });
-        } catch (err) {
-          console.error('Error toggling manual open:', err);
-        }
-      },
+        })),
 
       changePassword: (currentPassword, newPassword) => {
         const { settings } = get();
@@ -157,61 +112,16 @@ export const useSettingsStore = create<SettingsStore>()(
         if (newPassword.length < 6) {
           return { success: false, message: 'A nova senha deve ter pelo menos 6 caracteres' };
         }
-        
-        // Update locally and sync
         set((state) => ({
           settings: { ...state.settings, adminPassword: newPassword },
         }));
-
-        // Sync to Supabase (fire and forget)
-        try {
-          ((supabase as any)
-            .from('settings'))
-            .upsert({
-              id: 'store-settings',
-              key: 'store',
-              value: { ...get().settings },
-            });
-        } catch (err) {
-          console.error('Error saving password:', err);
-        }
-
         return { success: true, message: 'Senha alterada com sucesso!' };
-      },
-
-      syncFromSupabase: async () => {
-        set({ isLoading: true });
-        try {
-          const { data, error } = await ((supabase as any)
-            .from('settings'))
-            .select('value')
-            .eq('key', 'store')
-            .single();
-
-          if (error) {
-            console.error('Failed to sync settings:', error);
-            set({ isLoading: false });
-            return;
-          }
-
-          if (data && data.value) {
-            set({
-              settings: data.value as StoreSettings,
-              isSynced: true,
-              isLoading: false,
-            });
-          } else {
-            set({ isLoading: false });
-          }
-        } catch (err) {
-          console.error('Error syncing from Supabase:', err);
-          set({ isLoading: false });
-        }
       },
 
       isStoreOpen: () => {
         const { settings } = get();
-
+        
+        // If manually closed, store is closed
         if (!settings.isManuallyOpen) {
           return false;
         }
@@ -220,22 +130,25 @@ export const useSettingsStore = create<SettingsStore>()(
         const currentDay = dayNames[now.getDay()];
         const daySchedule = settings.schedule[currentDay];
 
+        // If day is marked as closed
         if (!daySchedule.isOpen) {
           return false;
         }
 
+        // Check current time against schedule
         const currentHour = now.getHours();
         const currentMinute = now.getMinutes();
         const currentTime = currentHour * 60 + currentMinute;
 
         const [openHour, openMinute] = daySchedule.openTime.split(':').map(Number);
         const [closeHour, closeMinute] = daySchedule.closeTime.split(':').map(Number);
-
+        
         const openTime = openHour * 60 + openMinute;
         let closeTime = closeHour * 60 + closeMinute;
-
+        
+        // Handle closing time past midnight (e.g., 00:00 means midnight)
         if (closeTime <= openTime) {
-          closeTime += 24 * 60;
+          closeTime += 24 * 60; // Add 24 hours
           const adjustedCurrentTime = currentTime < openTime ? currentTime + 24 * 60 : currentTime;
           return adjustedCurrentTime >= openTime && adjustedCurrentTime < closeTime;
         }
@@ -245,7 +158,7 @@ export const useSettingsStore = create<SettingsStore>()(
     }),
     {
       name: 'forneiro-eden-settings',
-      version: 4,
+      version: 3,
     }
   )
 );
