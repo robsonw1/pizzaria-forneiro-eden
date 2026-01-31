@@ -310,62 +310,52 @@ const AdminDashboard = () => {
       
       if (settingsForm.name !== settings.name) {
         updates.push(async () => (supabase as any).from('settings').upsert(
-          { key: 'name', value: settingsForm.name }, 
-          { onConflict: 'key' }
+          { key: 'name', value: settingsForm.name }
         ));
       }
       if (settingsForm.phone !== settings.phone) {
         updates.push(async () => (supabase as any).from('settings').upsert(
-          { key: 'phone', value: settingsForm.phone }, 
-          { onConflict: 'key' }
+          { key: 'phone', value: settingsForm.phone }
         ));
       }
       if (settingsForm.address !== settings.address) {
         updates.push(async () => (supabase as any).from('settings').upsert(
-          { key: 'address', value: settingsForm.address }, 
-          { onConflict: 'key' }
+          { key: 'address', value: settingsForm.address }
         ));
       }
       if (settingsForm.slogan !== settings.slogan) {
         updates.push(async () => (supabase as any).from('settings').upsert(
-          { key: 'slogan', value: settingsForm.slogan }, 
-          { onConflict: 'key' }
+          { key: 'slogan', value: settingsForm.slogan }
         ));
       }
       if (JSON.stringify(settingsForm.schedule) !== JSON.stringify(settings.schedule)) {
         updates.push(async () => (supabase as any).from('settings').upsert(
-          { key: 'schedule', value: settingsForm.schedule }, 
-          { onConflict: 'key' }
+          { key: 'schedule', value: settingsForm.schedule }
         ));
       }
       if (settingsForm.deliveryTimeMin !== settings.deliveryTimeMin) {
         updates.push(async () => (supabase as any).from('settings').upsert(
-          { key: 'deliveryTimeMin', value: settingsForm.deliveryTimeMin }, 
-          { onConflict: 'key' }
+          { key: 'deliveryTimeMin', value: settingsForm.deliveryTimeMin }
         ));
       }
       if (settingsForm.deliveryTimeMax !== settings.deliveryTimeMax) {
         updates.push(async () => (supabase as any).from('settings').upsert(
-          { key: 'deliveryTimeMax', value: settingsForm.deliveryTimeMax }, 
-          { onConflict: 'key' }
+          { key: 'deliveryTimeMax', value: settingsForm.deliveryTimeMax }
         ));
       }
       if (settingsForm.pickupTimeMin !== settings.pickupTimeMin) {
         updates.push(async () => (supabase as any).from('settings').upsert(
-          { key: 'pickupTimeMin', value: settingsForm.pickupTimeMin }, 
-          { onConflict: 'key' }
+          { key: 'pickupTimeMin', value: settingsForm.pickupTimeMin }
         ));
       }
       if (settingsForm.pickupTimeMax !== settings.pickupTimeMax) {
         updates.push(async () => (supabase as any).from('settings').upsert(
-          { key: 'pickupTimeMax', value: settingsForm.pickupTimeMax }, 
-          { onConflict: 'key' }
+          { key: 'pickupTimeMax', value: settingsForm.pickupTimeMax }
         ));
       }
       if (settingsForm.isManuallyOpen !== settings.isManuallyOpen) {
         updates.push(async () => (supabase as any).from('settings').upsert(
-          { key: 'isManuallyOpen', value: settingsForm.isManuallyOpen }, 
-          { onConflict: 'key' }
+          { key: 'isManuallyOpen', value: settingsForm.isManuallyOpen }
         ));
       }
 
