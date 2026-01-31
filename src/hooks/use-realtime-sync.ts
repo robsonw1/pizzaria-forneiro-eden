@@ -58,19 +58,17 @@ export const useRealtimeSync = () => {
         }
 
         // Carregar settings - IMPORTANTE: isso sobrescreve o localStorage
-        const { data: settings } = await (supabase as any)
+        const { data: settingsData } = await (supabase as any)
           .from('settings')
-          .select('*');
+          .select('value')
+          .eq('id', 'store-settings')
+          .single();
         
-        if (settings && settings.length > 0 && isMounted) {
+        if (settingsData?.value && isMounted) {
           const settingsStore = useSettingsStore.getState();
-          // Reconstruir o objeto de settings a partir dos dados do Supabase
-          const settingsData: any = {};
-          for (const setting of settings) {
-            settingsData[(setting as any).key] = (setting as any).value;
-          }
-          // Atualizar tudo de uma vez para sobrescrever localStorage
-          settingsStore.updateSettings(settingsData);
+          // O value já é um objeto com todos os settings
+          settingsStore.updateSettings(settingsData.value);
+          console.log('✅ Settings carregados do Supabase:', settingsData.value);
         }
 
         // Carregar bairros
@@ -168,22 +166,17 @@ export const useRealtimeSync = () => {
           console.log('⚡ Settings mudou no Supabase:', payload);
           
           try {
-            // Sempre recarregar TODOS os settings quando qualquer um muda
-            const { data: allSettings } = await (supabase as any)
+            // Recarregar os settings quando qualquer mudança ocorrer
+            const { data: settingsData } = await (supabase as any)
               .from('settings')
-              .select('*');
+              .select('value')
+              .eq('id', 'store-settings')
+              .single();
             
-            if (allSettings && allSettings.length > 0 && isMounted) {
+            if (settingsData?.value && isMounted) {
               const settingsStore = useSettingsStore.getState();
-              const settingsData: any = {};
-              
-              for (const setting of allSettings) {
-                settingsData[(setting as any).key] = (setting as any).value;
-              }
-              
-              // Atualizar com todos os dados
-              settingsStore.updateSettings(settingsData);
-              console.log('✅ Settings atualizado em tempo real:', settingsData);
+              settingsStore.updateSettings(settingsData.value);
+              console.log('✅ Settings atualizado em tempo real:', settingsData.value);
             }
           } catch (error) {
             console.error('❌ Erro ao sincronizar settings:', error);
