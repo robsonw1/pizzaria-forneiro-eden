@@ -304,109 +304,69 @@ const AdminDashboard = () => {
     // Atualizar o store localmente primeiro
     updateSettings(settingsForm);
     
-    // Salvar cada setting no Supabase individualmente
     try {
       const updates = [];
       
-      // Apenas salvar os campos que mudaram
+      // Salvar apenas os campos que mudaram
       if (settingsForm.name !== settings.name) {
         updates.push(
-          (supabase as any).from('settings').upsert(
-            { key: 'name', value: settingsForm.name },
-            { onConflict: 'key' }
-          )
+          (supabase as any).from('settings').upsert({ key: 'name', value: settingsForm.name })
         );
       }
       if (settingsForm.phone !== settings.phone) {
         updates.push(
-          (supabase as any).from('settings').upsert(
-            { key: 'phone', value: settingsForm.phone },
-            { onConflict: 'key' }
-          )
+          (supabase as any).from('settings').upsert({ key: 'phone', value: settingsForm.phone })
         );
       }
       if (settingsForm.address !== settings.address) {
         updates.push(
-          (supabase as any).from('settings').upsert(
-            { key: 'address', value: settingsForm.address },
-            { onConflict: 'key' }
-          )
+          (supabase as any).from('settings').upsert({ key: 'address', value: settingsForm.address })
         );
       }
       if (settingsForm.slogan !== settings.slogan) {
         updates.push(
-          (supabase as any).from('settings').upsert(
-            { key: 'slogan', value: settingsForm.slogan },
-            { onConflict: 'key' }
-          )
+          (supabase as any).from('settings').upsert({ key: 'slogan', value: settingsForm.slogan })
         );
       }
       if (JSON.stringify(settingsForm.schedule) !== JSON.stringify(settings.schedule)) {
         updates.push(
-          (supabase as any).from('settings').upsert(
-            { key: 'schedule', value: settingsForm.schedule },
-            { onConflict: 'key' }
-          )
+          (supabase as any).from('settings').upsert({ key: 'schedule', value: settingsForm.schedule })
         );
       }
       if (settingsForm.deliveryTimeMin !== settings.deliveryTimeMin) {
         updates.push(
-          (supabase as any).from('settings').upsert(
-            { key: 'deliveryTimeMin', value: settingsForm.deliveryTimeMin },
-            { onConflict: 'key' }
-          )
+          (supabase as any).from('settings').upsert({ key: 'deliveryTimeMin', value: settingsForm.deliveryTimeMin })
         );
       }
       if (settingsForm.deliveryTimeMax !== settings.deliveryTimeMax) {
         updates.push(
-          (supabase as any).from('settings').upsert(
-            { key: 'deliveryTimeMax', value: settingsForm.deliveryTimeMax },
-            { onConflict: 'key' }
-          )
+          (supabase as any).from('settings').upsert({ key: 'deliveryTimeMax', value: settingsForm.deliveryTimeMax })
         );
       }
       if (settingsForm.pickupTimeMin !== settings.pickupTimeMin) {
         updates.push(
-          (supabase as any).from('settings').upsert(
-            { key: 'pickupTimeMin', value: settingsForm.pickupTimeMin },
-            { onConflict: 'key' }
-          )
+          (supabase as any).from('settings').upsert({ key: 'pickupTimeMin', value: settingsForm.pickupTimeMin })
         );
       }
       if (settingsForm.pickupTimeMax !== settings.pickupTimeMax) {
         updates.push(
-          (supabase as any).from('settings').upsert(
-            { key: 'pickupTimeMax', value: settingsForm.pickupTimeMax },
-            { onConflict: 'key' }
-          )
+          (supabase as any).from('settings').upsert({ key: 'pickupTimeMax', value: settingsForm.pickupTimeMax })
         );
       }
       if (settingsForm.isManuallyOpen !== settings.isManuallyOpen) {
         updates.push(
-          (supabase as any).from('settings').upsert(
-            { key: 'isManuallyOpen', value: settingsForm.isManuallyOpen },
-            { onConflict: 'key' }
-          )
+          (supabase as any).from('settings').upsert({ key: 'isManuallyOpen', value: settingsForm.isManuallyOpen })
         );
       }
 
       // Executar todos os updates em paralelo
       if (updates.length > 0) {
-        const results = await Promise.all(updates);
-        
-        // Verificar se todos foram bem-sucedidos
-        const hasErrors = results.some((result: any) => result.error);
-        
-        if (hasErrors) {
-          console.error('Erro em alguns updates:', results);
-          toast.error('Erro ao salvar algumas configurações');
-          return;
-        }
+        await Promise.all(updates);
       }
 
       toast.success('Configurações salvas com sucesso!');
     } catch (error) {
-      console.error('Erro ao salvar settings:', error);
+      console.error('❌ Erro ao salvar settings:', error);
       toast.error('Erro ao salvar configurações');
     }
   };
