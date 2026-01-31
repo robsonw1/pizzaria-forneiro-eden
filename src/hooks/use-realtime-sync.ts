@@ -35,21 +35,22 @@ const parseProductFromSupabase = (supabaseData: any): Product => {
  */
 export const useRealtimeSync = () => {
   useEffect(() => {
-    // Flag para garantir que carregamos dados do Supabase mesmo que localStorage tenha dados
-    let isInitialLoadComplete = false;
+    let isMounted = true;
 
     // Função para carregar dados iniciais
     const loadInitialData = async () => {
+      if (!isMounted) return;
+      
       try {
         // Aumentar delay para garantir que localStorage foi carregado
-        await new Promise(resolve => setTimeout(resolve, 300));
+        await new Promise(resolve => setTimeout(resolve, 500));
 
         // Carregar produtos
         const { data: products } = await (supabase as any)
           .from('products')
           .select('*');
         
-        if (products) {
+        if (products && isMounted) {
           const catalogStore = useCatalogStore.getState();
           for (const product of products) {
             catalogStore.upsertProduct(parseProductFromSupabase(product));
@@ -61,7 +62,7 @@ export const useRealtimeSync = () => {
           .from('settings')
           .select('*');
         
-        if (settings && settings.length > 0) {
+        if (settings && settings.length > 0 && isMounted) {
           const settingsStore = useSettingsStore.getState();
           // Reconstruir o objeto de settings a partir dos dados do Supabase
           const settingsData: any = {};
@@ -77,17 +78,14 @@ export const useRealtimeSync = () => {
           .from('neighborhoods')
           .select('*');
         
-        if (neighborhoods) {
+        if (neighborhoods && isMounted) {
           const neighborhoodsStore = useNeighborhoodsStore.getState();
           for (const neighborhood of neighborhoods) {
             neighborhoodsStore.upsertNeighborhood(neighborhood as Neighborhood);
           }
         }
-
-        isInitialLoadComplete = true;
       } catch (error) {
         console.error('Erro ao carregar dados iniciais:', error);
-        isInitialLoadComplete = true;
       }
     };
 
@@ -95,11 +93,12 @@ export const useRealtimeSync = () => {
 
     // Sincronizar Produtos (Catálogo)
     const productsChannel = supabase
-      .channel('products')
+      .channel('realtime:products')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'products' },
         (payload) => {
+          if (!isMounted) return;
           const catalogStore = useCatalogStore.getState();
           
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
@@ -115,11 +114,12 @@ export const useRealtimeSync = () => {
 
     // Sincronizar Pedidos
     const ordersChannel = supabase
-      .channel('orders')
+      .channel('realtime:orders')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'orders' },
         (payload) => {
+          if (!isMounted) return;
           const ordersStore = useOrdersStore.getState();
           
           if (payload.eventType === 'INSERT') {
@@ -139,11 +139,12 @@ export const useRealtimeSync = () => {
 
     // Sincronizar Bairros
     const neighborhoodsChannel = supabase
-      .channel('neighborhoods')
+      .channel('realtime:neighborhoods')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'neighborhoods' },
         (payload) => {
+          if (!isMounted) return;
           const neighborhoodsStore = useNeighborhoodsStore.getState();
           
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
@@ -155,36 +156,47 @@ export const useRealtimeSync = () => {
       )
       .subscribe();
 
-    // Sincronizar Configurações
+    // Sincronizar Configurações - Escuta ANY mudança na tabela
     const settingsChannel = supabase
-      .channel('settings')
+      .channel('realtime:settings')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'settings' },
         async (payload) => {
-          const settingsStore = useSettingsStore.getState();
+          if (!isMounted) return;
           
-          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-            // Carregar todos os settings do banco para manter integridade dos dados
+          console.log('⚡ Settings mudou no Supabase:', payload);
+          
+          try {
+            // Sempre recarregar TODOS os settings quando qualquer um muda
             const { data: allSettings } = await (supabase as any)
               .from('settings')
               .select('*');
             
-            if (allSettings && allSettings.length > 0) {
+            if (allSettings && allSettings.length > 0 && isMounted) {
+              const settingsStore = useSettingsStore.getState();
               const settingsData: any = {};
+              
               for (const setting of allSettings) {
                 settingsData[(setting as any).key] = (setting as any).value;
               }
+              
               // Atualizar com todos os dados
               settingsStore.updateSettings(settingsData);
+              console.log('✅ Settings atualizado em tempo real:', settingsData);
             }
+          } catch (error) {
+            console.error('❌ Erro ao sincronizar settings:', error);
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Settings channel status:', status);
+      });
 
     // Cleanup: Desinscrever de todos os canais ao desmontar
     return () => {
+      isMounted = false;
       productsChannel.unsubscribe();
       ordersChannel.unsubscribe();
       neighborhoodsChannel.unsubscribe();
