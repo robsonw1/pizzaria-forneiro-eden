@@ -161,13 +161,23 @@ export const useRealtimeSync = () => {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'settings' },
-        (payload) => {
+        async (payload) => {
           const settingsStore = useSettingsStore.getState();
           
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-            const newData = payload.new as { key: string; value: any };
-            // Usar updateSettings para garantir que sobrescreve localStorage
-            settingsStore.updateSettings({ [newData.key]: newData.value });
+            // Carregar todos os settings do banco para manter integridade dos dados
+            const { data: allSettings } = await (supabase as any)
+              .from('settings')
+              .select('*');
+            
+            if (allSettings && allSettings.length > 0) {
+              const settingsData: any = {};
+              for (const setting of allSettings) {
+                settingsData[(setting as any).key] = (setting as any).value;
+              }
+              // Atualizar com todos os dados
+              settingsStore.updateSettings(settingsData);
+            }
           }
         }
       )
