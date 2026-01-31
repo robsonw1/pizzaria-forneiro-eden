@@ -35,11 +35,14 @@ const parseProductFromSupabase = (supabaseData: any): Product => {
  */
 export const useRealtimeSync = () => {
   useEffect(() => {
+    // Flag para garantir que carregamos dados do Supabase mesmo que localStorage tenha dados
+    let isInitialLoadComplete = false;
+
     // Função para carregar dados iniciais
     const loadInitialData = async () => {
       try {
-        // Adicionar pequeno delay para garantir que o store foi inicializado com localStorage
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // Aumentar delay para garantir que localStorage foi carregado
+        await new Promise(resolve => setTimeout(resolve, 300));
 
         // Carregar produtos
         const { data: products } = await (supabase as any)
@@ -53,16 +56,20 @@ export const useRealtimeSync = () => {
           }
         }
 
-        // Carregar settings
+        // Carregar settings - IMPORTANTE: isso sobrescreve o localStorage
         const { data: settings } = await (supabase as any)
           .from('settings')
           .select('*');
         
-        if (settings) {
+        if (settings && settings.length > 0) {
           const settingsStore = useSettingsStore.getState();
+          // Reconstruir o objeto de settings a partir dos dados do Supabase
+          const settingsData: any = {};
           for (const setting of settings) {
-            settingsStore.setSetting((setting as any).key as any, (setting as any).value);
+            settingsData[(setting as any).key] = (setting as any).value;
           }
+          // Atualizar tudo de uma vez para sobrescrever localStorage
+          settingsStore.updateSettings(settingsData);
         }
 
         // Carregar bairros
@@ -76,8 +83,11 @@ export const useRealtimeSync = () => {
             neighborhoodsStore.upsertNeighborhood(neighborhood as Neighborhood);
           }
         }
+
+        isInitialLoadComplete = true;
       } catch (error) {
         console.error('Erro ao carregar dados iniciais:', error);
+        isInitialLoadComplete = true;
       }
     };
 
@@ -156,7 +166,8 @@ export const useRealtimeSync = () => {
           
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
             const newData = payload.new as { key: string; value: any };
-            settingsStore.setSetting(newData.key as any, newData.value);
+            // Usar updateSettings para garantir que sobrescreve localStorage
+            settingsStore.updateSettings({ [newData.key]: newData.value });
           }
         }
       )
