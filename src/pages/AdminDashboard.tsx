@@ -147,8 +147,6 @@ const AdminDashboard = () => {
     const product = productsById[productId];
     if (!product) return;
 
-    toggleActive(productId);
-
     try {
       const newActiveState = !product.isActive;
       const dataJson = {
@@ -166,10 +164,21 @@ const AdminDashboard = () => {
         is_new: product.isNew || false,
       };
 
-      await (supabase as any)
+      // Atualizar no Supabase PRIMEIRO
+      const { error } = await (supabase as any)
         .from('products')
         .update({ data: dataJson })
         .eq('id', productId);
+
+      if (error) {
+        console.error('❌ Erro ao sincronizar produto:', error);
+        toast.error('Erro ao sincronizar produto');
+        return;
+      }
+
+      // Atualizar o store localmente também (o realtime vai sincronizar para todos)
+      toggleActive(productId);
+      console.log(`✅ Produto ${productId} atualizado: isActive = ${newActiveState}`);
     } catch (error) {
       console.error('Erro ao sincronizar ativação do produto:', error);
       toast.error('Erro ao sincronizar produto');
