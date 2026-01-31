@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Neighborhood } from '@/data/products';
 import { useNeighborhoodsStore } from '@/store/useNeighborhoodsStore';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 interface NeighborhoodFormDialogProps {
@@ -46,7 +47,7 @@ export function NeighborhoodFormDialog({
     }
   }, [open, neighborhood]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const trimmedName = name.trim();
     if (!trimmedName) {
       toast.error('Por favor, informe o nome do bairro');
@@ -59,20 +60,51 @@ export function NeighborhoodFormDialog({
       return;
     }
 
-    if (isEdit && neighborhood) {
-      updateNeighborhood(neighborhood.id, {
-        name: trimmedName,
-        deliveryFee: fee,
-        isActive,
-      });
-      toast.success('Bairro atualizado com sucesso!');
-    } else {
-      addNeighborhood({
-        name: trimmedName,
-        deliveryFee: fee,
-        isActive,
-      });
-      toast.success('Bairro adicionado com sucesso!');
+    try {
+      if (isEdit && neighborhood) {
+        updateNeighborhood(neighborhood.id, {
+          name: trimmedName,
+          deliveryFee: fee,
+          isActive,
+        });
+
+        // Salvar no Supabase
+        await (supabase as any)
+          .from('neighborhoods')
+          .update({
+            name: trimmedName,
+            delivery_fee: fee,
+            is_active: isActive,
+          })
+          .eq('id', neighborhood.id);
+
+        toast.success('Bairro atualizado com sucesso!');
+      } else {
+        const newNeighborhood = {
+          id: `neighborhood-${Date.now()}`,
+          name: trimmedName,
+          deliveryFee: fee,
+          isActive,
+        };
+
+        addNeighborhood(newNeighborhood);
+
+        // Salvar no Supabase
+        await (supabase as any)
+          .from('neighborhoods')
+          .insert({
+            id: newNeighborhood.id,
+            name: trimmedName,
+            delivery_fee: fee,
+            is_active: isActive,
+          });
+
+        toast.success('Bairro adicionado com sucesso!');
+      }
+    } catch (error) {
+      console.error('Erro ao salvar bairro:', error);
+      toast.error('Erro ao salvar bairro');
+      return;
     }
 
     onOpenChange(false);
