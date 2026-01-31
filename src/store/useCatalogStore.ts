@@ -47,20 +47,10 @@ export const useCatalogStore = create<CatalogState & CatalogActions>()(
         }),
 
       upsertProduct: (product) =>
-        set((state) => {
-          const existing = state.productsById[product.id];
-          // Se o produto já existe, preservar o isActive local (não deixar realtime sobrescrever)
-          // a menos que a mudança venha do Supabase e seja diferente
-          const isActiveLocal = existing?.isActive;
-          const finalProduct = existing 
-            ? { ...product, isActive: isActiveLocal !== undefined ? isActiveLocal : product.isActive }
-            : product;
-          
-          return {
-            ...state,
-            productsById: { ...state.productsById, [product.id]: finalProduct },
-          };
-        }),
+        set((state) => ({
+          ...state,
+          productsById: { ...state.productsById, [product.id]: product },
+        })),
 
       removeProduct: (id) =>
         set((state) => {
