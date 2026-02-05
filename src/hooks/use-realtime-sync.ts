@@ -43,7 +43,7 @@ export const useRealtimeSync = () => {
       
       try {
         // Delay mínimo para garantir que localStorage foi carregado
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await new Promise(resolve => setTimeout(resolve, 100));
 
         // Carregar produtos
         const { data: products } = await (supabase as any)
@@ -197,3 +197,4 @@ export const useRealtimeSync = () => {
     };
   }, []);
 };
+
