@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 
 type Props = {
   open: boolean;
@@ -51,6 +52,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
   const [price, setPrice] = useState<string>("");
   const [priceSmall, setPriceSmall] = useState<string>("");
   const [priceLarge, setPriceLarge] = useState<string>("");
+  const [isPopular, setIsPopular] = useState(false);
 
   const isPizzaCategory = useMemo(
     () =>
@@ -71,6 +73,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
     setName(product.name ?? "");
     setDescription(product.description ?? "");
     setCategory(product.category ?? "promocionais");
+    setIsPopular(product.isPopular ?? false);
 
     // Pre-fill price fields based on product type
     setPrice(product.price != null ? String(product.price) : "");
@@ -84,6 +87,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
     setCategory("promocionais");
     setPrice("");
     setPriceSmall("");
+    setIsPopular(false);
     setPriceLarge("");
   };
 
@@ -106,6 +110,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
       description: description.trim(),
       category,
       price: !isPizzaCategory ? toNumberOrUndefined(price) : undefined,
+      isPopular,
       priceSmall: isPizzaCategory ? toNumberOrUndefined(priceSmall) : undefined,
       priceLarge: isPizzaCategory ? toNumberOrUndefined(priceLarge) : undefined,
     };
@@ -121,7 +126,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
         price: nextProduct.price || undefined,
         price_small: nextProduct.priceSmall || null,
         price_large: nextProduct.priceLarge || null,
-        ingredients: nextProduct.ingredients || [],
+        ingredients:isPopular,
         image: nextProduct.image || undefined,
         is_active: nextProduct.isActive !== false,
         is_popular: nextProduct.isPopular || false,
@@ -237,6 +242,15 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
               />
             </div>
           )}
+
+          <div className="flex items-center justify-between">
+            <Label htmlFor="p-popular">Marcar como Popular</Label>
+            <Switch
+              id="p-popular"
+              checked={isPopular}
+              onCheckedChange={setIsPopular}
+            />
+          </div>
 
           <div className="flex items-center justify-end gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
