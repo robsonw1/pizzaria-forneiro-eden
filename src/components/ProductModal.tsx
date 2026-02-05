@@ -514,8 +514,8 @@ export function ProductModal() {
                         })}
                       </div>
                       {paidIngredients.length > 0 && (
-                        <div className="mt-4 p-3 bg-amber-50 rounded-lg border border-amber-200">
-                          <p className="text-sm font-medium mb-2">Extras selecionados:</p>
+                        <div className="mt-4 p-3 bg-primary/5 rounded-lg border border-primary/20">
+                          <p className="text-sm font-medium mb-2">Seus ingredientes adicionais:</p>
                           <div className="flex flex-wrap gap-1">
                             {paidIngredients.map(ing => {
                               const paidAdditional = adicionais.find(a => a.name === ing);
@@ -523,8 +523,8 @@ export function ProductModal() {
                               return (
                                 <Badge 
                                   key={ing} 
-                                  variant="outline" 
-                                  className="bg-amber-100 cursor-pointer hover:bg-destructive hover:text-destructive-foreground border-amber-300"
+                                  variant="secondary" 
+                                  className="cursor-pointer hover:bg-destructive hover:text-destructive-foreground"
                                   onClick={() => handlePaidIngredientToggle(ing)}
                                 >
                                   {ing} +{formatPrice(price)} ✕
