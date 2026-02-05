@@ -484,10 +484,10 @@ export function ProductModal() {
                               key={ingredient} 
                               className={`flex items-center space-x-2 p-2 rounded-lg border transition-colors ${
                                 isAlreadyFree
-                                  ? 'opacity-50 cursor-not-allowed bg-gray-50'
+                                  ? 'opacity-50 cursor-not-allowed bg-secondary/30 border-muted-foreground/20' 
                                   : isSelected 
-                                    ? 'bg-amber-50 border-amber-300' 
-                                    : 'hover:bg-secondary cursor-pointer'
+                                    ? 'bg-amber-950/40 border-amber-600/50' 
+                                    : 'hover:bg-secondary/50 cursor-pointer border-muted-foreground/30'
                               }`}
                               onClick={() => !isAlreadyFree && handlePaidIngredientToggle(ingredient)}
                             >
@@ -500,7 +500,7 @@ export function ProductModal() {
                               <div className="flex-1">
                                 <Label 
                                   htmlFor={`paid-ing-${ingredient}`} 
-                                  className={`text-sm ${isAlreadyFree ? 'cursor-not-allowed line-through' : 'cursor-pointer'}`}
+                                  className={`text-sm ${isAlreadyFree ? 'cursor-not-allowed line-through text-muted-foreground' : 'cursor-pointer'}`}
                                   title={isAlreadyFree ? 'Já incluído nos ingredientes gratuitos' : ''}
                                 >
                                   {ingredient}
