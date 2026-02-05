@@ -15,7 +15,7 @@ import { Switch } from '@/components/ui/switch';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useUIStore, useCartStore } from '@/store/useStore';
-import { bordas, adicionais, availableIngredients, Product, CartItem } from '@/data/products';
+import { bordas, adicionais, availableIngredients, meatIngredients, paidExtraIngredients, Product, CartItem } from '@/data/products';
 import { useCatalogStore } from '@/store/useCatalogStore';
 import { GlassWater, ChefHat } from 'lucide-react';
 import { Plus, Minus, Leaf, Star, Sparkles, ShoppingCart } from 'lucide-react';
@@ -46,6 +46,7 @@ export function ProductModal() {
   const [isPizza1HalfHalf, setIsPizza1HalfHalf] = useState(false);
   const [isPizza2HalfHalf, setIsPizza2HalfHalf] = useState(false);
   const [customIngredients, setCustomIngredients] = useState<string[]>([]);
+  const [paidIngredients, setPaidIngredients] = useState<string[]>([]);
 
   const allPizzas = useMemo(() => getAllPizzasFromCatalog(), [getAllPizzasFromCatalog]);
   const promotionalPizzas = useMemo(() => getPromotionalFromCatalog(), [getPromotionalFromCatalog]);
@@ -78,6 +79,7 @@ export function ProductModal() {
     setIsPizza1HalfHalf(false);
     setIsPizza2HalfHalf(false);
     setCustomIngredients([]);
+    setPaidIngredients([]);
   };
 
   const formatPrice = (price: number) => {
@@ -120,6 +122,14 @@ export function ProductModal() {
       if (extra?.price) total += extra.price;
     });
 
+    // Paid custom ingredients - busca preço do adicional correspondente
+    paidIngredients.forEach(ingredient => {
+      const paidAdditional = adicionais.find(a => a.name === ingredient);
+      if (paidAdditional?.price) {
+        total += paidAdditional.price;
+      }
+    });
+
     // Drink (only for non-combos - combos have free drink)
     if (!isCombo && selectedDrinkId && selectedDrinkId !== 'sem-bebida') {
       const drink = availableDrinks.find(d => d.id === selectedDrinkId);
@@ -136,12 +146,32 @@ export function ProductModal() {
   const pizzaCountForCombo = isComboFamilia ? 2 : (isComboCasal ? 1 : 0);
 
   const handleIngredientToggle = (ingredient: string) => {
+    // Check if meat is being selected (not allowed)
+    if (meatIngredients.includes(ingredient) && ingredient !== 'Frango Desfiado') {
+      toast.error('Carnes não podem ser adicionadas como ingredientes. Apenas frango é permitido!');
+      return;
+    }
+
     if (customIngredients.includes(ingredient)) {
       setCustomIngredients(customIngredients.filter(i => i !== ingredient));
     } else if (customIngredients.length < MAX_FREE_INGREDIENTS) {
       setCustomIngredients([...customIngredients, ingredient]);
     } else {
       toast.error(`Você pode escolher no máximo ${MAX_FREE_INGREDIENTS} ingredientes gratuitos`);
+    }
+  };
+
+  const handlePaidIngredientToggle = (ingredient: string) => {
+    // Only allow specific ingredients as paid extras
+    if (!paidExtraIngredients.includes(ingredient)) {
+      toast.error('Este ingrediente não pode ser adicionado como extra pago');
+      return;
+    }
+
+    if (paidIngredients.includes(ingredient)) {
+      setPaidIngredients(paidIngredients.filter(i => i !== ingredient));
+    } else {
+      setPaidIngredients([...paidIngredients, ingredient]);
     }
   };
 
@@ -231,6 +261,7 @@ export function ProductModal() {
       isDrinkFree: isCombo,
       comboPizzaFlavors: comboPizzaFlavors.length > 0 ? comboPizzaFlavors : undefined,
       customIngredients: isCustomizable ? customIngredients : undefined,
+      paidIngredients: isCustomizable && paidIngredients.length > 0 ? paidIngredients : undefined,
       totalPrice: calculateTotal(),
     };
 
@@ -406,7 +437,7 @@ export function ProductModal() {
                     </div>
                     {customIngredients.length > 0 && (
                       <div className="mt-4 p-3 bg-primary/5 rounded-lg border border-primary/20">
-                        <p className="text-sm font-medium mb-2">Seus ingredientes:</p>
+                        <p className="text-sm font-medium mb-2">Seus ingredientes gratuitos:</p>
                         <div className="flex flex-wrap gap-1">
                           {customIngredients.map(ing => (
                             <Badge 
@@ -421,6 +452,89 @@ export function ProductModal() {
                         </div>
                       </div>
                     )}
+
+                    {/* Paid Extra Ingredients */}
+                    <div className="mt-6 pt-4 border-t">
+                      <div className="flex items-center justify-between mb-3">
+                        <Label className="text-base font-semibold flex items-center gap-2">
+                          <Sparkles className="w-5 h-5 text-amber-500" />
+                          Ingredientes Adicionais
+                        </Label>
+                        {paidIngredients.length > 0 && (
+                          <Badge variant="outline" className="bg-amber-50">
+                            +{formatPrice(paidIngredients.reduce((total, ing) => {
+                              const paidAdditional = adicionais.find(a => a.name === ing);
+                              return total + (paidAdditional?.price || 0);
+                            }, 0))}
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Adicione ingredientes extras (preços conforme tabela de adicionais)
+                      </p>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-48 overflow-y-auto p-1">
+                        {paidExtraIngredients.map(ingredient => {
+                          const isSelected = paidIngredients.includes(ingredient);
+                          const isAlreadyFree = customIngredients.includes(ingredient);
+                          const paidAdditional = adicionais.find(a => a.name === ingredient);
+                          const price = paidAdditional?.price || 0;
+                          
+                          return (
+                            <div 
+                              key={ingredient} 
+                              className={`flex items-center space-x-2 p-2 rounded-lg border transition-colors ${
+                                isAlreadyFree
+                                  ? 'opacity-50 cursor-not-allowed bg-gray-50'
+                                  : isSelected 
+                                    ? 'bg-amber-50 border-amber-300' 
+                                    : 'hover:bg-secondary cursor-pointer'
+                              }`}
+                              onClick={() => !isAlreadyFree && handlePaidIngredientToggle(ingredient)}
+                            >
+                              <Checkbox
+                                id={`paid-ing-${ingredient}`}
+                                checked={isSelected}
+                                disabled={isAlreadyFree}
+                                onCheckedChange={() => handlePaidIngredientToggle(ingredient)}
+                              />
+                              <div className="flex-1">
+                                <Label 
+                                  htmlFor={`paid-ing-${ingredient}`} 
+                                  className={`text-sm ${isAlreadyFree ? 'cursor-not-allowed line-through' : 'cursor-pointer'}`}
+                                  title={isAlreadyFree ? 'Já incluído nos ingredientes gratuitos' : ''}
+                                >
+                                  {ingredient}
+                                </Label>
+                                <span className="text-xs text-amber-600 font-semibold block">
+                                  +{formatPrice(price)}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {paidIngredients.length > 0 && (
+                        <div className="mt-4 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                          <p className="text-sm font-medium mb-2">Extras selecionados:</p>
+                          <div className="flex flex-wrap gap-1">
+                            {paidIngredients.map(ing => {
+                              const paidAdditional = adicionais.find(a => a.name === ing);
+                              const price = paidAdditional?.price || 0;
+                              return (
+                                <Badge 
+                                  key={ing} 
+                                  variant="outline" 
+                                  className="bg-amber-100 cursor-pointer hover:bg-destructive hover:text-destructive-foreground border-amber-300"
+                                  onClick={() => handlePaidIngredientToggle(ing)}
+                                >
+                                  {ing} +{formatPrice(price)} ✕
+                                </Badge>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </>
               )}
@@ -728,4 +842,3 @@ export function ProductModal() {
     </Dialog>
   );
 }
-
