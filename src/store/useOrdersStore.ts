@@ -7,14 +7,12 @@ type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'delivering' | 'deliv
 
 interface OrdersStore {
   orders: Order[];
-  isLoading: boolean;
-  isSynced: boolean;
   addOrder: (order: Omit<Order, 'id' | 'createdAt'>) => Promise<Order>;
   updateOrderStatus: (id: string, status: OrderStatus) => Promise<void>;
   removeOrder: (id: string) => Promise<void>;
-  syncFromSupabase: () => Promise<void>;
   getOrderById: (id: string) => Order | undefined;
   getOrdersByDateRange: (startDate: Date, endDate: Date) => Order[];
+  syncOrdersFromSupabase: () => Promise<void>;
   getStats: (startDate: Date, endDate: Date) => {
     totalOrders: number;
     totalRevenue: number;
@@ -28,8 +26,6 @@ export const useOrdersStore = create<OrdersStore>()(
   persist(
     (set, get) => ({
       orders: [],
-      isLoading: false,
-      isSynced: false,
 
       addOrder: async (orderData) => {
         const newOrder: Order = {
@@ -37,174 +33,93 @@ export const useOrdersStore = create<OrdersStore>()(
           id: `PED-${String(Date.now()).slice(-6)}`,
           createdAt: new Date(),
         };
-        
-        // Update local state
-        set((state) => ({
-          orders: [newOrder, ...state.orders],
-        }));
 
-        // Save to Supabase
         try {
-          const orderPayload = {
+          // Salvar no Supabase
+          const { error } = await supabase.from('orders').insert({
             id: newOrder.id,
             customer_name: newOrder.customer.name,
             customer_phone: newOrder.customer.phone,
-            customer_email: newOrder.customer.email || null,
+            customer_email: newOrder.customer.email,
+            street: newOrder.address.street,
+            number: newOrder.address.number,
+            complement: newOrder.address.complement,
+            reference: newOrder.address.reference,
+            neighborhood: newOrder.address.neighborhood,
+            city: newOrder.address.city,
+            zip_code: newOrder.address.zipCode,
+            delivery_type: newOrder.deliveryType,
             delivery_fee: newOrder.deliveryFee,
             payment_method: newOrder.paymentMethod,
-            delivery_type: newOrder.deliveryType,
             subtotal: newOrder.subtotal,
-            status: newOrder.status,
             total: newOrder.total,
-            created_at: newOrder.createdAt.toISOString(),
-          };
+            status: newOrder.status,
+            notes: newOrder.observations,
+          });
 
-          await ((supabase as any)
-            .from('orders'))
-            .insert(orderPayload);
+          if (error) throw error;
 
-          // Save order items
-          if (newOrder.items && newOrder.items.length > 0) {
-            const itemsToInsert = newOrder.items.map((item) => ({
-              order_id: newOrder.id,
-              product_id: item.product.id,
-              product_name: item.product.name,
-              quantity: item.quantity,
-              size: item.size || null,
-              total_price: item.totalPrice,
-              item_data: JSON.stringify(item),
-            }));
+          // Salvar itens do pedido
+          const orderItems = newOrder.items.map((item) => ({
+            order_id: newOrder.id,
+            product_id: item.product.id,
+            product_name: item.product.name,
+            quantity: item.quantity,
+            size: item.size,
+            price: item.totalPrice / item.quantity,
+            total_price: item.totalPrice,
+            custom_ingredients: item.customIngredients?.join(','),
+            paid_ingredients: item.paidIngredients?.join(','),
+          }));
 
-            await ((supabase as any)
-              .from('order_items'))
-              .insert(itemsToInsert);
+          if (orderItems.length > 0) {
+            await supabase.from('order_items').insert(orderItems);
           }
-        } catch (err) {
-          console.error('Error saving order to Supabase:', err);
+        } catch (error) {
+          console.error('Erro ao salvar pedido no Supabase:', error);
         }
+
+        // Salvar localmente também
+        set((state) => ({
+          orders: [newOrder, ...state.orders],
+        }));
 
         return newOrder;
       },
 
       updateOrderStatus: async (id, status) => {
-        // Update local state
+        try {
+          // Atualizar no Supabase
+          const { error } = await supabase.from('orders')
+            .update({ status })
+            .eq('id', id);
+
+          if (error) throw error;
+        } catch (error) {
+          console.error('Erro ao atualizar status no Supabase:', error);
+        }
+
         set((state) => ({
           orders: state.orders.map((order) =>
             order.id === id ? { ...order, status } : order
           ),
         }));
-
-        // Sync to Supabase
-        try {
-          await ((supabase as any)
-            .from('orders'))
-            .update({ status })
-            .eq('id', id);
-        } catch (err) {
-          console.error('Error updating order status:', err);
-        }
       },
 
       removeOrder: async (id) => {
-        // Update local state
+        try {
+          // Deletar do Supabase
+          await supabase.from('order_items').delete().eq('order_id', id);
+          const { error } = await supabase.from('orders').delete().eq('id', id);
+
+          if (error) throw error;
+        } catch (error) {
+          console.error('Erro ao deletar pedido do Supabase:', error);
+        }
+
         set((state) => ({
           orders: state.orders.filter((order) => order.id !== id),
         }));
-
-        // Sync to Supabase
-        try {
-          await ((supabase as any)
-            .from('orders'))
-            .delete()
-            .eq('id', id);
-        } catch (err) {
-          console.error('Error deleting order:', err);
-        }
-      },
-
-      syncFromSupabase: async () => {
-        set({ isLoading: true });
-        try {
-          const { data, error } = await ((supabase as any)
-            .from('orders'))
-            .select(`
-              id,
-              customer_name,
-              customer_phone,
-              customer_email,
-              delivery_fee,
-              payment_method,
-              delivery_type,
-              subtotal,
-              status,
-              total,
-              created_at,
-              order_items (
-                product_id,
-                product_name,
-                quantity,
-                size,
-                total_price,
-                item_data
-              )
-            `)
-            .order('created_at', { ascending: false });
-
-          if (error) {
-            console.error('Failed to sync orders:', error);
-            set({ isLoading: false });
-            return;
-          }
-
-          if (data) {
-            const orders: Order[] = data.map((row: any) => ({
-              id: row.id,
-              customer: {
-                name: row.customer_name,
-                phone: row.customer_phone,
-                email: row.customer_email,
-              },
-              address: {
-                zipCode: '',
-                city: 'São Paulo',
-                neighborhood: '',
-                street: '',
-                number: '',
-                complement: '',
-                reference: '',
-              },
-              deliveryType: (row.delivery_type || 'delivery') as 'delivery' | 'pickup',
-              deliveryFee: row.delivery_fee || 0,
-              paymentMethod: (row.payment_method || 'pix') as 'pix' | 'card' | 'cash',
-              subtotal: row.subtotal || row.total,
-              status: row.status as OrderStatus,
-              total: row.total,
-              observations: '',
-              createdAt: new Date(row.created_at),
-              items: row.order_items.map((item: any) => {
-                try {
-                  return JSON.parse(item.item_data);
-                } catch {
-                  return {
-                    product: { id: item.product_id, name: item.product_name },
-                    quantity: item.quantity,
-                    size: item.size,
-                    totalPrice: item.total_price,
-                  };
-                }
-              }),
-            })) as any;
-
-            set({
-              orders,
-              isSynced: true,
-              isLoading: false,
-            });
-          }
-        } catch (err) {
-          console.error('Error syncing from Supabase:', err);
-          set({ isLoading: false });
-        }
       },
 
       getOrderById: (id) => get().orders.find((order) => order.id === id),
@@ -217,13 +132,58 @@ export const useOrdersStore = create<OrdersStore>()(
         });
       },
 
+      syncOrdersFromSupabase: async () => {
+        try {
+          const { data, error } = await supabase.from('orders')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+          if (error) throw error;
+
+          if (data) {
+            const orders: Order[] = data.map((row: any) => ({
+              id: row.id,
+              customer: {
+                name: row.customer_name,
+                phone: row.customer_phone,
+                email: row.customer_email,
+              },
+              address: {
+                zipCode: row.zip_code,
+                city: row.city,
+                neighborhood: row.neighborhood,
+                street: row.street,
+                number: row.number,
+                complement: row.complement,
+                reference: row.reference,
+              },
+              deliveryType: row.delivery_type,
+              deliveryFee: row.delivery_fee,
+              paymentMethod: row.payment_method,
+              items: [],
+              subtotal: row.subtotal,
+              total: row.total,
+              status: row.status,
+              observations: row.notes,
+              createdAt: new Date(row.created_at),
+            }));
+
+            set(() => ({
+              orders,
+            }));
+          }
+        } catch (error) {
+          console.error('Erro ao sincronizar pedidos do Supabase:', error);
+        }
+      },
+
       getStats: (startDate, endDate) => {
         const filteredOrders = get().getOrdersByDateRange(startDate, endDate);
         const completedOrders = filteredOrders.filter(
           (o) => o.status !== 'cancelled' && o.status !== 'pending'
         );
         const totalRevenue = completedOrders.reduce((sum, o) => sum + o.total, 0);
-
+        
         return {
           totalOrders: filteredOrders.length,
           totalRevenue,
@@ -235,7 +195,7 @@ export const useOrdersStore = create<OrdersStore>()(
     }),
     {
       name: 'forneiro-eden-orders',
-      version: 2,
+      version: 1,
       storage: {
         getItem: (name) => {
           const str = localStorage.getItem(name);
