@@ -147,7 +147,7 @@ export function ProductModal() {
 
   const handleIngredientToggle = (ingredient: string) => {
     // Check if meat is being selected (not allowed)
-    if (meatIngredients.includes(ingredient) && ingredient !== 'Frango Desfiado') {
+    if (meatIngredients.includes(ingredient) && ingredient !== 'Frango') {
       toast.error('Carnes não podem ser adicionadas como ingredientes. Apenas frango é permitido!');
       return;
     }
