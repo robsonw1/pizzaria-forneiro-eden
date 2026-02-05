@@ -122,14 +122,15 @@ export const meatIngredients: string[] = [
 
 // Ingredients that can be added as paid extras
 export const paidExtraIngredients: string[] = [
-  'Frango Desfiado', // Only chicken meat allowed
-  'Catupiry',
+  'Frango', // Only chicken meat allowed
+  'Catupiry Dallora',
   'Catupiry Scala',
   'Cream Cheese',
-  'Cheddar',
+  'Cheddar Scala',
   'Provolone',
   'Parmesão',
   'Gorgonzola',
+  'Mussarela',
 ];
 
 // COMBOS
