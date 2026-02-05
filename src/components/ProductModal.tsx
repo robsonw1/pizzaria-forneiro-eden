@@ -58,7 +58,7 @@ export function ProductModal() {
   const isPizza = selectedProduct && 
     ['promocionais', 'tradicionais', 'premium', 'especiais', 'doces'].includes(selectedProduct.category);
   const isCombo = selectedProduct && selectedProduct.category === 'combos';
-  const isCustomizable = selectedProduct?.isCustomizable;
+  const isCustomizable = selectedProduct?.isCustomizable || selectedProduct?.id === 'prem-moda-cliente';
   const showDrinkSelection = isPizza || isCombo;
 
   const handleClose = () => {
