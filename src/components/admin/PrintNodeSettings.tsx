@@ -42,13 +42,14 @@ export function PrintNodeSettings() {
   // Carregar configurações existentes
   useEffect(() => {
     if (settings) {
-      setConfig((prev) => ({
+      const newConfig: PrintNodeConfig = {
         printerId: settings.printnode_printer_id || '',
         printMode: (settings.print_mode as 'auto' | 'manual') || 'auto',
-        autoPrintPix: settings.auto_print_pix || false,
-        autoPrintCard: settings.auto_print_card || false,
-        autoPrintCash: settings.auto_print_cash || false,
-      }));
+        autoPrintPix: settings.auto_print_pix === true,
+        autoPrintCard: settings.auto_print_card === true,
+        autoPrintCash: settings.auto_print_cash === true,
+      };
+      setConfig(newConfig);
     }
   }, [settings]);
 
@@ -161,51 +162,53 @@ export function PrintNodeSettings() {
             </Select>
           </div>
 
-          <div className="space-y-3 border-t pt-4">
-            <Label className="font-semibold">Impressão Automática por Método de Pagamento</Label>
-            <p className="text-xs text-gray-500 mb-3">Escolha quais métodos de pagamento devem imprimir automaticamente:</p>
-            
-            <div className="space-y-2">
-              <label className="flex items-center gap-3 cursor-pointer">
-                <Checkbox
-                  checked={config.autoPrintPix}
-                  onCheckedChange={(checked) =>
-                    setConfig((prev) => ({
-                      ...prev,
-                      autoPrintPix: !!checked,
-                    }))
-                  }
-                />
-                <span className="text-sm">PIX - Imprimir automaticamente</span>
-              </label>
+          {config.printMode === 'auto' && (
+            <div className="space-y-3 border-t pt-4 animate-in fade-in">
+              <Label className="font-semibold">Impressão Automática por Método de Pagamento</Label>
+              <p className="text-xs text-gray-500 mb-3">Escolha quais métodos de pagamento devem imprimir automaticamente:</p>
               
-              <label className="flex items-center gap-3 cursor-pointer">
-                <Checkbox
-                  checked={config.autoPrintCard}
-                  onCheckedChange={(checked) =>
-                    setConfig((prev) => ({
-                      ...prev,
-                      autoPrintCard: !!checked,
-                    }))
-                  }
-                />
-                <span className="text-sm">Cartão - Imprimir automaticamente</span>
-              </label>
-              
-              <label className="flex items-center gap-3 cursor-pointer">
-                <Checkbox
-                  checked={config.autoPrintCash}
-                  onCheckedChange={(checked) =>
-                    setConfig((prev) => ({
-                      ...prev,
-                      autoPrintCash: !!checked,
-                    }))
-                  }
-                />
-                <span className="text-sm">Dinheiro - Imprimir automaticamente</span>
-              </label>
+              <div className="space-y-2">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <Checkbox
+                    checked={config.autoPrintPix}
+                    onCheckedChange={(checked) =>
+                      setConfig((prev) => ({
+                        ...prev,
+                        autoPrintPix: !!checked,
+                      }))
+                    }
+                  />
+                  <span className="text-sm">PIX - Imprimir automaticamente</span>
+                </label>
+                
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <Checkbox
+                    checked={config.autoPrintCard}
+                    onCheckedChange={(checked) =>
+                      setConfig((prev) => ({
+                        ...prev,
+                        autoPrintCard: !!checked,
+                      }))
+                    }
+                  />
+                  <span className="text-sm">Cartão - Imprimir automaticamente</span>
+                </label>
+                
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <Checkbox
+                    checked={config.autoPrintCash}
+                    onCheckedChange={(checked) =>
+                      setConfig((prev) => ({
+                        ...prev,
+                        autoPrintCash: !!checked,
+                      }))
+                    }
+                  />
+                  <span className="text-sm">Dinheiro - Imprimir automaticamente</span>
+                </label>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {message && (
