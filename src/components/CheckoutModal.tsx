@@ -349,7 +349,7 @@ export function CheckoutModal() {
     
     try {
       // 1. Save order to Supabase
-      const { data: newOrder, error: orderError } = await supabase
+      const { error: orderError } = await supabase
         .from('orders')
         .insert({
           id: orderPayload.orderId,
@@ -370,16 +370,14 @@ export function CheckoutModal() {
           total: total,
           status: 'pending',
           observations: observations || '',
-        })
-        .select()
-        .single();
+        });
       
       if (orderError) {
         console.error('Erro ao salvar pedido no Supabase:', orderError);
         throw orderError;
       }
 
-      console.log('✅ Pedido salvo no Supabase:', newOrder);
+      console.log('✅ Pedido salvo no Supabase:', orderPayload.orderId);
 
       // 2. Save order items to Supabase
       const orderItemsData = items.map((item, index) => ({
