@@ -29,6 +29,8 @@ interface StoreSettings {
   pickupTimeMin: number;
   pickupTimeMax: number;
   adminPassword: string;
+  printnode_printer_id?: string | null;
+  print_mode?: string;
 }
 
 interface SettingsStore {
