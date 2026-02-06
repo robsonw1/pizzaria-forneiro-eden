@@ -29,7 +29,8 @@ interface StoreSettings {
   pickupTimeMax: number;
   adminPassword: string;
   printnode_printer_id?: string | null;
-  print_mode?: string;  auto_print_pix?: boolean;
+  print_mode?: string;
+  auto_print_pix?: boolean;
   auto_print_card?: boolean;
   auto_print_cash?: boolean;}
 
