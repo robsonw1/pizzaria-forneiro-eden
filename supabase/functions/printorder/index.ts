@@ -1,11 +1,12 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.0";
 
-// CORS headers
+// CORS headers - Permitir requisições de qualquer origem
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Max-Age": "86400",
 };
 
 // Interface para tipagem
@@ -96,8 +97,8 @@ export async function handler(
         }),
         { status: 500 }
       );
-    }
-
+    }    
+    console.log(`PrintNode settings - Printer ID: ${settings.printnode_printer_id}, Mode: ${settings.print_mode}`);
     // 3. Verificar modo de impressão
     if (settings.print_mode === "manual" && !force) {
       return new Response(
@@ -296,7 +297,12 @@ async function sendToPrintNode(
       jobType: "pdf",
     };
 
-    // Fazer requisição para PrintNode
+    console.log(`Sending to PrintNode - Printer ID: ${printerId}`);
+
+    // Fazer requisição para PrintNode com timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+
     const response = await fetch("https://api.printnode.com/printjobs", {
       method: "POST",
       headers: {
@@ -304,10 +310,14 @@ async function sendToPrintNode(
         Authorization: `Basic ${btoa(`${apiKey}:`)}`,
       },
       body: JSON.stringify(payload),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       const error = await response.text();
+      console.error(`PrintNode error ${response.status}: ${error}`);
       return {
         success: false,
         error: `PrintNode API error: ${response.status} - ${error}`,
@@ -315,11 +325,13 @@ async function sendToPrintNode(
     }
 
     const data = await response.json();
+    console.log(`PrintNode success - Job ID: ${data.id}`);
     return {
       success: true,
       printJobId: data.id,
     };
   } catch (error) {
+    console.error("PrintNode send error:", error);
     return {
       success: false,
       error: error instanceof Error ? error.message : String(error),
