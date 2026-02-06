@@ -228,7 +228,7 @@ const AdminDashboard = () => {
         [day]: { ...settingsForm.schedule[day], ...updates },
       };
       setSettingsForm({ ...settingsForm, schedule: newSchedule });
-      updateSettings({ ...settingsForm, schedule: newSchedule });
+      await updateSettings({ ...settingsForm, schedule: newSchedule });
 
       // Salvar no Supabase
       const { error } = await (supabase as any)
@@ -264,7 +264,7 @@ const AdminDashboard = () => {
     try {
       const newState = !settingsForm.isManuallyOpen;
       setSettingsForm({ ...settingsForm, isManuallyOpen: newState });
-      updateSettings({ ...settingsForm, isManuallyOpen: newState });
+      await updateSettings({ ...settingsForm, isManuallyOpen: newState });
 
       // Salvar no Supabase
       const { error } = await (supabase as any)
@@ -343,8 +343,8 @@ const AdminDashboard = () => {
   }, [orders, dateRange]);
 
   const handleSaveSettings = async () => {
-    // Atualizar o store localmente primeiro
-    updateSettings(settingsForm);
+    // Atualizar o store e salvar no Supabase
+    await updateSettings(settingsForm);
     
     try {
       // Preparar o objeto completo de settings para salvar
