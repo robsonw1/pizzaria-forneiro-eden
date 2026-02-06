@@ -121,10 +121,6 @@ export function CheckoutModal() {
           toast.error('Por favor, informe um telefone válido');
           return false;
         }
-        if (!customer.cpf || customer.cpf.replace(/\D/g, '').length !== 11) {
-          toast.error('Por favor, informe um CPF válido');
-          return false;
-        }
         return true;
       case 'address':
         if (deliveryType === 'pickup') return true;
@@ -136,6 +132,10 @@ export function CheckoutModal() {
       case 'delivery':
         return true;
       case 'payment':
+        if (paymentMethod === 'pix' && (!customer.cpf || customer.cpf.replace(/\D/g, '').length !== 11)) {
+          toast.error('Por favor, informe um CPF válido para PIX');
+          return false;
+        }
         if (paymentMethod === 'cash' && needsChange && !changeAmount) {
           toast.error('Por favor, informe o valor para troco');
           return false;
@@ -352,12 +352,8 @@ export function CheckoutModal() {
       const { error: orderError } = await (supabase as any)
         .from('orders')
         .insert({
-          id: orderPayload.orderId,
           customer_name: customer.name,
           customer_phone: customer.phone,
-          customer_email: customer.email,
-          delivery_type: deliveryType === 'delivery' ? 'ENTREGA' : 'RETIRADA',
-          delivery_fee: deliveryFee,
           payment_method: paymentMethod === 'pix' ? 'pix' : paymentMethod === 'card' ? 'cartao_maquina' : 'dinheiro',
           subtotal: subtotal,
           total: total,
@@ -626,33 +622,6 @@ export function CheckoutModal() {
                         />
                       </div>
                     </div>
-
-                    <div>
-                      <Label htmlFor="cpf">CPF *</Label>
-                      <Input
-                        id="cpf"
-                        placeholder="000.000.000-00"
-                        value={customer.cpf}
-                        onChange={(e) => handleCpfInput(e.target.value)}
-                        className="mt-1"
-                        maxLength={14}
-                      />
-                    </div>
-
-                    <div>
-                      <Label htmlFor="email">Email (opcional)</Label>
-                      <div className="relative mt-1">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input
-                          id="email"
-                          type="email"
-                          placeholder="seu@email.com"
-                          value={customer.email}
-                          onChange={(e) => setCustomer({ email: e.target.value })}
-                          className="pl-10"
-                        />
-                      </div>
-                    </div>
                   </div>
                 </motion.div>
               )}
@@ -866,6 +835,27 @@ export function CheckoutModal() {
                           </div>
                         </Label>
                       </div>
+
+                      {/* CPF para PIX - Segurança MercadoPago */}
+                      {paymentMethod === 'pix' && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="bg-secondary/50 rounded-xl p-4"
+                        >
+                          <Label htmlFor="cpf-pix">CPF *</Label>
+                          <Input
+                            id="cpf-pix"
+                            placeholder="000.000.000-00"
+                            value={customer.cpf}
+                            onChange={(e) => handleCpfInput(e.target.value)}
+                            className="mt-2"
+                            maxLength={14}
+                          />
+                          <p className="text-xs text-muted-foreground mt-2">Necessário para segurança do pagamento PIX</p>
+                        </motion.div>
+                      )}
 
                       {/* Cartão */}
                       <div className="relative">
