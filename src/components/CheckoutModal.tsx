@@ -352,10 +352,13 @@ export function CheckoutModal() {
       const { error: orderError } = await (supabase as any)
         .from('orders')
         .insert({
+          id: orderPayload.orderId,
           customer_name: customer.name,
           customer_phone: customer.phone,
-          subtotal: subtotal,
+          delivery_fee: deliveryFee,
+          status: 'pending',
           total: total,
+          created_at: new Date().toISOString(),
         });
       
       if (orderError) {
