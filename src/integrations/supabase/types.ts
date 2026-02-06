@@ -314,6 +314,8 @@ export type Database = {
           weekend_end_time: string | null
           days_closed: string | null
           currency: string
+          printnode_printer_id: string | null
+          print_mode: string
           created_at: string
           updated_at: string
         }
@@ -334,6 +336,8 @@ export type Database = {
           weekend_end_time?: string | null
           days_closed?: string | null
           currency?: string
+          printnode_printer_id?: string | null
+          print_mode?: string
           created_at?: string
           updated_at?: string
         }
@@ -354,10 +358,77 @@ export type Database = {
           weekend_end_time?: string | null
           days_closed?: string | null
           currency?: string
+          printnode_printer_id?: string | null
+          print_mode?: string
           created_at?: string
           updated_at?: string
         }
         Relationships: []
+      }
+      tenants: {
+        Row: {
+          id: string
+          name: string
+          slug: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          slug: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          slug?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      printnode_config: {
+        Row: {
+          id: string
+          tenant_id: string | null
+          api_key: string
+          printer_id: string
+          is_active: boolean
+          auto_print: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          tenant_id?: string | null
+          api_key: string
+          printer_id: string
+          is_active?: boolean
+          auto_print?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          tenant_id?: string | null
+          api_key?: string
+          printer_id?: string
+          is_active?: boolean
+          auto_print?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "printnode_config_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          }
+        ]
       }
     }
     Views: {
