@@ -66,13 +66,22 @@ export const useRealtimeSync = () => {
         
         if (settingsData && isMounted) {
           const settingsStore = useSettingsStore.getState();
-          // Mapear as colunas da tabela para o formato do store
+          const { settings: defaultSettings } = settingsStore;
+          
+          // Mapear as colunas da tabela para o formato do store, com valores padrão
           settingsStore.updateSettings({
-            name: settingsData.store_name,
-            phone: settingsData.store_phone,
-            address: settingsData.store_address,
+            name: settingsData.store_name || defaultSettings.name,
+            phone: settingsData.store_phone || defaultSettings.phone,
+            address: settingsData.store_address || defaultSettings.address,
+            slogan: settingsData.slogan || defaultSettings.slogan,
+            schedule: defaultSettings.schedule, // Manter padrão
+            deliveryTimeMin: defaultSettings.deliveryTimeMin,
+            deliveryTimeMax: defaultSettings.deliveryTimeMax,
+            pickupTimeMin: defaultSettings.pickupTimeMin,
+            pickupTimeMax: defaultSettings.pickupTimeMax,
+            isManuallyOpen: defaultSettings.isManuallyOpen,
             printnode_printer_id: settingsData.printnode_printer_id,
-            print_mode: settingsData.print_mode,
+            print_mode: settingsData.print_mode || 'auto',
           });
           console.log('✅ Settings carregados do Supabase:', settingsData);
         }
@@ -175,14 +184,30 @@ export const useRealtimeSync = () => {
             // Recarregar os settings quando qualquer mudança ocorrer
             const { data: settingsData } = await (supabase as any)
               .from('settings')
-              .select('value')
+              .select('*')
               .eq('id', 'store-settings')
               .single();
             
-            if (settingsData?.value && isMounted) {
+            if (settingsData && isMounted) {
               const settingsStore = useSettingsStore.getState();
-              settingsStore.updateSettings(settingsData.value);
-              console.log('✅ Settings atualizado em tempo real:', settingsData.value);
+              const { settings: defaultSettings } = settingsStore;
+              
+              // Mapear as colunas para o formato do store
+              settingsStore.updateSettings({
+                name: settingsData.store_name || defaultSettings.name,
+                phone: settingsData.store_phone || defaultSettings.phone,
+                address: settingsData.store_address || defaultSettings.address,
+                slogan: settingsData.slogan || defaultSettings.slogan,
+                schedule: defaultSettings.schedule,
+                deliveryTimeMin: defaultSettings.deliveryTimeMin,
+                deliveryTimeMax: defaultSettings.deliveryTimeMax,
+                pickupTimeMin: defaultSettings.pickupTimeMin,
+                pickupTimeMax: defaultSettings.pickupTimeMax,
+                isManuallyOpen: defaultSettings.isManuallyOpen,
+                printnode_printer_id: settingsData.printnode_printer_id,
+                print_mode: settingsData.print_mode || 'auto',
+              });
+              console.log('✅ Settings atualizado em tempo real:', settingsData);
             }
           } catch (error) {
             console.error('❌ Erro ao sincronizar settings:', error);
