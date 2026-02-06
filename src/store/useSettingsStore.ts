@@ -29,8 +29,9 @@ interface StoreSettings {
   pickupTimeMax: number;
   adminPassword: string;
   printnode_printer_id?: string | null;
-  print_mode?: string;
-}
+  print_mode?: string;  auto_print_pix?: boolean;
+  auto_print_card?: boolean;
+  auto_print_cash?: boolean;}
 
 interface SettingsStore {
   settings: StoreSettings;
@@ -101,13 +102,16 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         isManuallyOpen: currentSettings.isManuallyOpen,
       };
 
-      // Atualizar AMBOS: o JSON 'value' E os campos de PrintNode
+      // Mapear para as colunas da tabela settings
       const { error } = await supabase
         .from('settings')
         .update({
           value: settingsValue,
           printnode_printer_id: currentSettings.printnode_printer_id || null,
           print_mode: currentSettings.print_mode || 'auto',
+          auto_print_pix: currentSettings.auto_print_pix || false,
+          auto_print_card: currentSettings.auto_print_card || false,
+          auto_print_cash: currentSettings.auto_print_cash || false,
           updated_at: new Date().toISOString(),
         })
         .eq('id', 'store-settings');
@@ -219,13 +223,16 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         isManuallyOpen: settings.isManuallyOpen,
       };
 
-      // Atualizar AMBOS: o JSON 'value' E os campos de PrintNode
+      // Atualizar AMBOS: o JSON 'value' E os campos de PrintNode + payment configs
       const { error } = await supabase
         .from('settings')
         .update({
           value: settingsValue,
           printnode_printer_id: settings.printnode_printer_id || null,
           print_mode: settings.print_mode || 'auto',
+          auto_print_pix: settings.auto_print_pix || false,
+          auto_print_card: settings.auto_print_card || false,
+          auto_print_cash: settings.auto_print_cash || false,
           updated_at: new Date().toISOString(),
         })
         .eq('id', 'store-settings');
