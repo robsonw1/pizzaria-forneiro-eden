@@ -349,27 +349,19 @@ export function CheckoutModal() {
     
     try {
       // 1. Save order to Supabase
-      const { error: orderError } = await supabase
+      const { error: orderError } = await (supabase as any)
         .from('orders')
         .insert({
           id: orderPayload.orderId,
           customer_name: customer.name,
           customer_phone: customer.phone,
           customer_email: customer.email,
-          street: address.street,
-          number: address.number,
-          complement: address.complement || '',
-          reference: address.reference || '',
-          neighborhood: selectedNeighborhood?.name || address.neighborhood,
-          city: address.city || 'São Paulo',
-          zip_code: address.zipCode,
           delivery_type: deliveryType === 'delivery' ? 'ENTREGA' : 'RETIRADA',
           delivery_fee: deliveryFee,
           payment_method: paymentMethod === 'pix' ? 'pix' : paymentMethod === 'card' ? 'cartao_maquina' : 'dinheiro',
           subtotal: subtotal,
           total: total,
           status: 'pending',
-          observations: observations || '',
         });
       
       if (orderError) {
