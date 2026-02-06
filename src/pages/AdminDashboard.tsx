@@ -247,6 +247,87 @@ const AdminDashboard = () => {
     }
   };
 
+  // Imprimir pedido manualmente
+  const handlePrintOrder = async (order: Order) => {
+    try {
+      // Buscar itens do pedido do Supabase
+      const { data: orderItems, error: itemsError } = await (supabase as any)
+        .from('order_items')
+        .select('*')
+        .eq('order_id', order.id);
+
+      if (itemsError) {
+        console.error('Erro ao buscar itens do pedido:', itemsError);
+        toast.error('Erro ao carregar itens do pedido');
+        return;
+      }
+
+      // Formatar payload para impressão
+      const payloadForPrinting = {
+        orderData: {
+          pedidoId: order.id,
+          cliente: order.customer.name,
+          telefone: order.customer.phone.replace(/\D/g, ''),
+          dataPedido: order.createdAt,
+        },
+        entregas: {
+          tipo: order.deliveryType === 'delivery' ? 'ENTREGA' : 'RETIRADA',
+          endereco: order.deliveryType === 'delivery' 
+            ? `${order.address.street}, ${order.address.number} ${order.address.complement || ''} - ${order.address.neighborhood}`
+            : 'Retirada na loja',
+          taxa: order.deliveryFee,
+        },
+        itens: orderItems.map((item: any, idx: number) => ({
+          numero: idx + 1,
+          produto: item.product_name,
+          quantidade: item.quantity,
+          tamanho: item.size,
+          dados: item.item_data,
+          subtotal: `R$ ${item.total_price.toFixed(2)}`,
+        })),
+        pagamento: {
+          metodo: order.paymentMethod === 'pix' ? 'PIX' : order.paymentMethod === 'card' ? 'Cartão' : 'Dinheiro',
+        },
+        totais: {
+          subtotal: `R$ ${order.subtotal.toFixed(2)}`,
+          entrega: `R$ ${order.deliveryFee.toFixed(2)}`,
+          total: `R$ ${order.total.toFixed(2)}`,
+        },
+      };
+
+      // Enviar para webhook
+      console.log('🖨️ Enviando para impressão manual:', payloadForPrinting);
+      await fetch('https://n8nwebhook.aezap.site/webhook/impressao', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        mode: 'no-cors',
+        body: JSON.stringify(payloadForPrinting),
+      }).catch(err => console.warn('⚠️ Aviso ao enviar para webhook:', err));
+
+      // Atualizar data de impressão em Supabase
+      const { error: updateError } = await (supabase as any)
+        .from('orders')
+        .update({ printed_at: new Date().toISOString() })
+        .eq('id', order.id);
+
+      if (updateError) {
+        console.error('Erro ao atualizar status de impressão:', updateError);
+      } else {
+        console.log('✅ Pedido enviado para impressão manual e marcado como impresso');
+        toast.success('Pedido enviado para impressão!');
+        
+        // Atualizar a ordem local
+        const updatedOrder = { ...order, printedAt: new Date().toISOString() };
+        // A sincronização em tempo real vai atualizar automaticamente
+      }
+    } catch (error) {
+      console.error('❌ Erro ao imprimir pedido:', error);
+      toast.error('Erro ao enviar para impressão');
+    }
+  };
+
   const allProducts: Product[] = useMemo(() => Object.values(productsById), [productsById]);
 
   const filteredProducts = useMemo(() => {
@@ -686,6 +767,7 @@ const AdminDashboard = () => {
                         <TableHead>Total</TableHead>
                         <TableHead>Pagamento</TableHead>
                         <TableHead>Status</TableHead>
+                        <TableHead>Impressão</TableHead>
                         <TableHead>Data</TableHead>
                         <TableHead>Ações</TableHead>
                       </TableRow>
@@ -703,6 +785,29 @@ const AdminDashboard = () => {
                             </Badge>
                           </TableCell>
                           <TableCell>{getStatusBadge(order.status)}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              {order.printedAt ? (
+                                <>
+                                  <div className="w-3 h-3 rounded-full bg-green-500" title="Já foi impresso"></div>
+                                  <span className="text-xs text-muted-foreground">
+                                    {format(new Date(order.printedAt), "HH:mm", { locale: ptBR })}
+                                  </span>
+                                </>
+                              ) : (
+                                <>
+                                  <div className="w-3 h-3 rounded-full bg-red-500" title="Precisa imprimir"></div>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm"
+                                    onClick={() => handlePrintOrder(order)}
+                                  >
+                                    Imprimir
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          </TableCell>
                           <TableCell>
                             {format(new Date(order.createdAt), "dd/MM/yyyy HH:mm", { locale: ptBR })}
                           </TableCell>
