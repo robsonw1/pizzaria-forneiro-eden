@@ -298,39 +298,7 @@ const AdminDashboard = () => {
     // Atualizar o store e salvar no Supabase
     await updateSettings(settingsForm);
     
-    try {
-      // Preparar o objeto completo de settings para salvar
-      const settingsObject = {
-        name: settingsForm.name,
-        phone: settingsForm.phone,
-        address: settingsForm.address,
-        slogan: settingsForm.slogan,
-        schedule: settingsForm.schedule,
-        deliveryTimeMin: settingsForm.deliveryTimeMin,
-        deliveryTimeMax: settingsForm.deliveryTimeMax,
-        pickupTimeMin: settingsForm.pickupTimeMin,
-        pickupTimeMax: settingsForm.pickupTimeMax,
-        isManuallyOpen: settingsForm.isManuallyOpen,
-      };
-
-      // Salvar como um único objeto JSON na tabela settings
-      const { error } = await (supabase as any)
-        .from('settings')
-        .update({ value: settingsObject })
-        .eq('id', 'store-settings');
-
-      if (error) {
-        console.error('❌ Erro ao salvar settings:', error);
-        toast.error('Erro ao salvar configurações');
-        return;
-      }
-
-      console.log('✅ Configurações salvas com sucesso no Supabase:', settingsObject);
-      toast.success('Configurações salvas com sucesso!');
-    } catch (error) {
-      console.error('❌ Erro ao salvar settings:', error);
-      toast.error('Erro ao salvar configurações');
-    }
+    toast.success('Configurações salvas com sucesso!');
   };
 
   const handleChangePassword = () => {
