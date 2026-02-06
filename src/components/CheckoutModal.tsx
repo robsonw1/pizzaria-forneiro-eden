@@ -354,10 +354,8 @@ export function CheckoutModal() {
         .insert({
           customer_name: customer.name,
           customer_phone: customer.phone,
-          payment_method: paymentMethod === 'pix' ? 'pix' : paymentMethod === 'card' ? 'cartao_maquina' : 'dinheiro',
           subtotal: subtotal,
           total: total,
-          status: 'pending',
         });
       
       if (orderError) {
