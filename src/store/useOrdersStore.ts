@@ -75,6 +75,23 @@ export const useOrdersStore = create<OrdersStore>()(
           if (orderItems.length > 0) {
             await supabase.from('order_items').insert(orderItems);
           }
+
+          // Tentar imprimir pedido automaticamente (sem esperar)
+          // Isso ocorre assincronamente para não bloquear o fluxo
+          supabase.functions
+            .invoke('printorder', {
+              body: {
+                orderId: newOrder.id,
+                tenantId: undefined, // Implementar multi-tenancy depois
+              },
+            })
+            .catch((error) => {
+              console.log(
+                'PrintNode não configurado ou erro ao imprimir:',
+                error
+              );
+              // Não lançar erro, deixar o pedido ser criado mesmo se impressão falhar
+            });
         } catch (error) {
           console.error('Erro ao salvar pedido no Supabase:', error);
         }
