@@ -1,6 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-
+import { persist } from 'zustand/middleware';import { supabase } from '@/integrations/supabase/client';
 export interface DaySchedule {
   isOpen: boolean;
   openTime: string;
@@ -35,12 +34,13 @@ interface StoreSettings {
 
 interface SettingsStore {
   settings: StoreSettings;
-  updateSettings: (settings: Partial<StoreSettings>) => void;
+  updateSettings: (settings: Partial<StoreSettings>) => Promise<void>;
   setSetting: (key: keyof StoreSettings, value: any) => void;
   updateDaySchedule: (day: keyof WeekSchedule, schedule: Partial<DaySchedule>) => void;
   toggleManualOpen: () => void;
   changePassword: (currentPassword: string, newPassword: string) => { success: boolean; message: string };
   isStoreOpen: () => boolean;
+  syncSettingsToSupabase: () => Promise<{ success: boolean; message: string }>;
 }
 
 const defaultDaySchedule: DaySchedule = {
@@ -78,10 +78,36 @@ const dayNames: (keyof WeekSchedule)[] = ['sunday', 'monday', 'tuesday', 'wednes
 export const useSettingsStore = create<SettingsStore>((set, get) => ({
   settings: defaultSettings,
 
-  updateSettings: (newSettings) =>
+  updateSettings: async (newSettings) => {
     set((state) => ({
       settings: { ...state.settings, ...newSettings },
-    })),
+    }));
+    
+    // Salvar no Supabase
+    try {
+      const { settings: currentSettings } = get();
+      const { error } = await supabase
+        .from('settings')
+        .update({
+          store_name: currentSettings.name,
+          store_phone: currentSettings.phone,
+          store_address: currentSettings.address,
+          printnode_printer_id: currentSettings.printnode_printer_id || null,
+          print_mode: currentSettings.print_mode || 'auto',
+        })
+        .eq('id', 'store-settings');
+
+      if (error) {
+        console.error('❌ Erro ao salvar settings no Supabase:', error);
+        throw error;
+      }
+
+      console.log('✅ Settings salvos no Supabase com sucesso');
+    } catch (error) {
+      console.error('❌ Erro ao atualizar settings:', error);
+      throw error;
+    }
+  },
 
   setSetting: (key, value) =>
     set((state) => ({
@@ -154,5 +180,28 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     }
 
     return currentTime >= openTime && currentTime < closeTime;
+  },
+
+  syncSettingsToSupabase: async () => {
+    try {
+      const { settings } = get();
+      
+      // Salvar na tabela settings do Supabase
+      const { error } = await (supabase as any)
+        .from('settings')
+        .update({ value: settings })
+        .eq('id', 'store-settings');
+
+      if (error) {
+        console.error('❌ Erro ao sincronizar settings com Supabase:', error);
+        return { success: false, message: 'Erro ao sincronizar configurações' };
+      }
+
+      console.log('✅ Settings sincronizados com Supabase:', settings);
+      return { success: true, message: 'Configurações sincronizadas com sucesso!' };
+    } catch (error) {
+      console.error('❌ Erro ao sincronizar settings:', error);
+      return { success: false, message: 'Erro ao sincronizar configurações' };
+    }
   },
 }));
