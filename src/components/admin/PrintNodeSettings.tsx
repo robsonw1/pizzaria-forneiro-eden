@@ -30,6 +30,7 @@ export function PrintNodeSettings() {
 
   const settings = useSettingsStore((s) => s.settings);
   const updateSettings = useSettingsStore((s) => s.updateSettings);
+  const syncSettingsToSupabase = useSettingsStore((s) => s.syncSettingsToSupabase);
 
   // Carregar configurações existentes
   useEffect(() => {
@@ -49,11 +50,13 @@ export function PrintNodeSettings() {
 
     setLoading(true);
     try {
+      // updateSettings agora salva automaticamente no Supabase
       await updateSettings({
         ...settings,
         printnode_printer_id: config.printerId,
         print_mode: config.printMode,
       });
+      
       setMessage({ type: 'success', text: 'Configurações salvas com sucesso!' });
     } catch (error) {
       setMessage({
