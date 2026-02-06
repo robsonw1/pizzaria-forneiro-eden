@@ -87,13 +87,25 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     try {
       const { settings: currentSettings } = get();
       
-      // Mapear para as colunas da tabela settings
+      // Preparar o objeto para salvar no campo 'value' (JSON)
+      const settingsValue = {
+        name: currentSettings.name,
+        phone: currentSettings.phone,
+        address: currentSettings.address,
+        slogan: currentSettings.slogan,
+        schedule: currentSettings.schedule,
+        deliveryTimeMin: currentSettings.deliveryTimeMin,
+        deliveryTimeMax: currentSettings.deliveryTimeMax,
+        pickupTimeMin: currentSettings.pickupTimeMin,
+        pickupTimeMax: currentSettings.pickupTimeMax,
+        isManuallyOpen: currentSettings.isManuallyOpen,
+      };
+
+      // Atualizar AMBOS: o JSON 'value' E os campos de PrintNode
       const { error } = await supabase
         .from('settings')
         .update({
-          store_name: currentSettings.name,
-          store_phone: currentSettings.phone,
-          store_address: currentSettings.address,
+          value: settingsValue,
           printnode_printer_id: currentSettings.printnode_printer_id || null,
           print_mode: currentSettings.print_mode || 'auto',
           updated_at: new Date().toISOString(),
@@ -105,7 +117,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         return;
       }
 
-      console.log('✅ Settings salvos no Supabase com sucesso');
+      console.log('✅ Settings salvos no Supabase com sucesso:', settingsValue);
     } catch (error) {
       console.error('❌ Erro ao atualizar settings:', error);
     }
@@ -193,13 +205,25 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     try {
       const { settings } = get();
       
-      // Mapear para as colunas da tabela settings
+      // Preparar o objeto para salvar no campo 'value' (JSON)
+      const settingsValue = {
+        name: settings.name,
+        phone: settings.phone,
+        address: settings.address,
+        slogan: settings.slogan,
+        schedule: settings.schedule,
+        deliveryTimeMin: settings.deliveryTimeMin,
+        deliveryTimeMax: settings.deliveryTimeMax,
+        pickupTimeMin: settings.pickupTimeMin,
+        pickupTimeMax: settings.pickupTimeMax,
+        isManuallyOpen: settings.isManuallyOpen,
+      };
+
+      // Atualizar AMBOS: o JSON 'value' E os campos de PrintNode
       const { error } = await supabase
         .from('settings')
         .update({
-          store_name: settings.name,
-          store_phone: settings.phone,
-          store_address: settings.address,
+          value: settingsValue,
           printnode_printer_id: settings.printnode_printer_id || null,
           print_mode: settings.print_mode || 'auto',
           updated_at: new Date().toISOString(),
