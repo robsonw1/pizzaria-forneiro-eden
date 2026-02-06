@@ -1,38 +1,21 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.0";
 
-// CORS headers - Permitir requisições de qualquer origem
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Max-Age": "86400",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Interface para tipagem
-interface PrintOrderRequest {
-  orderId: string;
-  tenantId?: string;
-  force?: boolean; // Forçar impressão mesmo em modo manual
-}
-
-interface PrintNodeResponse {
-  success: boolean;
-  message: string;
-  printJobId?: string;
-  error?: string;
-}
-
-export async function handler(
-  req: Request
-): Promise<Response> {
+Deno.serve(async (req: Request) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders, status: 200 });
+    return new Response(null, {
+      headers: corsHeaders,
+      status: 200,
+    });
   }
 
   try {
-    // Validar método
     if (req.method !== "POST") {
       return new Response(
         JSON.stringify({ error: "Only POST requests allowed" }),
@@ -40,18 +23,15 @@ export async function handler(
       );
     }
 
-    // Parse do request
-    const body: PrintOrderRequest = await req.json();
-    const { orderId, tenantId, force = false } = body;
+    const { orderId, force = false } = await req.json();
 
     if (!orderId) {
       return new Response(
         JSON.stringify({ error: "orderId is required" }),
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       );
     }
 
-    // Inicializar cliente Supabase
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -64,14 +44,14 @@ export async function handler(
       .single();
 
     if (orderError || !order) {
+      console.error("Order error:", orderError);
       return new Response(
-        JSON.stringify({ error: "Order not found", details: orderError }),
-        { status: 404 }
+        JSON.stringify({ error: "Order not found" }),
+        { status: 404, headers: corsHeaders }
       );
     }
 
-    // 2. Buscar configuração de impressão (ID da impressora)
-    // API Key vem das variáveis de ambiente (Supabase Secrets)
+    // 2. Buscar configuração de impressora
     const { data: settings, error: settingsError } = await supabase
       .from("settings")
       .select("printnode_printer_id, print_mode")
@@ -79,79 +59,66 @@ export async function handler(
       .single();
 
     if (settingsError || !settings?.printnode_printer_id) {
+      console.error("Settings error:", settingsError);
       return new Response(
         JSON.stringify({
           error: "Printer not configured",
-          details: settingsError,
+          details: settingsError?.message,
         }),
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       );
     }
 
-    // Buscar API Key das variáveis de ambiente
-    const printNodeApiKey = Deno.env.get("PRINTNODE_API_KEY");
-    if (!printNodeApiKey) {
-      console.error("PRINTNODE_API_KEY not configured in environment");
-      return new Response(
-        JSON.stringify({
-          error: "PrintNode API key not configured",
-        }),
-        { status: 500 }
-      );
-    }    
-    console.log(`PrintNode settings - Printer ID: ${settings.printnode_printer_id}, Mode: ${settings.print_mode}`);
     // 3. Verificar modo de impressão
     if (settings.print_mode === "manual" && !force) {
       return new Response(
         JSON.stringify({
           success: true,
-          message: "Print mode is manual. Use force=true to print anyway.",
+          message: "Print mode is manual. Use force=true to print.",
         }),
-        { status: 200 }
+        { status: 200, headers: corsHeaders }
       );
     }
 
-    // 4. Buscar itens do pedido para montar a comanda
-    const { data: orderItems, error: itemsError } = await supabase
+    // 4. Buscar items do pedido
+    const { data: orderItems } = await supabase
       .from("order_items")
       .select("*")
       .eq("order_id", orderId);
 
-    if (itemsError) {
+    // 5. Montar HTML
+    const html = buildHTML(order, orderItems || []);
+
+    // 6. Enviar para PrintNode
+    const apiKey = Deno.env.get("PRINTNODE_API_KEY");
+    if (!apiKey) {
       return new Response(
-        JSON.stringify({ error: "Failed to fetch order items", details: itemsError }),
-        { status: 500 }
+        JSON.stringify({ error: "API key not configured" }),
+        { status: 500, headers: corsHeaders }
       );
     }
 
-    // 5. Montar HTML da comanda
-    const commandHTML = buildCommandHTML(order, orderItems);
-
-    // 6. Enviar para PrintNode
-    const printNodeResponse = await sendToPrintNode(
-      printNodeApiKey,
+    const printNodeResult = await sendToPrintNode(
+      apiKey,
       settings.printnode_printer_id,
-      commandHTML
+      html
     );
 
-    if (!printNodeResponse.success) {
+    if (!printNodeResult.success) {
       return new Response(
         JSON.stringify({
           error: "Failed to send to PrintNode",
-          details: printNodeResponse.error,
+          details: printNodeResult.error,
         }),
-        { status: 500 }
+        { status: 500, headers: corsHeaders }
       );
     }
-
-    // 7. Log de sucesso (opcional - salvar em tabela de logs)
-    console.log(`Order ${orderId} printed successfully`);
 
     return new Response(
       JSON.stringify({
         success: true,
         message: "Order sent to printer",
-        printJobId: printNodeResponse.printJobId,
+        printJobId: printNodeResult.printJobId,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
@@ -165,28 +132,16 @@ export async function handler(
       { status: 500, headers: corsHeaders }
     );
   }
-}
+});
 
-/**
- * Constrói o HTML da comanda para impressão
- */
-function buildCommandHTML(order: any, items: any[]): string {
-  const date = new Date(order.created_at).toLocaleString("pt-BR");
+function buildHTML(order: any, items: any[]): string {
   const itemsHTML = items
     .map(
-      (item) =>
-        `
-    <div class="item">
-      <div class="item-quantity">${item.quantity}x</div>
-      <div class="item-details">
-        <div class="item-name">${item.product_name}</div>
-        ${item.size ? `<div class="item-size">Tamanho: ${item.size}</div>` : ""}
-        ${
-          item.custom_ingredients
-            ? `<div class="item-extras">Adicionais: ${item.custom_ingredients}</div>`
-            : ""
-        }
-      </div>
+      (item) => `
+    <div style="margin-bottom: 10px;">
+      <strong>${item.quantity}x ${item.product_name}</strong>
+      ${item.size ? `<div style="font-size: 12px;">Tamanho: ${item.size}</div>` : ""}
+      ${item.custom_ingredients ? `<div style="font-size: 12px;">Adicionais: ${item.custom_ingredients}</div>` : ""}
     </div>
   `
     )
@@ -198,141 +153,64 @@ function buildCommandHTML(order: any, items: any[]): string {
     <head>
       <meta charset="UTF-8">
       <style>
-        body {
-          font-family: Arial, sans-serif;
-          width: 80mm;
-          margin: 0;
-          padding: 10mm;
-        }
-        .header {
-          text-align: center;
-          border-bottom: 2px solid #000;
-          margin-bottom: 10mm;
-          padding-bottom: 5mm;
-        }
-        .header h1 {
-          margin: 0;
-          font-size: 18px;
-        }
-        .order-info {
-          margin-bottom: 10mm;
-          font-size: 12px;
-        }
-        .order-date {
-          font-weight: bold;
-        }
-        .items {
-          margin-bottom: 10mm;
-        }
-        .item {
-          display: flex;
-          margin-bottom: 5mm;
-          font-size: 12px;
-        }
-        .item-quantity {
-          font-weight: bold;
-          margin-right: 5mm;
-          min-width: 15mm;
-        }
-        .item-details {
-          flex: 1;
-        }
-        .item-name {
-          font-weight: bold;
-        }
-        .item-size {
-          font-size: 11px;
-          color: #666;
-        }
-        .item-extras {
-          font-size: 11px;
-          color: #666;
-          margin-top: 2mm;
-        }
-        .footer {
-          border-top: 2px solid #000;
-          text-align: center;
-          padding-top: 5mm;
-          font-size: 11px;
-        }
+        body { font-family: Arial, sans-serif; max-width: 400px; padding: 20px; }
+        h2 { text-align: center; margin-bottom: 20px; }
+        .total { font-size: 18px; font-weight: bold; margin-top: 20px; text-align: center; border-top: 2px solid #000; padding-top: 10px; }
       </style>
     </head>
     <body>
-      <div class="header">
-        <h1>COMANDA</h1>
-      </div>
-      <div class="order-info">
-        <div class="order-date">Pedido: ${order.id}</div>
-        <div>${date}</div>
-        <div>Cliente: ${order.customer_name}</div>
-      </div>
-      <div class="items">
-        ${itemsHTML}
-      </div>
-      <div class="footer">
-        <p>Obrigado!</p>
-      </div>
+      <h2>COMANDA</h2>
+      <div>Pedido: ${order.id}</div>
+      <div>Data: ${new Date(order.created_at).toLocaleString("pt-BR")}</div>
+      <div>Cliente: ${order.customer_name || "S/N"}</div>
+      <hr>
+      <div>${itemsHTML}</div>
+      <div class="total">Total: R$ ${(order.total || 0).toFixed(2)}</div>
     </body>
     </html>
   `;
 }
 
-/**
- * Envia a comanda para PrintNode via API
- */
 async function sendToPrintNode(
   apiKey: string,
   printerId: string,
   htmlContent: string
 ): Promise<{ success: boolean; printJobId?: string; error?: string }> {
   try {
-    // Converter HTML para base64
-    const base64Content = btoa(htmlContent);
-
-    // Payload para PrintNode
-    const payload = {
-      printerId: parseInt(printerId),
-      source: "api",
-      contentType: "html_base64",
-      content: base64Content,
-      jobType: "pdf",
-    };
-
-    console.log(`Sending to PrintNode - Printer ID: ${printerId}`);
-
-    // Fazer requisição para PrintNode com timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+    const base64HTML = btoa(htmlContent);
 
     const response = await fetch("https://api.printnode.com/printjobs", {
       method: "POST",
       headers: {
+        Authorization: `Basic ${btoa(apiKey + ":")}`,
         "Content-Type": "application/json",
-        Authorization: `Basic ${btoa(`${apiKey}:`)}`,
       },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
+      body: JSON.stringify({
+        printerId: parseInt(printerId),
+        title: "Comanda - Forneiro Éden",
+        contentType: "raw_base64",
+        content: base64HTML,
+      }),
+      signal: AbortSignal.timeout(15000),
     });
 
-    clearTimeout(timeoutId);
-
     if (!response.ok) {
-      const error = await response.text();
-      console.error(`PrintNode error ${response.status}: ${error}`);
+      const errorText = await response.text();
+      console.error(`PrintNode error ${response.status}: ${errorText}`);
       return {
         success: false,
-        error: `PrintNode API error: ${response.status} - ${error}`,
+        error: `PrintNode API error: ${response.status}`,
       };
     }
 
     const data = await response.json();
-    console.log(`PrintNode success - Job ID: ${data.id}`);
+    console.log(`Print job created: ${data.id}`);
     return {
       success: true,
       printJobId: data.id,
     };
   } catch (error) {
-    console.error("PrintNode send error:", error);
+    console.error("PrintNode error:", error);
     return {
       success: false,
       error: error instanceof Error ? error.message : String(error),
