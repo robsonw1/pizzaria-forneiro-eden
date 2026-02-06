@@ -83,6 +83,9 @@ export const useRealtimeSync = () => {
             isManuallyOpen: valueData.isManuallyOpen !== undefined ? valueData.isManuallyOpen : true,
             printnode_printer_id: settingsData.printnode_printer_id,
             print_mode: settingsData.print_mode || 'auto',
+            auto_print_pix: settingsData.auto_print_pix === true,
+            auto_print_card: settingsData.auto_print_card === true,
+            auto_print_cash: settingsData.auto_print_cash === true,
           });
           console.log('✅ Settings carregados do Supabase:', settingsData);
         }
@@ -208,6 +211,9 @@ export const useRealtimeSync = () => {
                 isManuallyOpen: valueData.isManuallyOpen !== undefined ? valueData.isManuallyOpen : true,
                 printnode_printer_id: settingsData.printnode_printer_id,
                 print_mode: settingsData.print_mode || 'auto',
+                auto_print_pix: settingsData.auto_print_pix === true,
+                auto_print_card: settingsData.auto_print_card === true,
+                auto_print_cash: settingsData.auto_print_cash === true,
               });
               console.log('✅ Settings atualizado em tempo real:', settingsData);
             }
