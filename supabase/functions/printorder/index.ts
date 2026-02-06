@@ -63,10 +63,10 @@ Deno.serve(async (req: Request) => {
       order = orderData;
     }
 
-    // 2. Buscar configuração de impressora
+    // 2. Buscar configuração de impressora e métodos de pagamento
     const { data: settings, error: settingsError } = await supabase
       .from("settings")
-      .select("printnode_printer_id, print_mode")
+      .select("printnode_printer_id, print_mode, auto_print_pix, auto_print_card, auto_print_cash")
       .eq("id", "store-settings")
       .single();
 
@@ -81,12 +81,25 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 3. Verificar modo de impressão
-    if (settings.print_mode === "manual" && !force) {
+    // 3. Verificar modo de impressão e método de pagamento
+    const shouldAutoPrint = () => {
+      if (force) return true; // Force sempre imprime
+      if (settings.print_mode === "auto") {
+        // Verificar método de pagamento
+        const paymentMethod = order.payment_method?.toLowerCase();
+        if (paymentMethod === "pix" && settings.auto_print_pix) return true;
+        if (paymentMethod === "card" && settings.auto_print_card) return true;
+        if (paymentMethod === "cash" && settings.auto_print_cash) return true;
+        if (!paymentMethod) return true; // Se não houver método, imprime
+      }
+      return false;
+    };
+    
+    if (!shouldAutoPrint()) {
       return new Response(
         JSON.stringify({
           success: true,
-          message: "Print mode is manual. Use force=true to print.",
+          message: "Order not auto-printed based on payment method settings.",
         }),
         { status: 200, headers: corsHeaders }
       );
