@@ -59,6 +59,7 @@ import { NeighborhoodFormDialog } from '@/components/admin/NeighborhoodFormDialo
 import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { DateRangeFilter } from '@/components/admin/DateRangeFilter';
 import { ScheduleSettings } from '@/components/admin/ScheduleSettings';
+import { PrintNodeSettings } from '@/components/admin/PrintNodeSettings';
 import { toast } from 'sonner';
 import { format, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -1062,6 +1063,8 @@ const AdminDashboard = () => {
                   </Button>
                 </CardContent>
               </Card>
+
+              <PrintNodeSettings />
             </div>
           </TabsContent>
         </Tabs>
