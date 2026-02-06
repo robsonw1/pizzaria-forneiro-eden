@@ -374,14 +374,25 @@ export function CheckoutModal() {
         product_id: item.product.id,
         product_name: item.product.name,
         quantity: item.quantity,
-        price: item.totalPrice / item.quantity,
-        total_price: item.totalPrice,
         size: item.size || 'grande',
-        custom_ingredients: item.customIngredients ? JSON.stringify(item.customIngredients) : null,
+        total_price: item.totalPrice,
+        item_data: JSON.stringify({
+          product: item.product,
+          quantity: item.quantity,
+          size: item.size,
+          border: item.border,
+          extras: item.extras,
+          comboPizzaFlavors: item.comboPizzaFlavors,
+          isHalfHalf: item.isHalfHalf,
+          secondHalf: item.secondHalf,
+          drink: item.drink,
+          isDrinkFree: item.isDrinkFree,
+          customIngredients: item.customIngredients,
+        }),
         created_at: new Date().toISOString(),
       }));
 
-      const { error: itemsError } = await supabase
+      const { error: itemsError } = await (supabase as any)
         .from('order_items')
         .insert(orderItemsData);
 
