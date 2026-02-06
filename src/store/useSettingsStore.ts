@@ -158,8 +158,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     const currentDay = dayNames[now.getDay()];
     const daySchedule = settings.schedule[currentDay];
 
-    // If day is marked as closed
-    if (!daySchedule.isOpen) {
+    // Se não tem schedule ou não tá aberto, retorna false
+    if (!daySchedule || !daySchedule.isOpen || !daySchedule.openTime || !daySchedule.closeTime) {
       return false;
     }
 
@@ -168,20 +168,25 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     const currentMinute = now.getMinutes();
     const currentTime = currentHour * 60 + currentMinute;
 
-    const [openHour, openMinute] = daySchedule.openTime.split(':').map(Number);
-    const [closeHour, closeMinute] = daySchedule.closeTime.split(':').map(Number);
-    
-    const openTime = openHour * 60 + openMinute;
-    let closeTime = closeHour * 60 + closeMinute;
-    
-    // Handle closing time past midnight (e.g., 00:00 means midnight)
-    if (closeTime <= openTime) {
-      closeTime += 24 * 60; // Add 24 hours
-      const adjustedCurrentTime = currentTime < openTime ? currentTime + 24 * 60 : currentTime;
-      return adjustedCurrentTime >= openTime && adjustedCurrentTime < closeTime;
-    }
+    try {
+      const [openHour, openMinute] = daySchedule.openTime.split(':').map(Number);
+      const [closeHour, closeMinute] = daySchedule.closeTime.split(':').map(Number);
+      
+      const openTime = openHour * 60 + openMinute;
+      let closeTime = closeHour * 60 + closeMinute;
+      
+      // Handle closing time past midnight (e.g., 00:00 means midnight)
+      if (closeTime <= openTime) {
+        closeTime += 24 * 60; // Add 24 hours
+        const adjustedCurrentTime = currentTime < openTime ? currentTime + 24 * 60 : currentTime;
+        return adjustedCurrentTime >= openTime && adjustedCurrentTime < closeTime;
+      }
 
-    return currentTime >= openTime && currentTime < closeTime;
+      return currentTime >= openTime && currentTime < closeTime;
+    } catch (error) {
+      console.error('Erro ao calcular horário de funcionamento:', error);
+      return false;
+    }
   },
 
   syncSettingsToSupabase: async () => {
