@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -76,7 +76,6 @@ export function CheckoutModal() {
   } = useCheckoutStore();
 
   const neighborhoods = useNeighborhoodsStore((s) => s.neighborhoods);
-  const syncNeighborhoods = useNeighborhoodsStore((s) => s.syncFromSupabase);
   const activeNeighborhoods = neighborhoods.filter(n => n.isActive);
   const addOrder = useOrdersStore((s) => s.addOrder);
   const settings = useSettingsStore((s) => s.settings);
@@ -86,13 +85,6 @@ export function CheckoutModal() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [pixData, setPixData] = useState<PixData | null>(null);
   const [copied, setCopied] = useState(false);
-
-  // Sincroniza bairros quando o modal abre
-  useEffect(() => {
-    if (isCheckoutOpen && activeNeighborhoods.length === 0) {
-      syncNeighborhoods();
-    }
-  }, [isCheckoutOpen, syncNeighborhoods, activeNeighborhoods.length]);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -129,6 +121,10 @@ export function CheckoutModal() {
           toast.error('Por favor, informe um telefone válido');
           return false;
         }
+        if (!customer.cpf || customer.cpf.replace(/\D/g, '').length !== 11) {
+          toast.error('Por favor, informe um CPF válido');
+          return false;
+        }
         return true;
       case 'address':
         if (deliveryType === 'pickup') return true;
@@ -140,12 +136,6 @@ export function CheckoutModal() {
       case 'delivery':
         return true;
       case 'payment':
-        if (paymentMethod === 'pix') {
-          if (!customer.cpf || customer.cpf.replace(/\D/g, '').length !== 11) {
-            toast.error('Por favor, informe um CPF válido para PIX');
-            return false;
-          }
-        }
         if (paymentMethod === 'cash' && needsChange && !changeAmount) {
           toast.error('Por favor, informe o valor para troco');
           return false;
@@ -210,130 +200,250 @@ export function CheckoutModal() {
     }
   };
 
-  const buildOrderPayload = (baseOrderId: string) => {
+  const buildOrderPayload = (orderId: string) => {
     const paymentMethodMap = {
-      pix: 'PIX',
-      card: 'Cartão de Crédito',
-      cash: 'Dinheiro'
+      pix: 'pix',
+      card: 'cartao_maquina',
+      cash: 'dinheiro'
     };
 
-    // Format item description
-    const formatItemDescription = (item: any): string => {
+    // Build detailed items array with combo half-half info
+    const formattedItems = items.map(item => {
       const isCombo = item.product.category === 'combos';
       const isPizza = ['promocionais', 'tradicionais', 'premium', 'especiais', 'doces'].includes(item.product.category);
       
-      let description = '';
-      
-      if (isPizza) {
-        const size = item.size === 'grande' ? 'Grande' : 'Broto';
-        
-        if (item.isHalfHalf && item.secondHalf) {
-          description = `Pizza ${size} (${item.size === 'grande' ? '8' : '6'} fatias) - Sabores: ${item.product.name} (${item.extras?.[0]?.name || 'Natural'})`;
-          if (item.secondHalf) {
-            description += `, 1/2 ${item.secondHalf.name} (${item.extras?.[0]?.name || 'Natural'})`;
-          }
-        } else {
-          description = `Pizza ${size} (${item.size === 'grande' ? '8' : '6'} fatias) - Sabores: ${item.product.name}`;
-          if (item.extras && item.extras.length > 0) {
-            description += ` (${item.extras.map((e: any) => e.name).join(', ')})`;
-          }
+      // Build combo pizzas array with half-half details
+      const comboPizzas = item.comboPizzaFlavors?.map((pizza: any, index: number) => {
+        if (pizza.isHalfHalf && pizza.secondHalf) {
+          return {
+            pizzaNumber: index + 1,
+            type: 'meia-meia',
+            sabor1: pizza.name,
+            sabor2: pizza.secondHalf.name,
+            description: `Pizza ${index + 1}: Meia ${pizza.name} + Meia ${pizza.secondHalf.name}`,
+          };
         }
-        
-        if (item.border?.name && item.border.name !== 'Sem borda') {
-          description += `, Borda: ${item.border.name}`;
-        }
-      } else if (isCombo) {
-        description = `${item.product.name}`;
-        if (item.comboPizzaFlavors && item.comboPizzaFlavors.length > 0) {
-          const pizzas = item.comboPizzaFlavors.map((p: any, idx: number) => {
-            if (p.isHalfHalf && p.secondHalf) {
-              return `Meia ${p.name} + Meia ${p.secondHalf.name}`;
-            }
-            return p.name;
-          }).join(' e ');
-          description += ` - Pizzas: ${pizzas}`;
-        }
-        if (item.border?.name && item.border.name !== 'Sem borda') {
-          description += `, Borda: ${item.border.name}`;
-        }
-      } else {
-        description = item.product.name;
-      }
-      
-      // Add drink if exists
-      if (item.drink?.name) {
-        description += `; ${item.drink.name}`;
-      }
-      
-      return description;
-    };
+        return {
+          pizzaNumber: index + 1,
+          type: 'inteira',
+          sabor: pizza.name,
+          description: `Pizza ${index + 1}: ${pizza.name}`,
+        };
+      }) || [];
 
-    // Create a separate order payload for each item
-    const orderPayloads = items.map((item, itemIndex) => {
-      // Create separate order ID for each item (Pedido 1, Pedido 2, etc.)
-      const orderId = items.length > 1 ? `${baseOrderId}-P${itemIndex + 1}` : baseOrderId;
-      const deliveryFeeForItem = items.length > 1 ? 0 : deliveryFee;
-      const totalForItem = item.totalPrice + deliveryFeeForItem;
-      
+      // Build pizza half-half info for regular pizzas
+      let pizzaInfo: any = {};
+      if (isPizza) {
+        if (item.isHalfHalf && item.secondHalf) {
+          pizzaInfo = {
+            type: 'meia-meia',
+            size: item.size === 'grande' ? 'Grande' : 'Broto',
+            sabor1: item.product.name,
+            sabor2: item.secondHalf.name,
+          };
+        } else {
+          pizzaInfo = {
+            type: 'inteira',
+            size: item.size === 'grande' ? 'Grande' : 'Broto',
+            sabor: item.product.name,
+          };
+        }
+      }
+
       return {
-        pedido_id: orderId,
-        status: 'registrado',
-        data_hora: new Date().toLocaleString('pt-BR'),
-        cliente: customer.name,
-        endereco: deliveryType === 'delivery' ? `${address.street}, ${address.number}${address.complement ? ` - ${address.complement}` : ''}` : 'Retirada na loja',
-        bairro: deliveryType === 'delivery' ? (selectedNeighborhood?.name || address.neighborhood) : 'Local',
-        tipo_pedido: deliveryType === 'delivery' ? 'Entrega' : 'Retirada',
-        taxa_entrega: deliveryFeeForItem.toFixed(2),
-        pagamento: paymentMethodMap[paymentMethod],
-        itens: formatItemDescription(item),
-        observacao: observations || '',
-        total: totalForItem.toFixed(2),
+        id: item.id,
+        productId: item.product.id,
+        name: item.product.name,
+        category: item.product.category,
+        quantity: item.quantity,
+        unitPrice: item.totalPrice / item.quantity,
+        totalPrice: item.totalPrice,
+        // Pizza specific
+        ...(isPizza && {
+          pizza: {
+            ...pizzaInfo,
+            borda: item.border?.name || 'Sem borda',
+            adicionais: item.extras?.map(e => e.name) || [],
+          },
+        }),
+        // Combo specific
+        ...(isCombo && {
+          combo: {
+            pizzas: comboPizzas,
+            borda: item.border?.name || 'Sem borda',
+          },
+        }),
+        // Drink
+        bebida: item.drink?.name || 'Sem bebida',
+        bebidaGratis: item.isDrinkFree || false,
+        // Custom ingredients (Moda do Cliente)
+        ...(item.customIngredients && {
+          ingredientesPersonalizados: item.customIngredients,
+        }),
+        // Observations
+        observacoes: '',
       };
     });
 
-    return orderPayloads;
-  };
-
-  const sendOrderToWebhook = async (orderPayloads: any[]) => {
-    console.log('Enviando pedidos para webhook:', orderPayloads);
-    
-    // Add order to local store for admin panel (use first payload as base)
-    const basePayload = orderPayloads[0];
-    addOrder({
+    return {
+      orderId,
+      timestamp: new Date().toISOString(),
+      
+      // Customer info
       customer: {
         name: customer.name,
         phone: customer.phone,
-        email: customer.email,
+        phoneClean: customer.phone.replace(/\D/g, ''),
+        cpf: customer.cpf,
+        email: customer.email || '',
       },
-      address: {
-        zipCode: address.zipCode,
-        city: address.city || 'São Paulo',
-        neighborhood: selectedNeighborhood?.name || address.neighborhood,
-        street: address.street,
-        number: address.number,
-        complement: address.complement,
-        reference: address.reference,
+      
+      // Delivery info
+      delivery: {
+        type: deliveryType === 'delivery' ? 'ENTREGA' : 'RETIRADA',
+        fee: deliveryFee,
+        estimatedTime: deliveryType === 'delivery' 
+          ? `${settings.deliveryTimeMin}-${settings.deliveryTimeMax} min`
+          : `${settings.pickupTimeMin}-${settings.pickupTimeMax} min`,
+        ...(deliveryType === 'delivery' && {
+          address: {
+            street: address.street,
+            number: address.number,
+            complement: address.complement || '',
+            neighborhood: selectedNeighborhood?.name || address.neighborhood,
+            city: address.city || 'São Paulo',
+            state: 'SP',
+            zipcode: address.zipCode,
+            reference: address.reference || '',
+          },
+        }),
       },
-      deliveryType,
-      deliveryFee,
-      paymentMethod,
-      items,
-      subtotal,
-      total,
-      status: 'pending',
-      observations,
-    });
+      
+      // Payment info
+      payment: {
+        method: paymentMethodMap[paymentMethod],
+        methodLabel: paymentMethod === 'pix' ? 'PIX' : paymentMethod === 'card' ? 'Cartão' : 'Dinheiro',
+        status: paymentMethod === 'pix' ? 'aguardando_pagamento' : 'pendente',
+        needsChange: paymentMethod === 'cash' ? needsChange : false,
+        changeFor: paymentMethod === 'cash' && needsChange ? parseFloat(changeAmount) || 0 : null,
+      },
+      
+      // Items
+      items: formattedItems,
+      
+      // Totals
+      totals: {
+        subtotal,
+        deliveryFee,
+        total,
+        itemCount: items.reduce((sum, item) => sum + item.quantity, 0),
+      },
+      
+      // Observations
+      observations: observations || '',
+    };
+  };
+
+  const sendOrderToWebhook = async (orderPayload: any) => {
+    console.log('Enviando pedido para webhook:', orderPayload);
     
-    // Send each order payload separately to webhook
-    for (const payload of orderPayloads) {
+    try {
+      // 1. Save order to Supabase
+      const { data: newOrder, error: orderError } = await supabase
+        .from('orders')
+        .insert({
+          id: orderPayload.orderId,
+          customer_name: customer.name,
+          customer_phone: customer.phone,
+          customer_email: customer.email,
+          street: address.street,
+          number: address.number,
+          complement: address.complement || '',
+          reference: address.reference || '',
+          neighborhood: selectedNeighborhood?.name || address.neighborhood,
+          city: address.city || 'São Paulo',
+          zip_code: address.zipCode,
+          delivery_type: deliveryType === 'delivery' ? 'ENTREGA' : 'RETIRADA',
+          delivery_fee: deliveryFee,
+          payment_method: paymentMethod === 'pix' ? 'pix' : paymentMethod === 'card' ? 'cartao_maquina' : 'dinheiro',
+          subtotal: subtotal,
+          total: total,
+          status: 'pending',
+          observations: observations || '',
+        })
+        .select()
+        .single();
+      
+      if (orderError) {
+        console.error('Erro ao salvar pedido no Supabase:', orderError);
+        throw orderError;
+      }
+
+      console.log('✅ Pedido salvo no Supabase:', newOrder);
+
+      // 2. Save order items to Supabase
+      const orderItemsData = items.map((item, index) => ({
+        order_id: orderPayload.orderId,
+        product_id: item.product.id,
+        product_name: item.product.name,
+        quantity: item.quantity,
+        price: item.totalPrice / item.quantity,
+        total_price: item.totalPrice,
+        size: item.size || 'grande',
+        custom_ingredients: item.customIngredients ? JSON.stringify(item.customIngredients) : null,
+        created_at: new Date().toISOString(),
+      }));
+
+      const { error: itemsError } = await supabase
+        .from('order_items')
+        .insert(orderItemsData);
+
+      if (itemsError) {
+        console.error('Erro ao salvar itens do pedido no Supabase:', itemsError);
+        throw itemsError;
+      }
+
+      console.log('✅ Itens do pedido salvos no Supabase');
+
+      // 3. Add order to local store for admin panel
+      addOrder({
+        customer: {
+          name: customer.name,
+          phone: customer.phone,
+          email: customer.email,
+        },
+        address: {
+          zipCode: address.zipCode,
+          city: address.city || 'São Paulo',
+          neighborhood: selectedNeighborhood?.name || address.neighborhood,
+          street: address.street,
+          number: address.number,
+          complement: address.complement,
+          reference: address.reference,
+        },
+        deliveryType,
+        deliveryFee,
+        paymentMethod,
+        items,
+        subtotal,
+        total,
+        status: 'pending',
+        observations,
+      });
+      
+      // 4. Send to webhook (N8N for PrintNode)
       await fetch('https://n8nwebhook.aezap.site/webhook/impressao', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         mode: 'no-cors',
-        body: JSON.stringify(payload),
-      });
+        body: JSON.stringify(orderPayload),
+      }).catch(err => console.warn('Aviso ao enviar para webhook:', err));
+
+    } catch (error) {
+      console.error('❌ Erro ao processar pedido:', error);
+      throw error;
     }
   };
 
@@ -346,7 +456,7 @@ export function CheckoutModal() {
     
     setIsProcessing(true);
     const orderId = `PED-${Date.now().toString().slice(-5)}`;
-    const orderPayloads = buildOrderPayload(orderId);
+    const orderPayload = buildOrderPayload(orderId);
 
     try {
       if (paymentMethod === 'pix') {
@@ -379,16 +489,16 @@ export function CheckoutModal() {
             expirationDate: mpData.expirationDate
           });
           
-          // Send orders to webhook
-          await sendOrderToWebhook(orderPayloads);
+          // Send order to webhook
+          await sendOrderToWebhook(orderPayload);
           
           setStep('pix');
         } else {
           throw new Error('QR Code não gerado');
         }
       } else {
-        // For card and cash, just send orders directly
-        await sendOrderToWebhook(orderPayloads);
+        // For card and cash, just send order directly
+        await sendOrderToWebhook(orderPayload);
         
         toast.success('Pedido enviado com sucesso!');
         setStep('confirmation');
@@ -526,6 +636,33 @@ export function CheckoutModal() {
                         />
                       </div>
                     </div>
+
+                    <div>
+                      <Label htmlFor="cpf">CPF *</Label>
+                      <Input
+                        id="cpf"
+                        placeholder="000.000.000-00"
+                        value={customer.cpf}
+                        onChange={(e) => handleCpfInput(e.target.value)}
+                        className="mt-1"
+                        maxLength={14}
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="email">Email (opcional)</Label>
+                      <div className="relative mt-1">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          id="email"
+                          type="email"
+                          placeholder="seu@email.com"
+                          value={customer.email}
+                          onChange={(e) => setCustomer({ email: e.target.value })}
+                          className="pl-10"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </motion.div>
               )}
@@ -570,7 +707,7 @@ export function CheckoutModal() {
                           <SelectTrigger className="mt-1">
                             <SelectValue placeholder="Selecione" />
                           </SelectTrigger>
-                          <SelectContent portal={false}>
+                          <SelectContent>
                             {activeNeighborhoods.map(nb => (
                               <SelectItem key={nb.id} value={nb.id}>
                                 {nb.name} - {formatPrice(nb.deliveryFee)}
@@ -779,31 +916,6 @@ export function CheckoutModal() {
                       </div>
                     </div>
                   </RadioGroup>
-
-                  {/* CPF para PIX */}
-                  {paymentMethod === 'pix' && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="bg-secondary/50 rounded-xl p-4 space-y-4"
-                    >
-                      <div>
-                        <Label htmlFor="pix-cpf">CPF para PIX *</Label>
-                        <Input
-                          id="pix-cpf"
-                          placeholder="000.000.000-00"
-                          value={customer.cpf}
-                          onChange={(e) => handleCpfInput(e.target.value)}
-                          className="mt-1"
-                          maxLength={14}
-                        />
-                        <p className="text-xs text-muted-foreground mt-1">
-                          O CPF é necessário para gerar o pagamento PIX
-                        </p>
-                      </div>
-                    </motion.div>
-                  )}
 
                   {/* Opção de troco para dinheiro */}
                   {paymentMethod === 'cash' && (
