@@ -17,15 +17,15 @@ const parseProductFromSupabase = (supabaseData: any): Product => {
     description: data.description || '',
     ingredients: data.ingredients || [],
     category: data.category || 'combos',
-    price: data.price || undefined,
-    priceSmall: data.price_small || undefined,
-    priceLarge: data.price_large || undefined,
+    price: data.price ?? undefined,
+    priceSmall: data.priceSmall ?? undefined,
+    priceLarge: data.priceLarge ?? undefined,
     image: data.image,
-    isPopular: data.is_popular || false,
-    isNew: data.is_new || false,
-    isVegetarian: data.is_vegetarian || false,
+    isPopular: data.is_popular ?? false,
+    isNew: data.is_new ?? false,
+    isVegetarian: data.is_vegetarian ?? false,
     isActive: data.is_active !== false,
-    isCustomizable: data.is_customizable || false,
+    isCustomizable: data.is_customizable ?? false,
   };
 };
 
