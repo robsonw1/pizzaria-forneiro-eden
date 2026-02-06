@@ -66,20 +66,21 @@ export const useRealtimeSync = () => {
         
         if (settingsData && isMounted) {
           const settingsStore = useSettingsStore.getState();
-          const { settings: defaultSettings } = settingsStore;
           
-          // Mapear as colunas da tabela para o formato do store, com valores padrão
+          // Se tiver 'value' (JSON), usar ele. Senão usar os campos individuais como fallback
+          const valueData = settingsData.value || {};
+          
           settingsStore.updateSettings({
-            name: settingsData.store_name || defaultSettings.name,
-            phone: settingsData.store_phone || defaultSettings.phone,
-            address: settingsData.store_address || defaultSettings.address,
-            slogan: settingsData.slogan || defaultSettings.slogan,
-            schedule: defaultSettings.schedule, // Manter padrão
-            deliveryTimeMin: defaultSettings.deliveryTimeMin,
-            deliveryTimeMax: defaultSettings.deliveryTimeMax,
-            pickupTimeMin: defaultSettings.pickupTimeMin,
-            pickupTimeMax: defaultSettings.pickupTimeMax,
-            isManuallyOpen: defaultSettings.isManuallyOpen,
+            name: valueData.name || settingsData.store_name || 'Forneiro Éden',
+            phone: valueData.phone || settingsData.store_phone || '(11) 99999-9999',
+            address: valueData.address || settingsData.store_address || 'Rua das Pizzas, 123 - Centro',
+            slogan: valueData.slogan || settingsData.slogan || 'A Pizza mais recheada da cidade 🇮🇹',
+            schedule: valueData.schedule, // Manter do JSON ou usar padrão do store
+            deliveryTimeMin: valueData.deliveryTimeMin || 60,
+            deliveryTimeMax: valueData.deliveryTimeMax || 70,
+            pickupTimeMin: valueData.pickupTimeMin || 40,
+            pickupTimeMax: valueData.pickupTimeMax || 50,
+            isManuallyOpen: valueData.isManuallyOpen !== undefined ? valueData.isManuallyOpen : true,
             printnode_printer_id: settingsData.printnode_printer_id,
             print_mode: settingsData.print_mode || 'auto',
           });
@@ -190,20 +191,21 @@ export const useRealtimeSync = () => {
             
             if (settingsData && isMounted) {
               const settingsStore = useSettingsStore.getState();
-              const { settings: defaultSettings } = settingsStore;
               
-              // Mapear as colunas para o formato do store
+              // Se tiver 'value' (JSON), usar ele. Senão usar os campos individuais como fallback
+              const valueData = settingsData.value || {};
+              
               settingsStore.updateSettings({
-                name: settingsData.store_name || defaultSettings.name,
-                phone: settingsData.store_phone || defaultSettings.phone,
-                address: settingsData.store_address || defaultSettings.address,
-                slogan: settingsData.slogan || defaultSettings.slogan,
-                schedule: defaultSettings.schedule,
-                deliveryTimeMin: defaultSettings.deliveryTimeMin,
-                deliveryTimeMax: defaultSettings.deliveryTimeMax,
-                pickupTimeMin: defaultSettings.pickupTimeMin,
-                pickupTimeMax: defaultSettings.pickupTimeMax,
-                isManuallyOpen: defaultSettings.isManuallyOpen,
+                name: valueData.name || settingsData.store_name || 'Forneiro Éden',
+                phone: valueData.phone || settingsData.store_phone || '(11) 99999-9999',
+                address: valueData.address || settingsData.store_address || 'Rua das Pizzas, 123 - Centro',
+                slogan: valueData.slogan || settingsData.slogan || 'A Pizza mais recheada da cidade 🇮🇹',
+                schedule: valueData.schedule,
+                deliveryTimeMin: valueData.deliveryTimeMin || 60,
+                deliveryTimeMax: valueData.deliveryTimeMax || 70,
+                pickupTimeMin: valueData.pickupTimeMin || 40,
+                pickupTimeMax: valueData.pickupTimeMax || 50,
+                isManuallyOpen: valueData.isManuallyOpen !== undefined ? valueData.isManuallyOpen : true,
                 printnode_printer_id: settingsData.printnode_printer_id,
                 print_mode: settingsData.print_mode || 'auto',
               });
