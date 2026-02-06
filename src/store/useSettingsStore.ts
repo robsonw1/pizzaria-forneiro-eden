@@ -86,26 +86,27 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     // Salvar no Supabase
     try {
       const { settings: currentSettings } = get();
+      
+      // Apenas atualizar campos que são do PrintNode
       const { error } = await supabase
         .from('settings')
         .update({
-          store_name: currentSettings.name,
-          store_phone: currentSettings.phone,
-          store_address: currentSettings.address,
           printnode_printer_id: currentSettings.printnode_printer_id || null,
           print_mode: currentSettings.print_mode || 'auto',
+          updated_at: new Date().toISOString(),
         })
         .eq('id', 'store-settings');
 
       if (error) {
         console.error('❌ Erro ao salvar settings no Supabase:', error);
-        throw error;
+        // Não lançar erro, apenas logar
+        return;
       }
 
       console.log('✅ Settings salvos no Supabase com sucesso');
     } catch (error) {
       console.error('❌ Erro ao atualizar settings:', error);
-      throw error;
+      // Não lançar erro, deixar continuar
     }
   },
 
