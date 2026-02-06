@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -17,12 +18,18 @@ import { AlertCircle, CheckCircle, Loader } from 'lucide-react';
 interface PrintNodeConfig {
   printerId: string;
   printMode: 'auto' | 'manual';
+  autoPrintPix: boolean;
+  autoPrintCard: boolean;
+  autoPrintCash: boolean;
 }
 
 export function PrintNodeSettings() {
   const [config, setConfig] = useState<PrintNodeConfig>({
     printerId: '',
     printMode: 'auto',
+    autoPrintPix: false,
+    autoPrintCard: false,
+    autoPrintCash: false,
   });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -38,6 +45,9 @@ export function PrintNodeSettings() {
       setConfig((prev) => ({
         printerId: settings.printnode_printer_id || '',
         printMode: (settings.print_mode as 'auto' | 'manual') || 'auto',
+        autoPrintPix: settings.auto_print_pix || false,
+        autoPrintCard: settings.auto_print_card || false,
+        autoPrintCash: settings.auto_print_cash || false,
       }));
     }
   }, [settings]);
@@ -55,6 +65,9 @@ export function PrintNodeSettings() {
         ...settings,
         printnode_printer_id: config.printerId,
         print_mode: config.printMode,
+        auto_print_pix: config.autoPrintPix,
+        auto_print_card: config.autoPrintCard,
+        auto_print_cash: config.autoPrintCash,
       });
       
       setMessage({ type: 'success', text: 'Configurações salvas com sucesso!' });
@@ -146,6 +159,52 @@ export function PrintNodeSettings() {
                 <SelectItem value="manual">Manual (botão de impressão)</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-3 border-t pt-4">
+            <Label className="font-semibold">Impressão Automática por Método de Pagamento</Label>
+            <p className="text-xs text-gray-500 mb-3">Escolha quais métodos de pagamento devem imprimir automaticamente:</p>
+            
+            <div className="space-y-2">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <Checkbox
+                  checked={config.autoPrintPix}
+                  onCheckedChange={(checked) =>
+                    setConfig((prev) => ({
+                      ...prev,
+                      autoPrintPix: !!checked,
+                    }))
+                  }
+                />
+                <span className="text-sm">PIX - Imprimir automaticamente</span>
+              </label>
+              
+              <label className="flex items-center gap-3 cursor-pointer">
+                <Checkbox
+                  checked={config.autoPrintCard}
+                  onCheckedChange={(checked) =>
+                    setConfig((prev) => ({
+                      ...prev,
+                      autoPrintCard: !!checked,
+                    }))
+                  }
+                />
+                <span className="text-sm">Cartão - Imprimir automaticamente</span>
+              </label>
+              
+              <label className="flex items-center gap-3 cursor-pointer">
+                <Checkbox
+                  checked={config.autoPrintCash}
+                  onCheckedChange={(checked) =>
+                    setConfig((prev) => ({
+                      ...prev,
+                      autoPrintCash: !!checked,
+                    }))
+                  }
+                />
+                <span className="text-sm">Dinheiro - Imprimir automaticamente</span>
+              </label>
+            </div>
           </div>
         </div>
 
