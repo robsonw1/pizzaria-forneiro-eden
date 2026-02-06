@@ -36,19 +36,31 @@ Deno.serve(async (req: Request) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // 1. Buscar dados do pedido
-    const { data: order, error: orderError } = await supabase
-      .from("orders")
-      .select("*")
-      .eq("id", orderId)
-      .single();
+    // 1. Buscar dados do pedido (ou criar um fake para teste)
+    let order;
+    if (orderId === "TEST-ORDER") {
+      // Criar um pedido fake para teste
+      order = {
+        id: "TEST-ORDER",
+        customer_name: "Teste",
+        total: 50.00,
+        created_at: new Date().toISOString(),
+      };
+    } else {
+      const { data: orderData, error: orderError } = await supabase
+        .from("orders")
+        .select("*")
+        .eq("id", orderId)
+        .single();
 
-    if (orderError || !order) {
-      console.error("Order error:", orderError);
-      return new Response(
-        JSON.stringify({ error: "Order not found" }),
-        { status: 404, headers: corsHeaders }
-      );
+      if (orderError || !orderData) {
+        console.error("Order error:", orderError);
+        return new Response(
+          JSON.stringify({ error: "Order not found" }),
+          { status: 404, headers: corsHeaders }
+        );
+      }
+      order = orderData;
     }
 
     // 2. Buscar configuração de impressora
@@ -80,11 +92,21 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 4. Buscar items do pedido
-    const { data: orderItems } = await supabase
-      .from("order_items")
-      .select("*")
-      .eq("order_id", orderId);
+    // 4. Buscar items do pedido (ou usar fake para teste)
+    let orderItems = [];
+    if (orderId !== "TEST-ORDER") {
+      const { data: items } = await supabase
+        .from("order_items")
+        .select("*")
+        .eq("order_id", orderId);
+      orderItems = items || [];
+    } else {
+      // Items fake para teste
+      orderItems = [
+        { quantity: 1, product_name: "Pizza Margherita", size: "Grande" },
+        { quantity: 1, product_name: "Refrigerante", size: "2L" },
+      ];
+    }
 
     // 5. Montar HTML
     const html = buildHTML(order, orderItems || []);
