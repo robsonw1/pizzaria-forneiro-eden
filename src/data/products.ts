@@ -68,6 +68,7 @@ export interface Order {
   observations?: string;
   createdAt: Date;
   paymentId?: string;
+  printedAt?: string;
 }
 
 // Available ingredients for "Moda do Cliente" pizza
