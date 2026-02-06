@@ -10,21 +10,22 @@ import type { Product, Order, Neighborhood } from '@/data/products';
  * Converte os dados do Supabase (JSON) para o formato Product esperado
  */
 const parseProductFromSupabase = (supabaseData: any): Product => {
+  const data = supabaseData.data || {};
   return {
     id: supabaseData.id,
-    name: supabaseData.name || '',
-    description: supabaseData.description || '',
-    ingredients: supabaseData.ingredients || [],
-    category: supabaseData.category || 'combos',
-    price: supabaseData.price || undefined,
-    priceSmall: supabaseData.price_small || undefined,
-    priceLarge: supabaseData.price_large || undefined,
-    image: supabaseData.image,
-    isPopular: supabaseData.is_popular || false,
-    isNew: supabaseData.is_new || false,
-    isVegetarian: supabaseData.is_vegetarian || false,
-    isActive: supabaseData.is_active !== false,
-    isCustomizable: supabaseData.is_customizable || false,
+    name: supabaseData.name || data.name,
+    description: data.description || '',
+    ingredients: data.ingredients || [],
+    category: data.category || 'combos',
+    price: data.price || undefined,
+    priceSmall: data.price_small || undefined,
+    priceLarge: data.price_large || undefined,
+    image: data.image,
+    isPopular: data.is_popular || false,
+    isNew: data.is_new || false,
+    isVegetarian: data.is_vegetarian || false,
+    isActive: data.is_active !== false,
+    isCustomizable: data.is_customizable || false,
   };
 };
 
