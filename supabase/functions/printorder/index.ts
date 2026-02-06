@@ -75,6 +75,7 @@ export async function handler(
     const { data: settings, error: settingsError } = await supabase
       .from("settings")
       .select("printnode_printer_id, print_mode")
+      .eq("id", "store-settings")
       .single();
 
     if (settingsError || !settings?.printnode_printer_id) {
