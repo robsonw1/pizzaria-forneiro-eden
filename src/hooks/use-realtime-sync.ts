@@ -60,15 +60,21 @@ export const useRealtimeSync = () => {
         // Carregar settings - IMPORTANTE: isso sobrescreve o localStorage
         const { data: settingsData } = await (supabase as any)
           .from('settings')
-          .select('value')
+          .select('*')
           .eq('id', 'store-settings')
           .single();
         
-        if (settingsData?.value && isMounted) {
+        if (settingsData && isMounted) {
           const settingsStore = useSettingsStore.getState();
-          // O value já é um objeto com todos os settings
-          settingsStore.updateSettings(settingsData.value);
-          console.log('✅ Settings carregados do Supabase:', settingsData.value);
+          // Mapear as colunas da tabela para o formato do store
+          settingsStore.updateSettings({
+            name: settingsData.store_name,
+            phone: settingsData.store_phone,
+            address: settingsData.store_address,
+            printnode_printer_id: settingsData.printnode_printer_id,
+            print_mode: settingsData.print_mode,
+          });
+          console.log('✅ Settings carregados do Supabase:', settingsData);
         }
 
         // Carregar bairros
@@ -197,4 +203,3 @@ export const useRealtimeSync = () => {
     };
   }, []);
 };
-
