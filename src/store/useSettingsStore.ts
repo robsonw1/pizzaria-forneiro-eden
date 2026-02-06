@@ -87,10 +87,13 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     try {
       const { settings: currentSettings } = get();
       
-      // Apenas atualizar campos que são do PrintNode
+      // Mapear para as colunas da tabela settings
       const { error } = await supabase
         .from('settings')
         .update({
+          store_name: currentSettings.name,
+          store_phone: currentSettings.phone,
+          store_address: currentSettings.address,
           printnode_printer_id: currentSettings.printnode_printer_id || null,
           print_mode: currentSettings.print_mode || 'auto',
           updated_at: new Date().toISOString(),
@@ -99,14 +102,12 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
       if (error) {
         console.error('❌ Erro ao salvar settings no Supabase:', error);
-        // Não lançar erro, apenas logar
         return;
       }
 
       console.log('✅ Settings salvos no Supabase com sucesso');
     } catch (error) {
       console.error('❌ Erro ao atualizar settings:', error);
-      // Não lançar erro, deixar continuar
     }
   },
 
@@ -187,10 +188,17 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     try {
       const { settings } = get();
       
-      // Salvar na tabela settings do Supabase
-      const { error } = await (supabase as any)
+      // Mapear para as colunas da tabela settings
+      const { error } = await supabase
         .from('settings')
-        .update({ value: settings })
+        .update({
+          store_name: settings.name,
+          store_phone: settings.phone,
+          store_address: settings.address,
+          printnode_printer_id: settings.printnode_printer_id || null,
+          print_mode: settings.print_mode || 'auto',
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', 'store-settings');
 
       if (error) {
@@ -198,7 +206,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         return { success: false, message: 'Erro ao sincronizar configurações' };
       }
 
-      console.log('✅ Settings sincronizados com Supabase:', settings);
+      console.log('✅ Settings sincronizados com Supabase');
       return { success: true, message: 'Configurações sincronizadas com sucesso!' };
     } catch (error) {
       console.error('❌ Erro ao sincronizar settings:', error);
