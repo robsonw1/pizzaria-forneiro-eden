@@ -1,5 +1,13 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.0";
 
+// CORS headers
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+};
+
 // Interface para tipagem
 interface PrintOrderRequest {
   orderId: string;
@@ -17,12 +25,17 @@ interface PrintNodeResponse {
 export async function handler(
   req: Request
 ): Promise<Response> {
+  // Handle CORS preflight
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders, status: 200 });
+  }
+
   try {
     // Validar método
     if (req.method !== "POST") {
       return new Response(
         JSON.stringify({ error: "Only POST requests allowed" }),
-        { status: 405 }
+        { status: 405, headers: corsHeaders }
       );
     }
 
@@ -138,7 +151,7 @@ export async function handler(
         message: "Order sent to printer",
         printJobId: printNodeResponse.printJobId,
       }),
-      { status: 200, headers: { "Content-Type": "application/json" } }
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
     console.error("Error:", error);
@@ -147,7 +160,7 @@ export async function handler(
         error: "Internal server error",
         details: error instanceof Error ? error.message : String(error),
       }),
-      { status: 500 }
+      { status: 500, headers: corsHeaders }
     );
   }
 }
