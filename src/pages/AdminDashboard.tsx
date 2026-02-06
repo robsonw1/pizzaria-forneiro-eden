@@ -229,30 +229,6 @@ const AdminDashboard = () => {
       };
       setSettingsForm({ ...settingsForm, schedule: newSchedule });
       await updateSettings({ ...settingsForm, schedule: newSchedule });
-
-      // Salvar no Supabase
-      const { error } = await (supabase as any)
-        .from('settings')
-        .update({ 
-          value: {
-            name: settingsForm.name,
-            phone: settingsForm.phone,
-            address: settingsForm.address,
-            slogan: settingsForm.slogan,
-            schedule: newSchedule,
-            deliveryTimeMin: settingsForm.deliveryTimeMin,
-            deliveryTimeMax: settingsForm.deliveryTimeMax,
-            pickupTimeMin: settingsForm.pickupTimeMin,
-            pickupTimeMax: settingsForm.pickupTimeMax,
-            isManuallyOpen: settingsForm.isManuallyOpen,
-          }
-        })
-        .eq('id', 'store-settings');
-
-      if (error) {
-        console.error('Erro ao sincronizar horário:', error);
-        toast.error('Erro ao salvar horário');
-      }
     } catch (error) {
       console.error('Erro ao sincronizar horário:', error);
       toast.error('Erro ao salvar horário');
@@ -265,30 +241,6 @@ const AdminDashboard = () => {
       const newState = !settingsForm.isManuallyOpen;
       setSettingsForm({ ...settingsForm, isManuallyOpen: newState });
       await updateSettings({ ...settingsForm, isManuallyOpen: newState });
-
-      // Salvar no Supabase
-      const { error } = await (supabase as any)
-        .from('settings')
-        .update({ 
-          value: {
-            name: settingsForm.name,
-            phone: settingsForm.phone,
-            address: settingsForm.address,
-            slogan: settingsForm.slogan,
-            schedule: settingsForm.schedule,
-            deliveryTimeMin: settingsForm.deliveryTimeMin,
-            deliveryTimeMax: settingsForm.deliveryTimeMax,
-            pickupTimeMin: settingsForm.pickupTimeMin,
-            pickupTimeMax: settingsForm.pickupTimeMax,
-            isManuallyOpen: newState,
-          }
-        })
-        .eq('id', 'store-settings');
-
-      if (error) {
-        console.error('Erro ao sincronizar status da loja:', error);
-        toast.error('Erro ao atualizar status da loja');
-      }
     } catch (error) {
       console.error('Erro ao sincronizar status da loja:', error);
       toast.error('Erro ao atualizar status da loja');
