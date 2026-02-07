@@ -54,6 +54,7 @@ export const useOrdersStore = create<OrdersStore>()(
               total: newOrder.total,
               created_at: localISO,
               address: newOrder.address,
+              payment_method: newOrder.paymentMethod,
             },
           ] as any);
 
@@ -272,7 +273,7 @@ export const useOrdersStore = create<OrdersStore>()(
                   },
                   deliveryType: 'delivery' as const,
                   deliveryFee: row.delivery_fee,
-                  paymentMethod: 'pix' as const,
+                  paymentMethod: (row.payment_method || 'pix') as any,
                   items: items?.map((item: any) => ({
                     id: item.id || `item-${Date.now()}-${Math.random()}`,
                     product: { id: item.product_id, name: item.product_name } as any,
