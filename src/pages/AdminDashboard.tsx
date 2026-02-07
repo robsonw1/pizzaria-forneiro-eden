@@ -134,18 +134,27 @@ const AdminDashboard = () => {
     if (!token) return;
 
     // Sincronizar imediatamente
+    console.log('📥 Sincronizando pedidos do Supabase...');
     syncOrdersFromSupabase();
+
+    // Configurar intervalo para sincronizar a cada 3 segundos
+    const syncInterval = setInterval(() => {
+      syncOrdersFromSupabase();
+    }, 3000);
 
     // Configurar real-time subscription para novos pedidos
     const subscription = supabase
       .channel('public:orders')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
-        // Quando há mudanças em orders, sincronizar novamente
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
+        console.log('🔄 Mudança em orders detectada:', payload.eventType);
         syncOrdersFromSupabase();
       })
-      .subscribe();
+      .subscribe((status) => {
+        console.log('📡 Subscription status:', status);
+      });
 
     return () => {
+      clearInterval(syncInterval);
       subscription.unsubscribe();
     };
   }, [syncOrdersFromSupabase]);
@@ -275,34 +284,57 @@ const AdminDashboard = () => {
     try {
       console.log('🖨️ Enviando pedido para impressão manual:', order.id);
       
-      // Chamar Supabase Edge Function para imprimir
-      const { data, error } = await supabase.functions.invoke('printorder', {
-        body: {
-          orderId: order.id,
-          force: true,
-        },
-      });
+      // Chamar Supabase Edge Function com retry
+      let lastError: any;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const { data, error } = await supabase.functions.invoke('printorder', {
+            body: {
+              orderId: order.id,
+              force: true,
+            },
+          });
 
-      if (error) {
-        console.error('❌ Erro ao imprimir pedido:', error);
-        toast.error('Erro ao enviar para impressão');
-        return;
+          if (error) {
+            lastError = error;
+            console.error(`❌ Erro ao imprimir pedido (tentativa ${attempt + 1}/3):`, error);
+            if (attempt < 2) {
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              continue;
+            }
+            throw error;
+          }
+
+          console.log('✅ Pedido enviado para impressão:', data);
+
+          // Atualizar data de impressão em Supabase
+          const { error: updateError } = await (supabase as any)
+            .from('orders')
+            .update({ printed_at: new Date().toISOString() })
+            .eq('id', order.id);
+
+          if (updateError) {
+            console.error('Erro ao atualizar status de impressão:', updateError);
+          } else {
+            console.log('✅ Status de impressão marcado como impresso');
+            toast.success('Pedido enviado para impressão!');
+            
+            // Sincronizar novamente para atualizar a UI
+            await syncOrdersFromSupabase();
+          }
+          return;
+        } catch (error) {
+          lastError = error;
+          console.error(`Tentativa ${attempt + 1} falhou:`, error);
+          if (attempt < 2) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+        }
       }
 
-      console.log('✅ Pedido enviado para impressão:', data);
-
-      // Atualizar data de impressão em Supabase
-      const { error: updateError } = await (supabase as any)
-        .from('orders')
-        .update({ printed_at: new Date().toISOString() })
-        .eq('id', order.id);
-
-      if (updateError) {
-        console.error('Erro ao atualizar status de impressão:', updateError);
-      } else {
-        console.log('✅ Status de impressão marcado como impresso');
-        toast.success('Pedido enviado para impressão!');
-      }
+      // Se chegou aqui, todas as tentativas falharam
+      console.error('❌ Falha permanente ao enviar para impressão:', lastError);
+      toast.error('Erro ao enviar para impressão. Verifique a Edge Function.');
     } catch (error) {
       console.error('❌ Erro ao imprimir pedido:', error);
       toast.error('Erro ao enviar para impressão');
@@ -348,12 +380,17 @@ const AdminDashboard = () => {
     return orders.slice(0, 5);
   }, [orders]);
 
-  // Filtered orders by date range
+  // Filtered orders by date range - com log para debug
   const filteredOrders = useMemo(() => {
-    return orders.filter((order) => {
+    const filtered = orders.filter((order) => {
       const orderDate = new Date(order.createdAt);
-      return orderDate >= dateRange.start && orderDate <= dateRange.end;
+      const isInRange = orderDate >= dateRange.start && orderDate <= dateRange.end;
+      return isInRange;
     });
+    
+    console.log(`📊 Filtragem: ${orders.length} pedidos totais → ${filtered.length} no período ${format(dateRange.start, 'dd/MM')} a ${format(dateRange.end, 'dd/MM')}`);
+    
+    return filtered;
   }, [orders, dateRange]);
 
   const handleSaveSettings = async () => {
