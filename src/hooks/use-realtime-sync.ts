@@ -140,13 +140,12 @@ export const useRealtimeSync = () => {
           const ordersStore = useOrdersStore.getState();
           
           if (payload.eventType === 'INSERT') {
-            // Adicionar novo pedido
-            const order = payload.new as Omit<Order, 'id' | 'createdAt'>;
-            ordersStore.addOrder(order);
+            // Novo pedido foi criado - sincronizar para pegar todos os dados
+            // Não chamar addOrder aqui pois causariam duplicação (já foi inserido no BD)
+            ordersStore.syncOrdersFromSupabase();
           } else if (payload.eventType === 'UPDATE') {
-            // Atualizar status do pedido
-            const newData = payload.new as Order;
-            ordersStore.updateOrderStatus(newData.id, newData.status as any);
+            // Pedido foi atualizado - sincronizar para pegar dados atualizados (status, printed_at, etc)
+            ordersStore.syncOrdersFromSupabase();
           } else if (payload.eventType === 'DELETE') {
             ordersStore.removeOrder((payload.old as Order).id);
           }
