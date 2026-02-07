@@ -235,12 +235,13 @@ export const useOrdersStore = create<OrdersStore>()(
                     name: row.customer_name,
                     phone: row.customer_phone,
                   },
-                  address: {
-                    zipCode: '',
+                  address: row.address || {
                     city: '',
                     neighborhood: '',
                     street: '',
                     number: '',
+                    complement: '',
+                    reference: '',
                   },
                   deliveryType: 'delivery' as const,
                   deliveryFee: row.delivery_fee,
