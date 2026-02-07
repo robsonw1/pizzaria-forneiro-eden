@@ -284,57 +284,47 @@ const AdminDashboard = () => {
     try {
       console.log('🖨️ Enviando pedido para impressão manual:', order.id);
       
-      // Chamar Supabase Edge Function com retry
-      let lastError: any;
-      for (let attempt = 0; attempt < 3; attempt++) {
-        try {
-          const { data, error } = await supabase.functions.invoke('printorder', {
-            body: {
-              orderId: order.id,
-              force: true,
-            },
-          });
+      // Usar a mesma abordagem que funciona em Configurações
+      const { data, error } = await supabase.functions.invoke('printorder', {
+        body: {
+          orderId: order.id,
+          force: true,
+        },
+      });
 
-          if (error) {
-            lastError = error;
-            console.error(`❌ Erro ao imprimir pedido (tentativa ${attempt + 1}/3):`, error);
-            if (attempt < 2) {
-              await new Promise(resolve => setTimeout(resolve, 1000));
-              continue;
-            }
-            throw error;
-          }
-
-          console.log('✅ Pedido enviado para impressão:', data);
-
-          // Atualizar data de impressão em Supabase
-          const { error: updateError } = await (supabase as any)
-            .from('orders')
-            .update({ printed_at: new Date().toISOString() })
-            .eq('id', order.id);
-
-          if (updateError) {
-            console.error('Erro ao atualizar status de impressão:', updateError);
-          } else {
-            console.log('✅ Status de impressão marcado como impresso');
-            toast.success('Pedido enviado para impressão!');
-            
-            // Sincronizar novamente para atualizar a UI
-            await syncOrdersFromSupabase();
-          }
-          return;
-        } catch (error) {
-          lastError = error;
-          console.error(`Tentativa ${attempt + 1} falhou:`, error);
-          if (attempt < 2) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-          }
-        }
+      if (error) {
+        console.error('❌ Erro ao invocar printorder:', error);
+        // Fallback: enviar para webhook N8N também
+        await fetch('https://n8nwebhook.aezap.site/webhook/impressao', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orderId: order.id,
+            customer: order.customer.name,
+            total: order.total,
+            manual: true,
+          }),
+        });
+        console.log('✅ Enviado via webhook N8N (fallback)');
+        toast.success('Pedido enviado para impressão!');
+      } else {
+        console.log('✅ PrintOrder retornou:', data);
+        toast.success('Pedido enviado para impressão!');
       }
 
-      // Se chegou aqui, todas as tentativas falharam
-      console.error('❌ Falha permanente ao enviar para impressão:', lastError);
-      toast.error('Erro ao enviar para impressão. Verifique a Edge Function.');
+      // Atualizar data de impressão em Supabase
+      const { error: updateError } = await (supabase as any)
+        .from('orders')
+        .update({ printed_at: new Date().toISOString() })
+        .eq('id', order.id);
+
+      if (updateError) {
+        console.error('Erro ao atualizar status de impressão:', updateError);
+      } else {
+        console.log('✅ Status de impressão marcado como impresso');
+        // Sincronizar novamente para atualizar a UI
+        setTimeout(() => syncOrdersFromSupabase(), 500);
+      }
     } catch (error) {
       console.error('❌ Erro ao imprimir pedido:', error);
       toast.error('Erro ao enviar para impressão');
