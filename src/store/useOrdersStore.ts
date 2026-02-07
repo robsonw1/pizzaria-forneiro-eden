@@ -90,13 +90,13 @@ export const useOrdersStore = create<OrdersStore>()(
             const invokePrintWithRetry = async () => {
               for (let attempt = 1; attempt <= 5; attempt++) {
                 try {
-                  console.log(`📱 Tentativa ${attempt}/5 de invocar printorder...`);
+                  console.log(`Tentativa ${attempt}/5 de invocar printorder...`);
                   const { data, error } = await supabase.functions.invoke('printorder', {
                     body: { orderId: newOrder.id },
                   });
 
                   if (error) {
-                    console.error(`❌ Tentativa ${attempt}: Erro -`, error.message || error);
+                    console.error(`Tentativa ${attempt}: Erro -`, error.message || error);
                     if (attempt < 5) {
                       await new Promise(r => setTimeout(r, 1000 * attempt)); // Exponential backoff
                       continue;
@@ -104,12 +104,22 @@ export const useOrdersStore = create<OrdersStore>()(
                     throw error;
                   }
 
-                  console.log(`✅ Printorder OK na tentativa ${attempt}:`, data);
+                  console.log(`Printorder sucesso na tentativa ${attempt}`);
+                  
+                  // Se printorder funcionou, marcar como impresso  
+                  const { error: updateError } = await (supabase as any)
+                    .from('orders')
+                    .update({ printed_at: new Date().toISOString() })
+                    .eq('id', newOrder.id);
+                    
+                  if (!updateError) {
+                    console.log('Status de impressão atualizado');
+                  }
                   return;
                 } catch (err) {
                   console.error(`Tentativa ${attempt} falhou:`, err);
                   if (attempt === 5) {
-                    console.error('❌ FALHA DEFINITIVA: Não foi possível invocar printorder após 5 tentativas');
+                    console.error('Falha: não foi possível invocar printorder após 5 tentativas');
                   }
                 }
               }
@@ -118,7 +128,7 @@ export const useOrdersStore = create<OrdersStore>()(
             // Invocar assincronamente (não bloqueia)
             invokePrintWithRetry();
           } else {
-            console.log('⏸️ Auto-print DESABILITADO. Pedido aguardando ação manual.');
+            console.log('Auto-print desabilitado para este pagamento');
           }
         } catch (error) {
           console.error('Erro ao salvar pedido no Supabase:', error);
