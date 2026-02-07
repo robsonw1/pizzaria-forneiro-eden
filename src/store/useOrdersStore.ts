@@ -35,29 +35,23 @@ export const useOrdersStore = create<OrdersStore>()(
         };
 
         try {
-          // Salvar no Supabase - APENAS os campos que existem na tabela
-          const { error } = await supabase.from('orders').insert({
-            id: newOrder.id,
-            customer_name: newOrder.customer.name,
-            customer_phone: newOrder.customer.phone,
-            customer_email: newOrder.customer.cpf || 'N/A',
-            street: newOrder.address.street || 'N/A',
-            number: newOrder.address.number || 'N/A',
-            complement: newOrder.address.complement || '',
-            reference: newOrder.address.reference || '',
-            neighborhood: newOrder.address.neighborhood || 'N/A',
-            city: newOrder.address.city || 'São Paulo',
-            zip_code: newOrder.address.zipCode || '00000-000',
-            delivery_type: newOrder.deliveryType || 'delivery',
-            delivery_fee: newOrder.deliveryFee,
-            payment_method: newOrder.paymentMethod || 'pix',
-            subtotal: newOrder.subtotal || newOrder.total,
-            total: newOrder.total,
-            status: newOrder.status,
-            notes: newOrder.observations || '',
-          });
+          // Salvar no Supabase - APENAS os 7 campos que REALMENTE existem
+          const { error } = await supabase.from('orders').insert([
+            {
+              id: newOrder.id,
+              customer_name: newOrder.customer.name,
+              customer_phone: newOrder.customer.phone,
+              delivery_fee: newOrder.deliveryFee,
+              status: newOrder.status,
+              total: newOrder.total,
+            },
+          ] as any);
 
-          if (error) throw error;
+          if (error) {
+            console.error('❌ Erro ao inserir order:', error);
+            throw error;
+          }
+          console.log('✅ Order inserida com sucesso:', newOrder.id);
 
           // Salvar itens do pedido - APENAS os campos que existem na tabela order_items
           const orderItems = newOrder.items.map((item) => ({
@@ -81,18 +75,26 @@ export const useOrdersStore = create<OrdersStore>()(
 
           if (orderItems.length > 0) {
             const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
-            if (itemsError) throw itemsError;
+            if (itemsError) {
+              console.error('❌ Erro ao inserir order_items:', itemsError);
+              throw itemsError;
+            }
+            console.log('✅ Order items inseridos com sucesso:', orderItems.length);
           }
 
           // Tentar imprimir pedido automaticamente (sem esperar)
+          console.log('📱 Tentando invocar printorder Edge Function para:', newOrder.id);
           supabase.functions
             .invoke('printorder', {
               body: {
                 orderId: newOrder.id,
               },
             })
+            .then((response) => {
+              console.log('✅ PrintOrder invoked:', response);
+            })
             .catch((error) => {
-              console.log('PrintNode erro:', error);
+              console.log('⚠️ PrintOrder erro:', error);
             });
         } catch (error) {
           console.error('Erro ao salvar pedido no Supabase:', error);
@@ -177,7 +179,7 @@ export const useOrdersStore = create<OrdersStore>()(
               deliveryFee: row.delivery_fee,
               paymentMethod: 'pix',
               items: [],
-              subtotal: 0,
+              subtotal: row.total,
               total: row.total,
               status: row.status,
               observations: '',
@@ -187,6 +189,7 @@ export const useOrdersStore = create<OrdersStore>()(
             set(() => ({
               orders,
             }));
+            console.log('✅ Sincronizados', orders.length, 'pedidos do Supabase');
           }
         } catch (error) {
           console.error('Erro ao sincronizar pedidos do Supabase:', error);
