@@ -60,7 +60,6 @@ export const useOrdersStore = create<OrdersStore>()(
             product_name: item.product.name,
             quantity: item.quantity,
             size: item.size,
-            price: item.totalPrice / item.quantity,
             total_price: item.totalPrice,
             item_data: JSON.stringify({
               pizzaType: item.isHalfHalf ? 'meia-meia' : 'inteira',
@@ -74,7 +73,7 @@ export const useOrdersStore = create<OrdersStore>()(
           }));
 
           if (orderItems.length > 0) {
-            const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
+            const { error: itemsError } = await supabase.from('order_items').insert(orderItems as any);
             if (itemsError) {
               console.error('❌ Erro ao inserir order_items:', itemsError);
               throw itemsError;
@@ -162,34 +161,48 @@ export const useOrdersStore = create<OrdersStore>()(
           if (error) throw error;
 
           if (data) {
-            const orders: Order[] = data.map((row: any) => ({
-              id: row.id,
-              customer: {
-                name: row.customer_name,
-                phone: row.customer_phone,
-              },
-              address: {
-                zipCode: '',
-                city: '',
-                neighborhood: '',
-                street: '',
-                number: '',
-              },
-              deliveryType: 'delivery',
-              deliveryFee: row.delivery_fee,
-              paymentMethod: 'pix',
-              items: [],
-              subtotal: row.total,
-              total: row.total,
-              status: row.status,
-              observations: '',
-              createdAt: new Date(row.created_at),
-            }));
+            // Buscar também os itens de cada pedido
+            const ordersWithItems = await Promise.all(
+              data.map(async (row: any) => {
+                const { data: items } = await supabase.from('order_items')
+                  .select('*')
+                  .eq('order_id', row.id);
+
+                return {
+                  id: row.id,
+                  customer: {
+                    name: row.customer_name,
+                    phone: row.customer_phone,
+                  },
+                  address: {
+                    zipCode: '',
+                    city: '',
+                    neighborhood: '',
+                    street: '',
+                    number: '',
+                  },
+                  deliveryType: 'delivery',
+                  deliveryFee: row.delivery_fee,
+                  paymentMethod: 'pix',
+                  items: items?.map((item: any) => ({
+                    product: { id: item.product_id, name: item.product_name } as any,
+                    quantity: item.quantity,
+                    size: item.size,
+                    totalPrice: item.total_price,
+                  })) || [],
+                  subtotal: row.total,
+                  total: row.total,
+                  status: row.status,
+                  observations: '',
+                  createdAt: new Date(row.created_at),
+                };
+              })
+            );
 
             set(() => ({
-              orders,
+              orders: ordersWithItems as Order[],
             }));
-            console.log('✅ Sincronizados', orders.length, 'pedidos do Supabase');
+            console.log('✅ Sincronizados', ordersWithItems.length, 'pedidos com itens do Supabase');
           }
         } catch (error) {
           console.error('Erro ao sincronizar pedidos do Supabase:', error);
