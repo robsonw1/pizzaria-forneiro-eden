@@ -281,16 +281,17 @@ const AdminDashboard = () => {
 
   // Imprimir pedido manualmente com RETRY robusto
   const handlePrintOrder = async (order: Order) => {
+    let toastId: string | number | undefined;
+    
     try {
       console.log('🖨️ Iniciando impressão manual para:', order.id);
-      toast.loading('Enviando pedido para impressora...');
+      toastId = toast.loading('Enviando pedido para impressora...');
       
-      let success = false;
-      
-      // Tentar invocar printorder com retry (5x com backoff exponencial)
-      for (let attempt = 1; attempt <= 5; attempt++) {
+      // Tentar invocar printorder com retry (3x com backoff curto)
+      let lastError: any = null;
+      for (let attempt = 1; attempt <= 3; attempt++) {
         try {
-          console.log(`📱 Tentativa ${attempt}/5 de invocar printorder...`);
+          console.log(`📱 Tentativa ${attempt}/3 de invocar printorder...`);
           const { data, error } = await supabase.functions.invoke('printorder', {
             body: {
               orderId: order.id,
@@ -300,50 +301,58 @@ const AdminDashboard = () => {
 
           if (error) {
             console.error(`❌ Tentativa ${attempt}: Erro -`, error.message || error);
-            if (attempt < 5) {
-              const delayMs = 1000 * attempt;
+            lastError = error;
+            if (attempt < 3) {
+              const delayMs = 500 * attempt; // Backoff mais curto (500ms, 1s, 1.5s)
               console.log(`⏳ Aguardando ${delayMs}ms antes da próxima tentativa...`);
               await new Promise(r => setTimeout(r, delayMs));
               continue;
             }
-            throw new Error(`Falha após ${attempt} tentativas: ${error.message}`);
-          }
+          } else {
+            console.log(`✅ Printorder OK na tentativa ${attempt}:`, data);
+            
+            // Atualizar data de impressão em Supabase
+            const { error: updateError } = await (supabase as any)
+              .from('orders')
+              .update({ printed_at: new Date().toISOString() })
+              .eq('id', order.id);
 
-          console.log(`✅ Printorder OK na tentativa ${attempt}:`, data);
-          success = true;
-          break;
+            if (updateError) {
+              console.error('Erro ao atualizar printed_at:', updateError);
+            }
+            
+            // Fechar loading toast e mostrar sucesso
+            if (toastId !== undefined) {
+              toast.dismiss(toastId);
+            }
+            toast.success('Pedido enviado para impressora!');
+            
+            // Sincronizar novamente para atualizar a UI (sem delay)
+            await syncOrdersFromSupabase();
+            return; // ✅ Sucesso - sair da função
+          }
         } catch (err) {
           console.error(`Tentativa ${attempt} capturou erro:`, err);
-          if (attempt === 5) {
-            throw err;
+          lastError = err;
+          if (attempt < 3) {
+            const delayMs = 500 * attempt;
+            console.log(`⏳ Aguardando ${delayMs}ms ...`);
+            await new Promise(r => setTimeout(r, delayMs));
           }
-          const delayMs = 1000 * attempt;
-          console.log(`⏳ Aguardando ${delayMs}ms (attempt ${attempt}/5)...`);
-          await new Promise(r => setTimeout(r, delayMs));
         }
       }
 
-      if (!success) {
-        throw new Error('Não foi possível enviar pedido para impressão após 5 tentativas');
-      }
-
-      // Atualizar data de impressão em Supabase
-      const { error: updateError } = await (supabase as any)
-        .from('orders')
-        .update({ printed_at: new Date().toISOString() })
-        .eq('id', order.id);
-
-      if (updateError) {
-        console.error('Erro ao atualizar status de impressão:', updateError);
-      } else {
-        console.log('✅ Status de impressão marcado como impresso');
-        toast.success('Pedido enviado para impressora com sucesso!');
-        // Sincronizar novamente para atualizar a UI
-        setTimeout(() => syncOrdersFromSupabase(), 500);
-      }
+      // Se chegou aqui, todas as tentativas falharam
+      throw lastError || new Error('Erro ao enviar para impressora');
+      
     } catch (error) {
       console.error('❌ Erro ao imprimir pedido:', error);
-      toast.error(`Erro ao enviar para impressão: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+      
+      // Fechar loading toast e mostrar erro
+      if (toastId !== undefined) {
+        toast.dismiss(toastId);
+      }
+      toast.error(`Erro ao enviar: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
     }
   };
 
