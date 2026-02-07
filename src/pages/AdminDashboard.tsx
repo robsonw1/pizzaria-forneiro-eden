@@ -122,6 +122,10 @@ const AdminDashboard = () => {
     end: endOfDay(new Date()),
   });
 
+  // Order filters
+  const [orderStatusFilter, setOrderStatusFilter] = useState<string>('all');
+  const [orderSort, setOrderSort] = useState<'newest' | 'oldest'>('newest');
+
   useEffect(() => {
     const token = localStorage.getItem('admin-token');
     if (!token) {
@@ -427,16 +431,27 @@ const AdminDashboard = () => {
 
   // Filtered orders by date range - com log para debug
   const filteredOrders = useMemo(() => {
-    const filtered = orders.filter((order) => {
+    let filtered = orders.filter((order) => {
       const orderDate = new Date(order.createdAt);
       const isInRange = orderDate >= dateRange.start && orderDate <= dateRange.end;
-      return isInRange;
+      
+      // Apply status filter
+      const statusMatch = orderStatusFilter === 'all' || order.status === orderStatusFilter;
+      
+      return isInRange && statusMatch;
+    });
+    
+    // Apply sorting
+    filtered.sort((a, b) => {
+      const dateA = new Date(a.createdAt).getTime();
+      const dateB = new Date(b.createdAt).getTime();
+      return orderSort === 'newest' ? dateB - dateA : dateA - dateB;
     });
     
     console.log(`📊 Filtragem: ${orders.length} pedidos totais → ${filtered.length} no período ${format(dateRange.start, 'dd/MM')} a ${format(dateRange.end, 'dd/MM')}`);
     
     return filtered;
-  }, [orders, dateRange]);
+  }, [orders, dateRange, orderStatusFilter, orderSort]);
 
   const handleSaveSettings = async () => {
     // Atualizar o store e salvar no Supabase
@@ -814,6 +829,38 @@ const AdminDashboard = () => {
               <CardContent>
                 <div className="mb-4">
                   <DateRangeFilter onRangeChange={(start, end) => setDateRange({ start, end })} />
+                </div>
+
+                {/* Order Filter and Sort Controls */}
+                <div className="mb-4 flex gap-4 flex-wrap">
+                  <div className="flex-1 min-w-[200px]">
+                    <label className="text-sm font-medium mb-2 block">Filtrar por Status</label>
+                    <select
+                      value={orderStatusFilter}
+                      onChange={(e) => setOrderStatusFilter(e.target.value)}
+                      className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
+                    >
+                      <option value="all">Todos os Status</option>
+                      <option value="pending">Pendente</option>
+                      <option value="confirmed">Confirmado</option>
+                      <option value="preparing">Preparando</option>
+                      <option value="delivering">Em Entrega</option>
+                      <option value="delivered">Entregue</option>
+                      <option value="cancelled">Cancelado</option>
+                    </select>
+                  </div>
+
+                  <div className="flex-1 min-w-[200px]">
+                    <label className="text-sm font-medium mb-2 block">Ordenar por Data</label>
+                    <select
+                      value={orderSort}
+                      onChange={(e) => setOrderSort(e.target.value as 'newest' | 'oldest')}
+                      className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
+                    >
+                      <option value="newest">Mais Recentes</option>
+                      <option value="oldest">Mais Antigas</option>
+                    </select>
+                  </div>
                 </div>
 
                 {filteredOrders.length === 0 ? (
