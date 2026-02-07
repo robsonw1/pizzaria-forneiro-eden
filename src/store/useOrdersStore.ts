@@ -37,8 +37,13 @@ export const useOrdersStore = create<OrdersStore>()(
         };
 
         try {
-          // Salvar no Supabase
-          const nowISO = new Date().toISOString();
+          // Salvar no Supabase com hora local correta (não UTC)
+          const now = new Date();
+          // Criar ISO string com hora local ao invés de UTC
+          const offset = now.getTimezoneOffset() * 60000;
+          const localTime = new Date(now.getTime() - offset);
+          const localISO = localTime.toISOString().split('Z')[0]; // Remove o Z de UTC
+          
           const { error } = await supabase.from('orders').insert([
             {
               id: newOrder.id,
@@ -47,7 +52,7 @@ export const useOrdersStore = create<OrdersStore>()(
               delivery_fee: newOrder.deliveryFee,
               status: newOrder.status,
               total: newOrder.total,
-              created_at: nowISO,
+              created_at: localISO,
               address: newOrder.address,
             },
           ] as any);
@@ -56,7 +61,7 @@ export const useOrdersStore = create<OrdersStore>()(
             console.error('❌ Erro ao inserir order:', error);
             throw error;
           }
-          console.log('✅ Order inserida com sucesso:', newOrder.id, 'em', nowISO);
+          console.log('✅ Order inserida com sucesso:', newOrder.id, 'em', localISO);
 
           // Salvar itens do pedido - APENAS os campos que existem na tabela order_items
           const orderItems = newOrder.items.map((item) => ({
@@ -109,10 +114,15 @@ export const useOrdersStore = create<OrdersStore>()(
 
                   console.log(`Printorder sucesso na tentativa ${attempt}`);
                   
-                  // Se printorder funcionou, marcar como impresso  
+                  // Se printorder funcionou, marcar como impresso com hora local
+                  const printTime = new Date();
+                  const printOffset = printTime.getTimezoneOffset() * 60000;
+                  const localPrintTime = new Date(printTime.getTime() - printOffset);
+                  const printedAtLocal = localPrintTime.toISOString().split('Z')[0];
+                  
                   const { error: updateError } = await (supabase as any)
                     .from('orders')
-                    .update({ printed_at: new Date().toISOString() })
+                    .update({ printed_at: printedAtLocal })
                     .eq('id', newOrder.id);
                     
                   if (!updateError) {
@@ -241,7 +251,8 @@ export const useOrdersStore = create<OrdersStore>()(
                   .select('*')
                   .eq('order_id', row.id);
 
-                // Parse createdAt com timezone correto
+                // Parse createdAt - manter o ISO string original do banco
+                // A conversão de horário já é feita implicitamente pelo JavaScript
                 const createdAtDate = new Date(row.created_at);
                 
                 // Construir objeto de pedido com TODOS os dados do banco
@@ -274,8 +285,10 @@ export const useOrdersStore = create<OrdersStore>()(
                   status: row.status as any,
                   observations: '',
                   createdAt: createdAtDate,
-                  // ✅ Sincronizar printed_at exatamente como está no banco
-                  printedAt: row.printed_at ? new Date(row.printed_at).toISOString() : undefined,
+                  // ✅ Sincronizar printed_at: só setá se realmente houver um valor (não null, não vazio)
+                  printedAt: row.printed_at && row.printed_at !== null && row.printed_at !== '' 
+                    ? new Date(row.printed_at).toISOString() 
+                    : undefined,
                 };
                 
                 return syncedOrder;
