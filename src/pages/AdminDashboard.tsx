@@ -282,8 +282,8 @@ const AdminDashboard = () => {
 
   // Determinar status de impressão e renderizar componente apropriado
   const getPrintStatusDisplay = (order: Order) => {
-    if (order.printedAt) {
-      // Verde: Já foi impresso
+    if (order.printedAt && order.printedAt.trim()) {
+      // Verde: Já foi impresso (só se printedAt NÃO é vazio)
       return (
         <div className="flex flex-col gap-1">
           <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
@@ -346,8 +346,11 @@ const AdminDashboard = () => {
           } else {
             console.log(`Printorder OK na tentativa ${attempt}:`, data);
             
-            // Atualizar printed_at no store IMEDIATAMENTE (otimistic update)
-            const printedAtTime = new Date().toISOString();
+            // Atualizar printed_at no store IMEDIATAMENTE (otimistic update) com hora local
+            const printTime = new Date();
+            const printOffset = printTime.getTimezoneOffset() * 60000;
+            const localPrintTime = new Date(printTime.getTime() - printOffset);
+            const printedAtTime = localPrintTime.toISOString().split('Z')[0];
             await updateOrderPrintedAt(order.id, printedAtTime);
             
             // Fechar loading toast e mostrar sucesso
