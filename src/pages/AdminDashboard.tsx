@@ -91,6 +91,7 @@ const AdminDashboard = () => {
 
   // Orders store
   const orders = useOrdersStore((s) => s.orders);
+  const syncOrdersFromSupabase = useOrdersStore((s) => s.syncOrdersFromSupabase);
   const getStats = useOrdersStore((s) => s.getStats);
   const removeOrder = useOrdersStore((s) => s.removeOrder);
 
@@ -126,6 +127,28 @@ const AdminDashboard = () => {
       navigate('/admin');
     }
   }, [navigate]);
+
+  // Sincronizar pedidos do Supabase quando o painel carrega
+  useEffect(() => {
+    const token = localStorage.getItem('admin-token');
+    if (!token) return;
+
+    // Sincronizar imediatamente
+    syncOrdersFromSupabase();
+
+    // Configurar real-time subscription para novos pedidos
+    const subscription = supabase
+      .channel('public:orders')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+        // Quando há mudanças em orders, sincronizar novamente
+        syncOrdersFromSupabase();
+      })
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [syncOrdersFromSupabase]);
 
   useEffect(() => {
     setSettingsForm(settings);
