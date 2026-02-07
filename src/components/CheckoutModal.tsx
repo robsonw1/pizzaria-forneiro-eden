@@ -321,7 +321,6 @@ export function CheckoutModal() {
         phone: customer.phone,
       },
       address: {
-        zipCode: address.zipCode,
         city: address.city || 'São Paulo',
         neighborhood: selectedNeighborhood?.name || address.neighborhood,
         street: address.street,
