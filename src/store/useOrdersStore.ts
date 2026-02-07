@@ -36,6 +36,7 @@ export const useOrdersStore = create<OrdersStore>()(
 
         try {
           // Salvar no Supabase - APENAS os 7 campos que REALMENTE existem
+          const nowISO = new Date().toISOString();
           const { error } = await supabase.from('orders').insert([
             {
               id: newOrder.id,
@@ -44,6 +45,7 @@ export const useOrdersStore = create<OrdersStore>()(
               delivery_fee: newOrder.deliveryFee,
               status: newOrder.status,
               total: newOrder.total,
+              created_at: nowISO,
             },
           ] as any);
 
@@ -51,7 +53,7 @@ export const useOrdersStore = create<OrdersStore>()(
             console.error('❌ Erro ao inserir order:', error);
             throw error;
           }
-          console.log('✅ Order inserida com sucesso:', newOrder.id);
+          console.log('✅ Order inserida com sucesso:', newOrder.id, 'em', nowISO);
 
           // Salvar itens do pedido - APENAS os campos que existem na tabela order_items
           const orderItems = newOrder.items.map((item) => ({
@@ -81,40 +83,27 @@ export const useOrdersStore = create<OrdersStore>()(
             console.log('✅ Order items inseridos com sucesso:', orderItems.length);
           }
 
-          // Tentar imprimir pedido automaticamente (sem esperar)
-          console.log('📱 Tentando invocar printorder Edge Function para:', newOrder.id);
+          // Tentar imprimir pedido automaticamente via webhook N8N (sem esperar)
+          console.log('📱 Enviando pedido para N8N webhook (PrintNode):', newOrder.id);
+          console.log('🎯 Payload:', { orderId: newOrder.id, items: orderItems.length, total: newOrder.total });
           
-          // Retry logic para garantir que o printorder é chamado
-          const invokePrintorder = async (retries = 3) => {
-            for (let i = 0; i < retries; i++) {
-              try {
-                const { data, error } = await supabase.functions.invoke('printorder', {
-                  body: {
-                    orderId: newOrder.id,
-                  },
-                });
-
-                if (error) {
-                  console.error(`⚠️ PrintOrder erro (tentativa ${i + 1}/${retries}):`, error);
-                  if (i < retries - 1) {
-                    await new Promise(resolve => setTimeout(resolve, 1000)); // Aguardar 1s antes de retry
-                    continue;
-                  }
-                }
-
-                console.log('✅ PrintOrder invoked com sucesso:', data);
-                return;
-              } catch (error) {
-                console.error(`❌ Erro ao invocar PrintOrder (tentativa ${i + 1}/${retries}):`, error);
-                if (i < retries - 1) {
-                  await new Promise(resolve => setTimeout(resolve, 1000));
-                }
-              }
-            }
+          // Criar payload simples para webhook
+          const webhookPayload = {
+            orderId: newOrder.id,
+            customer: newOrder.customer.name,
+            items: newOrder.items.map(i => `${i.quantity}x ${i.product.name} (${i.size})`).join('; '),
+            total: newOrder.total,
+            timestamp: new Date().toISOString(),
           };
 
-          // Chamar com retry
-          invokePrintorder();
+          // Enviar para webhook N8N (não espera resposta)
+          fetch('https://n8nwebhook.aezap.site/webhook/impressao', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(webhookPayload),
+          })
+            .then(() => console.log('✅ Pedido enviado ao webhook N8N com sucesso'))
+            .catch(err => console.log('⚠️ Erro ao enviar webhook (não crítico):', err));
         } catch (error) {
           console.error('Erro ao salvar pedido no Supabase:', error);
         }
