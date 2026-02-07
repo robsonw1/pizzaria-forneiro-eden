@@ -295,7 +295,7 @@ export function CheckoutModal() {
   };
 
   const processOrder = async (orderPayload: any) => {
-    console.log('📦 Processando pedido...');
+    console.log('Processando pedido...');
     
     // Determinar se deve auto-imprimir baseado em configurações e método de pagamento
     let shouldAutoPrint = false;
@@ -308,9 +308,9 @@ export function CheckoutModal() {
     }
     
     if (shouldAutoPrint) {
-      console.log('📱 Auto-print HABILITADO para', paymentMethod);
+      console.log('Auto-print habilitado para:', paymentMethod);
     } else {
-      console.log('⏸️ Auto-print DESABILITADO para', paymentMethod);
+      console.log('Auto-print desabilitado para:', paymentMethod);
     }
     
     // Add order to local store for admin panel
@@ -339,7 +339,7 @@ export function CheckoutModal() {
       observations,
     }, shouldAutoPrint);
     
-    console.log('✅ Pedido criado com ID:', createdOrder.id);
+    console.log('Pedido criado com ID:', createdOrder.id);
   };
 
   const handleSubmitOrder = async () => {
