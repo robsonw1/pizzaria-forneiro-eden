@@ -83,27 +83,39 @@ export const useOrdersStore = create<OrdersStore>()(
             console.log('✅ Order items inseridos com sucesso:', orderItems.length);
           }
 
-          // Tentar imprimir pedido automaticamente via webhook N8N (sem esperar)
-          console.log('📱 Enviando pedido para N8N webhook (PrintNode):', newOrder.id);
-          console.log('🎯 Payload:', { orderId: newOrder.id, items: orderItems.length, total: newOrder.total });
+          // Tentar imprimir pedido automaticamente via Edge Function com RETRY
+          console.log('🖨️ Iniciando impressão para:', newOrder.id);
           
-          // Criar payload simples para webhook
-          const webhookPayload = {
-            orderId: newOrder.id,
-            customer: newOrder.customer.name,
-            items: newOrder.items.map(i => `${i.quantity}x ${i.product.name} (${i.size})`).join('; '),
-            total: newOrder.total,
-            timestamp: new Date().toISOString(),
+          const invokePrintWithRetry = async () => {
+            for (let attempt = 1; attempt <= 5; attempt++) {
+              try {
+                console.log(`📱 Tentativa ${attempt}/5 de invocar printorder...`);
+                const { data, error } = await supabase.functions.invoke('printorder', {
+                  body: { orderId: newOrder.id },
+                });
+
+                if (error) {
+                  console.error(`❌ Tentativa ${attempt}: Erro -`, error.message || error);
+                  if (attempt < 5) {
+                    await new Promise(r => setTimeout(r, 1000 * attempt)); // Exponential backoff
+                    continue;
+                  }
+                  throw error;
+                }
+
+                console.log(`✅ Printorder OK na tentativa ${attempt}:`, data);
+                return;
+              } catch (err) {
+                console.error(`Tentativa ${attempt} falhou:`, err);
+                if (attempt === 5) {
+                  console.error('❌ FALHA DEFINITIVA: Não foi possível invocar printorder após 5 tentativas');
+                }
+              }
+            }
           };
 
-          // Enviar para webhook N8N (não espera resposta)
-          fetch('https://n8nwebhook.aezap.site/webhook/impressao', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(webhookPayload),
-          })
-            .then(() => console.log('✅ Pedido enviado ao webhook N8N com sucesso'))
-            .catch(err => console.log('⚠️ Erro ao enviar webhook (não crítico):', err));
+          // Invocar assincronamente (não bloqueia)
+          invokePrintWithRetry();
         } catch (error) {
           console.error('Erro ao salvar pedido no Supabase:', error);
         }
