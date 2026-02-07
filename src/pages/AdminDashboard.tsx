@@ -92,6 +92,7 @@ const AdminDashboard = () => {
   // Orders store
   const orders = useOrdersStore((s) => s.orders);
   const syncOrdersFromSupabase = useOrdersStore((s) => s.syncOrdersFromSupabase);
+  const updateOrderPrintedAt = useOrdersStore((s) => s.updateOrderPrintedAt);
   const getStats = useOrdersStore((s) => s.getStats);
   const removeOrder = useOrdersStore((s) => s.removeOrder);
 
@@ -318,14 +319,14 @@ const AdminDashboard = () => {
     let toastId: string | number | undefined;
     
     try {
-      console.log('🖨️ Iniciando impressão manual para:', order.id);
+      console.log('Iniciando impressão manual para:', order.id);
       toastId = toast.loading('Enviando pedido para impressora...');
       
       // Tentar invocar printorder com retry (3x com backoff curto)
       let lastError: any = null;
       for (let attempt = 1; attempt <= 3; attempt++) {
         try {
-          console.log(`📱 Tentativa ${attempt}/3 de invocar printorder...`);
+          console.log(`Tentativa ${attempt}/3 de invocar printorder...`);
           const { data, error } = await supabase.functions.invoke('printorder', {
             body: {
               orderId: order.id,
@@ -345,18 +346,9 @@ const AdminDashboard = () => {
           } else {
             console.log(`Printorder OK na tentativa ${attempt}:`, data);
             
-            // Tentar atualizar printed_at (pode falhar se coluna não existe)
-            // Isso é não-crítico - o pedido já foi enviado para impressão
-            const { error: updateError } = await (supabase as any)
-              .from('orders')
-              .update({ printed_at: new Date().toISOString() })
-              .eq('id', order.id);
-
-            if (updateError) {
-              console.warn('Não foi possível atualizar status de impressão:', updateError.message);
-            } else {
-              console.log('Status de impressão marcado como impresso');
-            }
+            // Atualizar printed_at no store IMEDIATAMENTE (otimistic update)
+            const printedAtTime = new Date().toISOString();
+            await updateOrderPrintedAt(order.id, printedAtTime);
             
             // Fechar loading toast e mostrar sucesso
             if (toastId !== undefined) {
@@ -364,8 +356,6 @@ const AdminDashboard = () => {
             }
             toast.success('Pedido enviado para impressora!');
             
-            // Sincronizar novamente para atualizar a UI (sem delay)
-            await syncOrdersFromSupabase();
             return; // Sucesso - sair da função
           }
         } catch (err) {
