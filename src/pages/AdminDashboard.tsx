@@ -250,61 +250,23 @@ const AdminDashboard = () => {
   // Imprimir pedido manualmente
   const handlePrintOrder = async (order: Order) => {
     try {
-      // Buscar itens do pedido do Supabase
-      const { data: orderItems, error: itemsError } = await (supabase as any)
-        .from('order_items')
-        .select('*')
-        .eq('order_id', order.id);
+      console.log('🖨️ Enviando pedido para impressão manual:', order.id);
+      
+      // Chamar Supabase Edge Function para imprimir
+      const { data, error } = await supabase.functions.invoke('printorder', {
+        body: {
+          orderId: order.id,
+          force: true,
+        },
+      });
 
-      if (itemsError) {
-        console.error('Erro ao buscar itens do pedido:', itemsError);
-        toast.error('Erro ao carregar itens do pedido');
+      if (error) {
+        console.error('❌ Erro ao imprimir pedido:', error);
+        toast.error('Erro ao enviar para impressão');
         return;
       }
 
-      // Formatar payload para impressão
-      const payloadForPrinting = {
-        orderData: {
-          pedidoId: order.id,
-          cliente: order.customer.name,
-          telefone: order.customer.phone.replace(/\D/g, ''),
-          dataPedido: order.createdAt,
-        },
-        entregas: {
-          tipo: order.deliveryType === 'delivery' ? 'ENTREGA' : 'RETIRADA',
-          endereco: order.deliveryType === 'delivery' 
-            ? `${order.address.street}, ${order.address.number} ${order.address.complement || ''} - ${order.address.neighborhood}`
-            : 'Retirada na loja',
-          taxa: order.deliveryFee,
-        },
-        itens: orderItems.map((item: any, idx: number) => ({
-          numero: idx + 1,
-          produto: item.product_name,
-          quantidade: item.quantity,
-          tamanho: item.size,
-          dados: item.item_data,
-          subtotal: `R$ ${item.total_price.toFixed(2)}`,
-        })),
-        pagamento: {
-          metodo: order.paymentMethod === 'pix' ? 'PIX' : order.paymentMethod === 'card' ? 'Cartão' : 'Dinheiro',
-        },
-        totais: {
-          subtotal: `R$ ${order.subtotal.toFixed(2)}`,
-          entrega: `R$ ${order.deliveryFee.toFixed(2)}`,
-          total: `R$ ${order.total.toFixed(2)}`,
-        },
-      };
-
-      // Enviar para webhook
-      console.log('🖨️ Enviando para impressão manual:', payloadForPrinting);
-      await fetch('https://n8nwebhook.aezap.site/webhook/impressao', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        mode: 'no-cors',
-        body: JSON.stringify(payloadForPrinting),
-      }).catch(err => console.warn('⚠️ Aviso ao enviar para webhook:', err));
+      console.log('✅ Pedido enviado para impressão:', data);
 
       // Atualizar data de impressão em Supabase
       const { error: updateError } = await (supabase as any)
@@ -315,12 +277,8 @@ const AdminDashboard = () => {
       if (updateError) {
         console.error('Erro ao atualizar status de impressão:', updateError);
       } else {
-        console.log('✅ Pedido enviado para impressão manual e marcado como impresso');
+        console.log('✅ Status de impressão marcado como impresso');
         toast.success('Pedido enviado para impressão!');
-        
-        // Atualizar a ordem local
-        const updatedOrder = { ...order, printedAt: new Date().toISOString() };
-        // A sincronização em tempo real vai atualizar automaticamente
       }
     } catch (error) {
       console.error('❌ Erro ao imprimir pedido:', error);
