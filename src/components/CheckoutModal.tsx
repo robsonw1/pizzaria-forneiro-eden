@@ -121,10 +121,6 @@ export function CheckoutModal() {
           toast.error('Por favor, informe um telefone válido');
           return false;
         }
-        if (!customer.cpf || customer.cpf.replace(/\D/g, '').length !== 11) {
-          toast.error('Por favor, informe um CPF válido');
-          return false;
-        }
         return true;
       case 'address':
         if (deliveryType === 'pickup') return true;
@@ -136,6 +132,13 @@ export function CheckoutModal() {
       case 'delivery':
         return true;
       case 'payment':
+        // CPF é obrigatório APENAS para PIX
+        if (paymentMethod === 'pix') {
+          if (!customer.cpf || customer.cpf.replace(/\D/g, '').length !== 11) {
+            toast.error('Por favor, informe um CPF válido para PIX');
+            return false;
+          }
+        }
         if (paymentMethod === 'cash' && needsChange && !changeAmount) {
           toast.error('Por favor, informe o valor para troco');
           return false;
@@ -242,7 +245,6 @@ export function CheckoutModal() {
         phone: customer.phone,
         phoneClean: customer.phone.replace(/\D/g, ''),
         cpf: customer.cpf,
-        email: customer.email || '',
       },
       
       // Delivery info
@@ -299,7 +301,6 @@ export function CheckoutModal() {
       customer: {
         name: customer.name,
         phone: customer.phone,
-        email: customer.email,
       },
       address: {
         zipCode: address.zipCode,
@@ -371,7 +372,7 @@ export function CheckoutModal() {
             orderId,
             amount: total,
             description: `Pedido ${orderId} - Forneiro Éden`,
-            payerEmail: customer.email || 'cliente@forneiroeden.com',
+            payerEmail: 'cliente@forneiroeden.com',
             payerName: customer.name,
             payerPhone: customer.phone,
             payerCpf: customer.cpf,
@@ -542,32 +543,7 @@ export function CheckoutModal() {
                       </div>
                     </div>
 
-                    <div>
-                      <Label htmlFor="cpf">CPF *</Label>
-                      <Input
-                        id="cpf"
-                        placeholder="000.000.000-00"
-                        value={customer.cpf}
-                        onChange={(e) => handleCpfInput(e.target.value)}
-                        className="mt-1"
-                        maxLength={14}
-                      />
-                    </div>
 
-                    <div>
-                      <Label htmlFor="email">Email (opcional)</Label>
-                      <div className="relative mt-1">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input
-                          id="email"
-                          type="email"
-                          placeholder="seu@email.com"
-                          value={customer.email}
-                          onChange={(e) => setCustomer({ email: e.target.value })}
-                          className="pl-10"
-                        />
-                      </div>
-                    </div>
                   </div>
                 </motion.div>
               )}
@@ -769,6 +745,26 @@ export function CheckoutModal() {
                           </div>
                         </Label>
                       </div>
+
+                      {/* CPF para PIX - APENAS aqui e APENAS para PIX */}
+                      {paymentMethod === 'pix' && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="bg-secondary/50 rounded-xl p-4 space-y-2"
+                        >
+                          <Label htmlFor="cpf-pix">CPF *</Label>
+                          <Input
+                            id="cpf-pix"
+                            placeholder="000.000.000-00"
+                            value={customer.cpf}
+                            onChange={(e) => handleCpfInput(e.target.value)}
+                            maxLength={14}
+                          />
+                          <p className="text-xs text-muted-foreground">Necessário para segurança do pagamento PIX</p>
+                        </motion.div>
+                      )}
 
                       {/* Cartão */}
                       <div className="relative">
