@@ -279,6 +279,40 @@ const AdminDashboard = () => {
     }
   };
 
+  // Determinar status de impressão e renderizar componente apropriado
+  const getPrintStatusDisplay = (order: Order) => {
+    if (order.printedAt) {
+      // Verde: Já foi impresso
+      return (
+        <div className="flex flex-col gap-1">
+          <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+            Impresso
+          </Badge>
+          <span className="text-xs text-muted-foreground">
+            {format(new Date(order.printedAt), "HH:mm", { locale: ptBR })}
+          </span>
+        </div>
+      );
+    } else {
+      // Vermelho: Não foi impresso
+      return (
+        <div className="flex flex-col gap-1">
+          <Badge variant="destructive">
+            Não impresso
+          </Badge>
+          <Button 
+            variant="outline" 
+            size="sm"
+            className="text-xs h-7"
+            onClick={() => handlePrintOrder(order)}
+          >
+            Imprimir
+          </Button>
+        </div>
+      );
+    }
+  };
+
   // Imprimir pedido manualmente com RETRY robusto
   const handlePrintOrder = async (order: Order) => {
     let toastId: string | number | undefined;
@@ -300,16 +334,16 @@ const AdminDashboard = () => {
           });
 
           if (error) {
-            console.error(`❌ Tentativa ${attempt}: Erro -`, error.message || error);
+            console.error(`Tentativa ${attempt}: Erro -`, error.message || error);
             lastError = error;
             if (attempt < 3) {
               const delayMs = 500 * attempt; // Backoff mais curto (500ms, 1s, 1.5s)
-              console.log(`⏳ Aguardando ${delayMs}ms antes da próxima tentativa...`);
+              console.log(`Aguardando ${delayMs}ms antes da próxima tentativa...`);
               await new Promise(r => setTimeout(r, delayMs));
               continue;
             }
           } else {
-            console.log(`✅ Printorder OK na tentativa ${attempt}:`, data);
+            console.log(`Printorder OK na tentativa ${attempt}:`, data);
             
             // Tentar atualizar printed_at (pode falhar se coluna não existe)
             // Isso é não-crítico - o pedido já foi enviado para impressão
@@ -319,9 +353,9 @@ const AdminDashboard = () => {
               .eq('id', order.id);
 
             if (updateError) {
-              console.warn('⚠️ Não foi possível atualizar status de impressão (coluna pode não existir):', updateError.message);
+              console.warn('Não foi possível atualizar status de impressão:', updateError.message);
             } else {
-              console.log('✅ Status de impressão marcado como impresso');
+              console.log('Status de impressão marcado como impresso');
             }
             
             // Fechar loading toast e mostrar sucesso
@@ -332,14 +366,14 @@ const AdminDashboard = () => {
             
             // Sincronizar novamente para atualizar a UI (sem delay)
             await syncOrdersFromSupabase();
-            return; // ✅ Sucesso - sair da função
+            return; // Sucesso - sair da função
           }
         } catch (err) {
           console.error(`Tentativa ${attempt} capturou erro:`, err);
           lastError = err;
           if (attempt < 3) {
             const delayMs = 500 * attempt;
-            console.log(`⏳ Aguardando ${delayMs}ms ...`);
+            console.log(`Aguardando ${delayMs}ms ...`);
             await new Promise(r => setTimeout(r, delayMs));
           }
         }
@@ -349,7 +383,7 @@ const AdminDashboard = () => {
       throw lastError || new Error('Erro ao enviar para impressora');
       
     } catch (error) {
-      console.error('❌ Erro ao imprimir pedido:', error);
+      console.error('Erro ao imprimir pedido:', error);
       
       // Fechar loading toast e mostrar erro
       if (toastId !== undefined) {
@@ -822,27 +856,7 @@ const AdminDashboard = () => {
                           </TableCell>
                           <TableCell>{getStatusBadge(order.status)}</TableCell>
                           <TableCell>
-                            <div className="flex items-center gap-2">
-                              {order.printedAt ? (
-                                <>
-                                  <div className="w-3 h-3 rounded-full bg-green-500" title="Já foi impresso"></div>
-                                  <span className="text-xs text-muted-foreground">
-                                    {format(new Date(order.printedAt), "HH:mm", { locale: ptBR })}
-                                  </span>
-                                </>
-                              ) : (
-                                <>
-                                  <div className="w-3 h-3 rounded-full bg-red-500" title="Precisa imprimir"></div>
-                                  <Button 
-                                    variant="ghost" 
-                                    size="sm"
-                                    onClick={() => handlePrintOrder(order)}
-                                  >
-                                    Imprimir
-                                  </Button>
-                                </>
-                              )}
-                            </div>
+                            {getPrintStatusDisplay(order)}
                           </TableCell>
                           <TableCell>
                             {format(new Date(order.createdAt), "dd/MM/yyyy HH:mm", { locale: ptBR })}
