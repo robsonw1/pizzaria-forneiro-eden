@@ -42,6 +42,8 @@ import {
   Plus,
   CheckCircle,
   XCircle,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import {
   Product,
@@ -63,9 +65,12 @@ import { PrintNodeSettings } from '@/components/admin/PrintNodeSettings';
 import { toast } from 'sonner';
 import { format, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useTheme } from '@/hooks/use-theme';
+import logoForneiro from '@/assets/logo-forneiro.jpg';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
+  const { theme, toggleTheme } = useTheme();
   const [activeTab, setActiveTab] = useState('overview');
   const [isNewProductOpen, setIsNewProductOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -527,19 +532,27 @@ const AdminDashboard = () => {
       {/* Header */}
       <header className="sticky top-0 z-50 bg-card border-b">
         <div className="container mx-auto px-4">
-          <div className="flex items-center justify-between h-16">
+          <div className="flex items-center justify-between h-16 md:h-20">
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <img 
-                  src="/src/assets/logo-forneiro.jpg" 
+                  src={logoForneiro} 
                   alt="Forneiro Éden" 
-                  className="w-8 h-8 rounded-full object-cover"
+                  className="w-12 h-12 md:w-14 md:h-14 rounded-full object-cover border-2 border-primary"
                 />
-                <span className="font-display font-bold">Admin</span>
+                <span className="font-display font-bold text-lg">Admin</span>
               </div>
             </div>
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 md:gap-4">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleTheme}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+              </Button>
               <Link to="/">
                 <Button variant="ghost" size="sm" className="gap-2">
                   <Home className="w-4 h-4" />
