@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -294,10 +295,27 @@ export function CheckoutModal() {
   };
 
   const processOrder = async (orderPayload: any) => {
-    console.log('📦 Processando pedido:', orderPayload);
+    console.log('📦 Processando pedido...');
     
-    // Add order to local store for admin panel (this triggers auto-print logic)
-    addOrder({
+    // Determinar se deve auto-imprimir baseado em configurações e método de pagamento
+    let shouldAutoPrint = false;
+    if (paymentMethod === 'pix' && settings.auto_print_pix) {
+      shouldAutoPrint = true;
+    } else if (paymentMethod === 'card' && settings.auto_print_card) {
+      shouldAutoPrint = true;
+    } else if (paymentMethod === 'cash' && settings.auto_print_cash) {
+      shouldAutoPrint = true;
+    }
+    
+    if (shouldAutoPrint) {
+      console.log('📱 Auto-print HABILITADO para', paymentMethod);
+    } else {
+      console.log('⏸️ Auto-print DESABILITADO para', paymentMethod);
+    }
+    
+    // Add order to local store for admin panel
+    // (addOrder function handles auto-print with retry logic based on shouldAutoPrint parameter)
+    const createdOrder = await addOrder({
       customer: {
         name: customer.name,
         phone: customer.phone,
@@ -319,54 +337,9 @@ export function CheckoutModal() {
       total,
       status: 'pending',
       observations,
-    });
+    }, shouldAutoPrint);
     
-    // Determine if should auto-print based on payment method
-    let shouldAutoPrint = false;
-    
-    if (paymentMethod === 'pix' && settings.auto_print_pix) {
-      shouldAutoPrint = true;
-    } else if (paymentMethod === 'card' && settings.auto_print_card) {
-      shouldAutoPrint = true;
-    } else if (paymentMethod === 'cash' && settings.auto_print_cash) {
-      shouldAutoPrint = true;
-    }
-    
-    if (shouldAutoPrint) {
-      // Send to PrintNode via Supabase Edge Function with retry logic
-      console.log('📱 Impressão automática habilitada. Enviando para PrintNode via Edge Function:', paymentMethod);
-      for (let attempt = 1; attempt <= 5; attempt++) {
-        try {
-          const { data, error } = await supabase.functions.invoke('printorder', {
-            body: {
-              orderId: orderPayload.orderId,
-              force: true,
-            },
-          });
-          
-          if (!error) {
-            console.log(`✅ Pedido enviado para impressão automática (tentativa ${attempt}):`, data);
-            break;
-          }
-          
-          if (attempt < 5) {
-            const delayMs = 1000 * attempt;
-            console.log(`❌ Tentativa ${attempt} falhou. Aguardando ${delayMs}ms...`);
-            await new Promise(r => setTimeout(r, delayMs));
-          } else {
-            console.error('❌ Erro ao imprimir automaticamente após 5 tentativas:', error);
-          }
-        } catch (err) {
-          console.error(`Erro na tentativa ${attempt}:`, err);
-          if (attempt === 5) {
-            console.error('❌ Falha definitiva: não foi possível invocar printorder');
-          }
-        }
-      }
-    } else {
-      // Manual printing only
-      console.log('⏸️ Impressão manual configurada. Pedido aguardando admin clicar em "Imprimir":', paymentMethod);
-    }
+    console.log('✅ Pedido criado com ID:', createdOrder.id);
   };
 
   const handleSubmitOrder = async () => {
@@ -469,6 +442,9 @@ export function CheckoutModal() {
   return (
     <Dialog open={isCheckoutOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] p-0 overflow-hidden">
+        <DialogDescription className="sr-only">
+          Formulário de checkout para realizar pedido
+        </DialogDescription>
         <ScrollArea className="max-h-[90vh]">
           <div className="p-6">
             <DialogHeader>
