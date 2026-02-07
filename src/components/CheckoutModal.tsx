@@ -293,10 +293,10 @@ export function CheckoutModal() {
     };
   };
 
-  const sendOrderToWebhook = async (orderPayload: any) => {
-    console.log('Enviando pedido para webhook:', orderPayload);
+  const processOrder = async (orderPayload: any) => {
+    console.log('📦 Processando pedido:', orderPayload);
     
-    // Add order to local store for admin panel
+    // Add order to local store for admin panel (this triggers auto-print logic)
     addOrder({
       customer: {
         name: customer.name,
@@ -321,7 +321,7 @@ export function CheckoutModal() {
       observations,
     });
     
-    // 4. Determine if should auto-print based on payment method
+    // Determine if should auto-print based on payment method
     let shouldAutoPrint = false;
     
     if (paymentMethod === 'pix' && settings.auto_print_pix) {
@@ -333,19 +333,35 @@ export function CheckoutModal() {
     }
     
     if (shouldAutoPrint) {
-      // Send to PrintNode via Supabase Edge Function
-      console.log('📱 Impressão automática habilitada. Enviando para PrintNode:', paymentMethod);
-      const { data, error } = await supabase.functions.invoke('printorder', {
-        body: {
-          orderId: orderPayload.orderId,
-          force: true,
-        },
-      });
-      
-      if (error) {
-        console.error('❌ Erro ao imprimir automaticamente:', error);
-      } else {
-        console.log('✅ Pedido enviado para impressão automática:', data);
+      // Send to PrintNode via Supabase Edge Function with retry logic
+      console.log('📱 Impressão automática habilitada. Enviando para PrintNode via Edge Function:', paymentMethod);
+      for (let attempt = 1; attempt <= 5; attempt++) {
+        try {
+          const { data, error } = await supabase.functions.invoke('printorder', {
+            body: {
+              orderId: orderPayload.orderId,
+              force: true,
+            },
+          });
+          
+          if (!error) {
+            console.log(`✅ Pedido enviado para impressão automática (tentativa ${attempt}):`, data);
+            break;
+          }
+          
+          if (attempt < 5) {
+            const delayMs = 1000 * attempt;
+            console.log(`❌ Tentativa ${attempt} falhou. Aguardando ${delayMs}ms...`);
+            await new Promise(r => setTimeout(r, delayMs));
+          } else {
+            console.error('❌ Erro ao imprimir automaticamente após 5 tentativas:', error);
+          }
+        } catch (err) {
+          console.error(`Erro na tentativa ${attempt}:`, err);
+          if (attempt === 5) {
+            console.error('❌ Falha definitiva: não foi possível invocar printorder');
+          }
+        }
       }
     } else {
       // Manual printing only
@@ -395,16 +411,16 @@ export function CheckoutModal() {
             expirationDate: mpData.expirationDate
           });
           
-          // Send order to webhook
-          await sendOrderToWebhook(orderPayload);
+          // Process order (handles Supabase insert + auto-print logic)
+          await processOrder(orderPayload);
           
           setStep('pix');
         } else {
           throw new Error('QR Code não gerado');
         }
       } else {
-        // For card and cash, just send order directly
-        await sendOrderToWebhook(orderPayload);
+        // For card and cash, just process order directly
+        await processOrder(orderPayload);
         
         toast.success('Pedido enviado com sucesso!');
         setStep('confirmation');
