@@ -311,14 +311,17 @@ const AdminDashboard = () => {
           } else {
             console.log(`✅ Printorder OK na tentativa ${attempt}:`, data);
             
-            // Atualizar data de impressão em Supabase
+            // Tentar atualizar printed_at (pode falhar se coluna não existe)
+            // Isso é não-crítico - o pedido já foi enviado para impressão
             const { error: updateError } = await (supabase as any)
               .from('orders')
               .update({ printed_at: new Date().toISOString() })
               .eq('id', order.id);
 
             if (updateError) {
-              console.error('Erro ao atualizar printed_at:', updateError);
+              console.warn('⚠️ Não foi possível atualizar status de impressão (coluna pode não existir):', updateError.message);
+            } else {
+              console.log('✅ Status de impressão marcado como impresso');
             }
             
             // Fechar loading toast e mostrar sucesso
