@@ -83,18 +83,38 @@ export const useOrdersStore = create<OrdersStore>()(
 
           // Tentar imprimir pedido automaticamente (sem esperar)
           console.log('📱 Tentando invocar printorder Edge Function para:', newOrder.id);
-          supabase.functions
-            .invoke('printorder', {
-              body: {
-                orderId: newOrder.id,
-              },
-            })
-            .then((response) => {
-              console.log('✅ PrintOrder invoked:', response);
-            })
-            .catch((error) => {
-              console.log('⚠️ PrintOrder erro:', error);
-            });
+          
+          // Retry logic para garantir que o printorder é chamado
+          const invokePrintorder = async (retries = 3) => {
+            for (let i = 0; i < retries; i++) {
+              try {
+                const { data, error } = await supabase.functions.invoke('printorder', {
+                  body: {
+                    orderId: newOrder.id,
+                  },
+                });
+
+                if (error) {
+                  console.error(`⚠️ PrintOrder erro (tentativa ${i + 1}/${retries}):`, error);
+                  if (i < retries - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 1000)); // Aguardar 1s antes de retry
+                    continue;
+                  }
+                }
+
+                console.log('✅ PrintOrder invoked com sucesso:', data);
+                return;
+              } catch (error) {
+                console.error(`❌ Erro ao invocar PrintOrder (tentativa ${i + 1}/${retries}):`, error);
+                if (i < retries - 1) {
+                  await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+              }
+            }
+          };
+
+          // Chamar com retry
+          invokePrintorder();
         } catch (error) {
           console.error('Erro ao salvar pedido no Supabase:', error);
         }
@@ -161,6 +181,8 @@ export const useOrdersStore = create<OrdersStore>()(
           if (error) throw error;
 
           if (data) {
+            console.log(`🔄 Sincronizando ${data.length} pedidos do Supabase`);
+            
             // Buscar também os itens de cada pedido
             const ordersWithItems = await Promise.all(
               data.map(async (row: any) => {
@@ -168,6 +190,9 @@ export const useOrdersStore = create<OrdersStore>()(
                   .select('*')
                   .eq('order_id', row.id);
 
+                // Parse createdAt com timezone correto
+                const createdAtDate = new Date(row.created_at);
+                
                 return {
                   id: row.id,
                   customer: {
@@ -181,9 +206,9 @@ export const useOrdersStore = create<OrdersStore>()(
                     street: '',
                     number: '',
                   },
-                  deliveryType: 'delivery',
+                  deliveryType: 'delivery' as const,
                   deliveryFee: row.delivery_fee,
-                  paymentMethod: 'pix',
+                  paymentMethod: 'pix' as const,
                   items: items?.map((item: any) => ({
                     product: { id: item.product_id, name: item.product_name } as any,
                     quantity: item.quantity,
@@ -192,9 +217,9 @@ export const useOrdersStore = create<OrdersStore>()(
                   })) || [],
                   subtotal: row.total,
                   total: row.total,
-                  status: row.status,
+                  status: row.status as any,
                   observations: '',
-                  createdAt: new Date(row.created_at),
+                  createdAt: createdAtDate,
                 };
               })
             );
@@ -202,7 +227,7 @@ export const useOrdersStore = create<OrdersStore>()(
             set(() => ({
               orders: ordersWithItems as Order[],
             }));
-            console.log('✅ Sincronizados', ordersWithItems.length, 'pedidos com itens do Supabase');
+            console.log(`✅ ${ordersWithItems.length} pedidos sincronizados com itens`);
           }
         } catch (error) {
           console.error('Erro ao sincronizar pedidos do Supabase:', error);
