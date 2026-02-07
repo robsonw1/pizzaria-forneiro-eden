@@ -50,7 +50,6 @@ export interface Order {
     cpf?: string; // Only for PIX at payment step
   };
   address: {
-    zipCode: string;
     city: string;
     neighborhood: string;
     street: string;
