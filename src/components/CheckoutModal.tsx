@@ -297,14 +297,18 @@ export function CheckoutModal() {
   const processOrder = async (orderPayload: any) => {
     console.log('Processando pedido...');
     
-    // Determinar se deve auto-imprimir baseado em configurações e método de pagamento
+    // Determinar se deve auto-imprimir baseado em modo e método de pagamento
     let shouldAutoPrint = false;
-    if (paymentMethod === 'pix' && settings.auto_print_pix) {
-      shouldAutoPrint = true;
-    } else if (paymentMethod === 'card' && settings.auto_print_card) {
-      shouldAutoPrint = true;
-    } else if (paymentMethod === 'cash' && settings.auto_print_cash) {
-      shouldAutoPrint = true;
+    
+    // SÓ usar auto-print se o modo for "auto" (não "manual")
+    if (settings.print_mode === 'auto') {
+      if (paymentMethod === 'pix' && settings.auto_print_pix) {
+        shouldAutoPrint = true;
+      } else if (paymentMethod === 'card' && settings.auto_print_card) {
+        shouldAutoPrint = true;
+      } else if (paymentMethod === 'cash' && settings.auto_print_cash) {
+        shouldAutoPrint = true;
+      }
     }
     
     if (shouldAutoPrint) {
