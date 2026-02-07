@@ -9,6 +9,7 @@ interface OrdersStore {
   orders: Order[];
   addOrder: (order: Omit<Order, 'id' | 'createdAt'>, autoprint?: boolean) => Promise<Order>;
   updateOrderStatus: (id: string, status: OrderStatus) => Promise<void>;
+  updateOrderPrintedAt: (id: string, printedAt: string) => Promise<void>;
   removeOrder: (id: string) => Promise<void>;
   getOrderById: (id: string) => Order | undefined;
   getOrdersByDateRange: (startDate: Date, endDate: Date) => Order[];
@@ -157,6 +158,26 @@ export const useOrdersStore = create<OrdersStore>()(
         set((state) => ({
           orders: state.orders.map((order) =>
             order.id === id ? { ...order, status } : order
+          ),
+        }));
+      },
+
+      updateOrderPrintedAt: async (id, printedAt) => {
+        try {
+          // Atualizar no Supabase
+          const { error } = await (supabase as any).from('orders')
+            .update({ printed_at: printedAt })
+            .eq('id', id);
+
+          if (error) throw error;
+        } catch (error) {
+          console.error('Erro ao atualizar printed_at no Supabase:', error);
+        }
+
+        // Atualizar localmente IMEDIATAMENTE
+        set((state) => ({
+          orders: state.orders.map((order) =>
+            order.id === id ? { ...order, printedAt } : order
           ),
         }));
       },
