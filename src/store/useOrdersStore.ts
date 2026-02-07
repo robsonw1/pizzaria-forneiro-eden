@@ -8,6 +8,7 @@ type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'delivering' | 'deliv
 interface OrdersStore {
   orders: Order[];
   addOrder: (order: Omit<Order, 'id' | 'createdAt'>, autoprint?: boolean) => Promise<Order>;
+  addOrderToStoreOnly: (orderData: Order) => Order;
   updateOrderStatus: (id: string, status: OrderStatus) => Promise<void>;
   updateOrderPrintedAt: (id: string, printedAt: string) => Promise<void>;
   removeOrder: (id: string) => Promise<void>;
@@ -36,7 +37,7 @@ export const useOrdersStore = create<OrdersStore>()(
         };
 
         try {
-          // Salvar no Supabase - APENAS os 7 campos que REALMENTE existem
+          // Salvar no Supabase
           const nowISO = new Date().toISOString();
           const { error } = await supabase.from('orders').insert([
             {
@@ -47,6 +48,7 @@ export const useOrdersStore = create<OrdersStore>()(
               status: newOrder.status,
               total: newOrder.total,
               created_at: nowISO,
+              address: newOrder.address,
             },
           ] as any);
 
@@ -143,6 +145,19 @@ export const useOrdersStore = create<OrdersStore>()(
         return newOrder;
       },
 
+      addOrderToStoreOnly: (orderData) => {
+        // Apenas adicionar à store local, sem persistir no BD
+        // Usado para sincronização realtime onde o pedido já foi salvo no BD
+        const newOrder: Order = {
+          ...orderData,
+          createdAt: orderData.createdAt instanceof Date ? orderData.createdAt : new Date(orderData.createdAt),
+        };
+        set((state) => ({
+          orders: [newOrder, ...state.orders],
+        }));
+        return newOrder;
+      },
+
       updateOrderStatus: async (id, status) => {
         try {
           // Atualizar no Supabase
@@ -229,7 +244,8 @@ export const useOrdersStore = create<OrdersStore>()(
                 // Parse createdAt com timezone correto
                 const createdAtDate = new Date(row.created_at);
                 
-                return {
+                // Construir objeto de pedido com TODOS os dados do banco
+                const syncedOrder: Order = {
                   id: row.id,
                   customer: {
                     name: row.customer_name,
@@ -247,6 +263,7 @@ export const useOrdersStore = create<OrdersStore>()(
                   deliveryFee: row.delivery_fee,
                   paymentMethod: 'pix' as const,
                   items: items?.map((item: any) => ({
+                    id: item.id || `item-${Date.now()}-${Math.random()}`,
                     product: { id: item.product_id, name: item.product_name } as any,
                     quantity: item.quantity,
                     size: item.size,
@@ -257,8 +274,11 @@ export const useOrdersStore = create<OrdersStore>()(
                   status: row.status as any,
                   observations: '',
                   createdAt: createdAtDate,
-                  printedAt: row.printed_at || undefined,
+                  // ✅ Sincronizar printed_at exatamente como está no banco
+                  printedAt: row.printed_at ? new Date(row.printed_at).toISOString() : undefined,
                 };
+                
+                return syncedOrder;
               })
             );
 
