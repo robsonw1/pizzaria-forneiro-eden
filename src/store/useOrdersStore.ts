@@ -7,7 +7,7 @@ type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'delivering' | 'deliv
 
 interface OrdersStore {
   orders: Order[];
-  addOrder: (order: Omit<Order, 'id' | 'createdAt'>) => Promise<Order>;
+  addOrder: (order: Omit<Order, 'id' | 'createdAt'>, autoprint?: boolean) => Promise<Order>;
   updateOrderStatus: (id: string, status: OrderStatus) => Promise<void>;
   removeOrder: (id: string) => Promise<void>;
   getOrderById: (id: string) => Order | undefined;
@@ -27,7 +27,7 @@ export const useOrdersStore = create<OrdersStore>()(
     (set, get) => ({
       orders: [],
 
-      addOrder: async (orderData) => {
+      addOrder: async (orderData, autoprint = false) => {
         const newOrder: Order = {
           ...orderData,
           id: `PED-${String(Date.now()).slice(-6)}`,
@@ -83,39 +83,43 @@ export const useOrdersStore = create<OrdersStore>()(
             console.log('✅ Order items inseridos com sucesso:', orderItems.length);
           }
 
-          // Tentar imprimir pedido automaticamente via Edge Function com RETRY
-          console.log('🖨️ Iniciando impressão para:', newOrder.id);
-          
-          const invokePrintWithRetry = async () => {
-            for (let attempt = 1; attempt <= 5; attempt++) {
-              try {
-                console.log(`📱 Tentativa ${attempt}/5 de invocar printorder...`);
-                const { data, error } = await supabase.functions.invoke('printorder', {
-                  body: { orderId: newOrder.id },
-                });
+          // Tentar imprimir pedido automaticamente via Edge Function com RETRY (apenas se autoprint = true)
+          if (autoprint) {
+            console.log('🖨️ Auto-print HABILITADO. Iniciando impressão para:', newOrder.id);
+            
+            const invokePrintWithRetry = async () => {
+              for (let attempt = 1; attempt <= 5; attempt++) {
+                try {
+                  console.log(`📱 Tentativa ${attempt}/5 de invocar printorder...`);
+                  const { data, error } = await supabase.functions.invoke('printorder', {
+                    body: { orderId: newOrder.id },
+                  });
 
-                if (error) {
-                  console.error(`❌ Tentativa ${attempt}: Erro -`, error.message || error);
-                  if (attempt < 5) {
-                    await new Promise(r => setTimeout(r, 1000 * attempt)); // Exponential backoff
-                    continue;
+                  if (error) {
+                    console.error(`❌ Tentativa ${attempt}: Erro -`, error.message || error);
+                    if (attempt < 5) {
+                      await new Promise(r => setTimeout(r, 1000 * attempt)); // Exponential backoff
+                      continue;
+                    }
+                    throw error;
                   }
-                  throw error;
-                }
 
-                console.log(`✅ Printorder OK na tentativa ${attempt}:`, data);
-                return;
-              } catch (err) {
-                console.error(`Tentativa ${attempt} falhou:`, err);
-                if (attempt === 5) {
-                  console.error('❌ FALHA DEFINITIVA: Não foi possível invocar printorder após 5 tentativas');
+                  console.log(`✅ Printorder OK na tentativa ${attempt}:`, data);
+                  return;
+                } catch (err) {
+                  console.error(`Tentativa ${attempt} falhou:`, err);
+                  if (attempt === 5) {
+                    console.error('❌ FALHA DEFINITIVA: Não foi possível invocar printorder após 5 tentativas');
+                  }
                 }
               }
-            }
-          };
+            };
 
-          // Invocar assincronamente (não bloqueia)
-          invokePrintWithRetry();
+            // Invocar assincronamente (não bloqueia)
+            invokePrintWithRetry();
+          } else {
+            console.log('⏸️ Auto-print DESABILITADO. Pedido aguardando ação manual.');
+          }
         } catch (error) {
           console.error('Erro ao salvar pedido no Supabase:', error);
         }
