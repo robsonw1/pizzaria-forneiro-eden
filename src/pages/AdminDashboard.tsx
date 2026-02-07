@@ -279,37 +279,52 @@ const AdminDashboard = () => {
     }
   };
 
-  // Imprimir pedido manualmente
+  // Imprimir pedido manualmente com RETRY robusto
   const handlePrintOrder = async (order: Order) => {
     try {
-      console.log('🖨️ Enviando pedido para impressão manual:', order.id);
+      console.log('🖨️ Iniciando impressão manual para:', order.id);
+      toast.loading('Enviando pedido para impressora...');
       
-      // Usar a mesma abordagem que funciona em Configurações
-      const { data, error } = await supabase.functions.invoke('printorder', {
-        body: {
-          orderId: order.id,
-          force: true,
-        },
-      });
+      let success = false;
+      
+      // Tentar invocar printorder com retry (5x com backoff exponencial)
+      for (let attempt = 1; attempt <= 5; attempt++) {
+        try {
+          console.log(`📱 Tentativa ${attempt}/5 de invocar printorder...`);
+          const { data, error } = await supabase.functions.invoke('printorder', {
+            body: {
+              orderId: order.id,
+              force: true,
+            },
+          });
 
-      if (error) {
-        console.error('❌ Erro ao invocar printorder:', error);
-        // Fallback: enviar para webhook N8N também
-        await fetch('https://n8nwebhook.aezap.site/webhook/impressao', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            orderId: order.id,
-            customer: order.customer.name,
-            total: order.total,
-            manual: true,
-          }),
-        });
-        console.log('✅ Enviado via webhook N8N (fallback)');
-        toast.success('Pedido enviado para impressão!');
-      } else {
-        console.log('✅ PrintOrder retornou:', data);
-        toast.success('Pedido enviado para impressão!');
+          if (error) {
+            console.error(`❌ Tentativa ${attempt}: Erro -`, error.message || error);
+            if (attempt < 5) {
+              const delayMs = 1000 * attempt;
+              console.log(`⏳ Aguardando ${delayMs}ms antes da próxima tentativa...`);
+              await new Promise(r => setTimeout(r, delayMs));
+              continue;
+            }
+            throw new Error(`Falha após ${attempt} tentativas: ${error.message}`);
+          }
+
+          console.log(`✅ Printorder OK na tentativa ${attempt}:`, data);
+          success = true;
+          break;
+        } catch (err) {
+          console.error(`Tentativa ${attempt} capturou erro:`, err);
+          if (attempt === 5) {
+            throw err;
+          }
+          const delayMs = 1000 * attempt;
+          console.log(`⏳ Aguardando ${delayMs}ms (attempt ${attempt}/5)...`);
+          await new Promise(r => setTimeout(r, delayMs));
+        }
+      }
+
+      if (!success) {
+        throw new Error('Não foi possível enviar pedido para impressão após 5 tentativas');
       }
 
       // Atualizar data de impressão em Supabase
@@ -322,12 +337,13 @@ const AdminDashboard = () => {
         console.error('Erro ao atualizar status de impressão:', updateError);
       } else {
         console.log('✅ Status de impressão marcado como impresso');
+        toast.success('Pedido enviado para impressora com sucesso!');
         // Sincronizar novamente para atualizar a UI
         setTimeout(() => syncOrdersFromSupabase(), 500);
       }
     } catch (error) {
       console.error('❌ Erro ao imprimir pedido:', error);
-      toast.error('Erro ao enviar para impressão');
+      toast.error(`Erro ao enviar para impressão: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
     }
   };
 
