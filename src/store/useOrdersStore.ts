@@ -47,7 +47,7 @@ export const useOrdersStore = create<OrdersStore>()(
           // Store payment_method as metadata in address JSONB
           const addressWithMetadata = {
             ...newOrder.address,
-            _paymentMethod: newOrder.paymentMethod, // Store internally for later retrieval
+            paymentMethod: newOrder.paymentMethod, // Store internally for later retrieval
           };
           
           const { error } = await supabase.from('orders').insert([
@@ -262,7 +262,7 @@ export const useOrdersStore = create<OrdersStore>()(
                 const createdAtDate = new Date(row.created_at);
                 
                 // Extrair payment_method da metadata do address
-                const paymentMethodFromMetadata = (row.address as any)?._paymentMethod || 'pix';
+                const paymentMethodFromMetadata = (row.address as any)?.paymentMethod || 'pix';
                 
                 // Preparar address sem metadata interna
                 const displayAddress = row.address ? {
