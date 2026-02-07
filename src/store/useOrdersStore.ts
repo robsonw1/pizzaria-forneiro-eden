@@ -256,6 +256,7 @@ export const useOrdersStore = create<OrdersStore>()(
                   status: row.status as any,
                   observations: '',
                   createdAt: createdAtDate,
+                  printedAt: row.printed_at || undefined,
                 };
               })
             );
