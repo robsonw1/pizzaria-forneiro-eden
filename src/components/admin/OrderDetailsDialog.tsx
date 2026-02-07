@@ -53,7 +53,6 @@ export function OrderDetailsDialog({ open, onOpenChange, order }: OrderDetailsDi
   if (!order) return null;
 
   const formatPrice = (price: number) => {
-    if (!price || isNaN(price)) return 'R$ 0,00';
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL',
@@ -109,12 +108,6 @@ export function OrderDetailsDialog({ open, onOpenChange, order }: OrderDetailsDi
                 <span className="text-muted-foreground">Telefone:</span>{' '}
                 {order.customer.phone}
               </div>
-              {order.customer.email && (
-                <div className="col-span-2">
-                  <span className="text-muted-foreground">Email:</span>{' '}
-                  {order.customer.email}
-                </div>
-              )}
             </div>
           </div>
 
@@ -134,7 +127,6 @@ export function OrderDetailsDialog({ open, onOpenChange, order }: OrderDetailsDi
                 <p>
                   {order.address.neighborhood} - {order.address.city}
                 </p>
-                <p>CEP: {order.address.zipCode}</p>
                 {order.address.reference && (
                   <p className="text-muted-foreground">
                     Referência: {order.address.reference}
