@@ -44,6 +44,12 @@ export const useOrdersStore = create<OrdersStore>()(
           const localTime = new Date(now.getTime() - offset);
           const localISO = localTime.toISOString().split('Z')[0]; // Remove o Z de UTC
           
+          // Store payment_method as metadata in address JSONB
+          const addressWithMetadata = {
+            ...newOrder.address,
+            _paymentMethod: newOrder.paymentMethod, // Store internally for later retrieval
+          };
+          
           const { error } = await supabase.from('orders').insert([
             {
               id: newOrder.id,
@@ -53,8 +59,7 @@ export const useOrdersStore = create<OrdersStore>()(
               status: newOrder.status,
               total: newOrder.total,
               created_at: localISO,
-              address: newOrder.address,
-              payment_method: newOrder.paymentMethod,
+              address: addressWithMetadata,
             },
           ] as any);
 
@@ -256,6 +261,26 @@ export const useOrdersStore = create<OrdersStore>()(
                 // A conversão de horário já é feita implicitamente pelo JavaScript
                 const createdAtDate = new Date(row.created_at);
                 
+                // Extrair payment_method da metadata do address
+                const paymentMethodFromMetadata = (row.address as any)?._paymentMethod || 'pix';
+                
+                // Preparar address sem metadata interna
+                const displayAddress = row.address ? {
+                  city: row.address.city || '',
+                  neighborhood: row.address.neighborhood || '',
+                  street: row.address.street || '',
+                  number: row.address.number || '',
+                  complement: row.address.complement || '',
+                  reference: row.address.reference || '',
+                } : {
+                  city: '',
+                  neighborhood: '',
+                  street: '',
+                  number: '',
+                  complement: '',
+                  reference: '',
+                };
+                
                 // Construir objeto de pedido com TODOS os dados do banco
                 const syncedOrder: Order = {
                   id: row.id,
@@ -263,17 +288,10 @@ export const useOrdersStore = create<OrdersStore>()(
                     name: row.customer_name,
                     phone: row.customer_phone,
                   },
-                  address: row.address || {
-                    city: '',
-                    neighborhood: '',
-                    street: '',
-                    number: '',
-                    complement: '',
-                    reference: '',
-                  },
+                  address: displayAddress,
                   deliveryType: 'delivery' as const,
                   deliveryFee: row.delivery_fee,
-                  paymentMethod: (row.payment_method || 'pix') as any,
+                  paymentMethod: paymentMethodFromMetadata as any,
                   items: items?.map((item: any) => ({
                     id: item.id || `item-${Date.now()}-${Math.random()}`,
                     product: { id: item.product_id, name: item.product_name } as any,
