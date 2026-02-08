@@ -9,9 +9,10 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useLoyaltyStore } from '@/store/useLoyaltyStore';
 import { toast } from 'sonner';
-import { LogIn, Mail } from 'lucide-react';
+import { LogIn, Mail, Lock } from 'lucide-react';
 
 interface CustomerLoginModalProps {
   isOpen: boolean;
@@ -26,6 +27,7 @@ export function CustomerLoginModal({
 }: CustomerLoginModalProps) {
   const [email, setEmail] = useState('');
   const [cpf, setCpf] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const loginCustomer = useLoyaltyStore((s) => s.loginCustomer);
@@ -56,12 +58,13 @@ export function CustomerLoginModal({
 
     setIsLoading(true);
     try {
-      const success = await loginCustomer(email, cpf.replace(/\D/g, ''));
+      const success = await loginCustomer(email, cpf.replace(/\D/g, ''), rememberMe);
 
       if (success) {
         toast.success('✅ Bem-vindo! Dados carregados com sucesso');
         setEmail('');
         setCpf('');
+        setRememberMe(false);
         onClose();
         onSuccess?.();
       } else {
@@ -117,6 +120,21 @@ export function CustomerLoginModal({
               onChange={(e) => handleCpfInput(e.target.value)}
               disabled={isLoading}
             />
+          </div>
+
+          <div className="flex items-center space-x-2 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950 dark:to-emerald-950 rounded-lg p-3">
+            <Checkbox
+              id="remember-me"
+              checked={rememberMe}
+              onCheckedChange={(checked) => setRememberMe(checked as boolean)}
+              disabled={isLoading}
+            />
+            <Label htmlFor="remember-me" className="flex-1 text-sm font-medium cursor-pointer mb-0">
+              <span className="flex items-center gap-1">
+                <Lock className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                Me manter conectado para garantir os pontos
+              </span>
+            </Label>
           </div>
 
           <div className="bg-blue-50 dark:bg-blue-950 rounded-lg p-3 text-xs text-muted-foreground">
