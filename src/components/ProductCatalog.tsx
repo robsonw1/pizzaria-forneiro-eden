@@ -47,8 +47,7 @@ export function ProductCatalog() {
             Nosso Cardápio
           </h2>
           <p className="text-muted-foreground max-w-2xl mx-auto">
-            Escolha entre mais de 100 sabores únicos, preparados com ingredientes 
-            frescos e muito carinho.
+            A Pizza mais recheada da cidade 🇮🇹.
           </p>
         </div>
 
