@@ -20,7 +20,9 @@ import { useUIStore, useCartStore, useCheckoutStore } from '@/store/useStore';
 import { useNeighborhoodsStore } from '@/store/useNeighborhoodsStore';
 import { useOrdersStore } from '@/store/useOrdersStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
+import { useLoyaltyStore } from '@/store/useLoyaltyStore';
 import { supabase } from '@/integrations/supabase/client';
+import { PostCheckoutLoyaltyModal } from './PostCheckoutLoyaltyModal';
 import { 
   User, 
   Phone, 
@@ -86,6 +88,12 @@ export function CheckoutModal() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [pixData, setPixData] = useState<PixData | null>(null);
   const [copied, setCopied] = useState(false);
+  const [isLoyaltyModalOpen, setIsLoyaltyModalOpen] = useState(false);
+  const [lastOrderEmail, setLastOrderEmail] = useState<string>('');
+
+  const findOrCreateCustomer = useLoyaltyStore((s) => s.findOrCreateCustomer);
+  const addPointsFromPurchase = useLoyaltyStore((s) => s.addPointsFromPurchase);
+  const currentCustomer = useLoyaltyStore((s) => s.currentCustomer);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -356,7 +364,14 @@ export function CheckoutModal() {
     const orderId = `PED-${Date.now().toString().slice(-5)}`;
     const orderPayload = buildOrderPayload(orderId);
 
+    // Extract email for loyalty system (use payment email or generate one)
+    const customerEmail = customer.phone ? `${customer.phone.replace(/\D/g, '')}@forneiroeden.local` : 'cliente@forneiroeden.local';
+    setLastOrderEmail(customerEmail);
+
     try {
+      // Find or create customer in loyalty system
+      const loyaltyCustomer = await findOrCreateCustomer(customerEmail);
+      
       if (paymentMethod === 'pix') {
         // Create PIX payment and show QR code
         const { data: mpData, error: mpError } = await supabase.functions.invoke('mercadopago-payment', {
@@ -398,8 +413,17 @@ export function CheckoutModal() {
         // For card and cash, just process order directly
         await processOrder(orderPayload);
         
+        // Add points from purchase
+        if (loyaltyCustomer) {
+          await addPointsFromPurchase(loyaltyCustomer.id, total, orderId);
+        }
+        
         toast.success('Pedido enviado com sucesso!');
         setStep('confirmation');
+        // Show loyalty modal if customer is not registered
+        if (loyaltyCustomer && !loyaltyCustomer.isRegistered) {
+          setTimeout(() => setIsLoyaltyModalOpen(true), 500);
+        }
       }
 
     } catch (error) {
@@ -410,9 +434,21 @@ export function CheckoutModal() {
     }
   };
 
-  const handlePixConfirmed = () => {
+  const handlePixConfirmed = async () => {
+    const orderId = `PED-${Date.now().toString().slice(-5)}`;
+    const loyaltyCustomer = await findOrCreateCustomer(lastOrderEmail);
+    
+    if (loyaltyCustomer) {
+      await addPointsFromPurchase(loyaltyCustomer.id, total, orderId);
+    }
+    
     toast.success('Pedido confirmado! Aguardando confirmação do pagamento.');
     setStep('confirmation');
+    
+    // Show loyalty modal if customer is not registered
+    if (loyaltyCustomer && !loyaltyCustomer.isRegistered) {
+      setTimeout(() => setIsLoyaltyModalOpen(true), 500);
+    }
   };
 
   const handleClose = () => {
@@ -443,7 +479,8 @@ export function CheckoutModal() {
   const storeOpen = isStoreOpen();
 
   return (
-    <Dialog open={isCheckoutOpen} onOpenChange={handleClose}>
+    <>
+      <Dialog open={isCheckoutOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] p-0 overflow-hidden">
         <DialogDescription className="sr-only">
           Formulário de checkout para realizar pedido
@@ -1046,5 +1083,13 @@ export function CheckoutModal() {
         </ScrollArea>
       </DialogContent>
     </Dialog>
+
+    {/* Loyalty Registration Modal */}
+    <PostCheckoutLoyaltyModal 
+      isOpen={isLoyaltyModalOpen}
+      onClose={() => setIsLoyaltyModalOpen(false)}
+      email={lastOrderEmail}
+    />
+    </>
   );
 }
