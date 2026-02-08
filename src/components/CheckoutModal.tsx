@@ -364,8 +364,10 @@ export function CheckoutModal() {
     const orderId = `PED-${Date.now().toString().slice(-5)}`;
     const orderPayload = buildOrderPayload(orderId);
 
-    // Extract email for loyalty system (use payment email or generate one)
-    const customerEmail = customer.phone ? `${customer.phone.replace(/\D/g, '')}@forneiroeden.local` : 'cliente@forneiroeden.local';
+    // Extract email for loyalty system (use real email if provided, otherwise will be filled in loyalty modal)
+    const customerEmail = customer.email && customer.email.includes('@') 
+      ? customer.email 
+      : `temp-${Date.now()}@forneiroeden.local`;
     setLastOrderEmail(customerEmail);
 
     try {
