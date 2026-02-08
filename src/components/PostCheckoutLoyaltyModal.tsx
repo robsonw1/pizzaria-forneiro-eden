@@ -28,7 +28,7 @@ export function PostCheckoutLoyaltyModal({
   email,
 }: PostCheckoutLoyaltyModalProps) {
   const [step, setStep] = useState<'auth' | 'welcome' | 'form' | 'referral'>('auth');
-  const [currentEmail, setCurrentEmail] = useState(email);
+  const [currentEmail, setCurrentEmail] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     cpf: '',
@@ -51,6 +51,11 @@ export function PostCheckoutLoyaltyModal({
   const handleRegister = async () => {
     if (!formData.name.trim() || !formData.cpf.trim()) {
       toast.error('Preencha o nome e CPF');
+      return;
+    }
+
+    if (!currentEmail.trim() || !currentEmail.includes('@')) {
+      toast.error('Informe um email válido');
       return;
     }
 
@@ -117,7 +122,6 @@ export function PostCheckoutLoyaltyModal({
   const handleSkipReferral = () => {
     setReferralCode('');
     setLastCustomerId(null);
-    setCurrentEmail(email);
     setFormData({ name: '', cpf: '', phone: '' });
     setStep('auth');
     onClose();
@@ -258,6 +262,18 @@ export function PostCheckoutLoyaltyModal({
 
             <div className="space-y-4 py-4">
               <div className="space-y-2">
+                <Label htmlFor="email">Email *</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="seu@email.com"
+                  value={currentEmail}
+                  onChange={(e) => setCurrentEmail(e.target.value)}
+                  disabled={isLoading}
+                />
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="name">Nome Completo *</Label>
                 <Input
                   id="name"
@@ -310,10 +326,6 @@ export function PostCheckoutLoyaltyModal({
                   disabled={isLoading}
                 />
               </div>
-
-              <p className="text-xs text-muted-foreground">
-                Email: <strong>{currentEmail}</strong>
-              </p>
             </div>
 
             <DialogFooter className="flex gap-2">
