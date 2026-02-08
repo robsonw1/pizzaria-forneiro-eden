@@ -77,6 +77,10 @@ interface LoyaltyStore {
   setPointsToRedeem: (points: number) => void;
   getTransactionHistory: (customerId: string) => Promise<LoyaltyTransaction[]>;
   
+  // Login/Logout
+  loginCustomer: (email: string, cpf: string) => Promise<boolean>;
+  logoutCustomer: () => Promise<void>;
+  
   // Coupon actions
   generateAutoCoupon: (customerId: string) => Promise<LoyaltyCoupon | null>;
   getCoupons: (customerId: string) => Promise<LoyaltyCoupon[]>;
@@ -355,6 +359,62 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
     set({ pointsToRedeem: points });
   },
 
+  loginCustomer: async (email: string, cpf: string) => {
+    try {
+      console.log('Tentando fazer login com:', { email, cpf });
+
+      // Buscar cliente por email e CPF
+      const { data, error } = await (supabase as any)
+        .from('customers')
+        .select('*')
+        .eq('email', email)
+        .eq('cpf', cpf.replace(/\D/g, ''))
+        .single();
+
+      if (error || !data) {
+        console.error('Cliente não encontrado:', error);
+        return false;
+      }
+
+      const customer = mapCustomerFromDB(data);
+      
+      // Carregar dados do cliente
+      const [transactions, coupons, referrals] = await Promise.all([
+        get().getTransactionHistory(customer.id),
+        get().getCoupons(customer.id),
+        get().getReferrals(customer.id),
+      ]);
+
+      set({
+        currentCustomer: customer,
+        points: customer.totalPoints,
+        transactions,
+        coupons,
+        referrals,
+      });
+
+      console.log('✅ Login bem-sucedido:', customer);
+      return true;
+    } catch (error) {
+      console.error('Erro em loginCustomer:', error);
+      return false;
+    }
+  },
+
+  logoutCustomer: async () => {
+    console.log('Fazendo logout do cliente');
+    set({
+      currentCustomer: null,
+      points: 0,
+      pointsToRedeem: 0,
+      transactions: [],
+      coupons: [],
+      activeCoupon: null,
+      referrals: [],
+      referralCode: '',
+    });
+  },
+
   getTransactionHistory: async (customerId: string) => {
     try {
       const { data, error } = await (supabase as any)
@@ -364,8 +424,9 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
         .order('created_at', { ascending: false });
 
       if (error || !data) return [];
-      set({ transactions: data });
-      return data;
+      const transactions = data.map(mapTransactionFromDB);
+      set({ transactions });
+      return transactions;
     } catch (error) {
       console.error('Erro em getTransactionHistory:', error);
       return [];
@@ -646,6 +707,19 @@ function mapCustomerFromDB(data: any): Customer {
     registeredAt: data.registered_at,
     createdAt: data.created_at,
     lastPurchaseAt: data.last_purchase_at,
+  };
+}
+
+function mapTransactionFromDB(data: any): LoyaltyTransaction {
+  return {
+    id: data.id,
+    customerId: data.customer_id,
+    orderId: data.order_id,
+    pointsEarned: data.points_earned,
+    pointsSpent: data.points_spent,
+    transactionType: data.transaction_type,
+    description: data.description,
+    createdAt: data.created_at,
   };
 }
 
