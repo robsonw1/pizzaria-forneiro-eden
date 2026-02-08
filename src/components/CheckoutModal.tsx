@@ -90,10 +90,12 @@ export function CheckoutModal() {
   const [copied, setCopied] = useState(false);
   const [isLoyaltyModalOpen, setIsLoyaltyModalOpen] = useState(false);
   const [lastOrderEmail, setLastOrderEmail] = useState<string>('');
+  const [lastPointsEarned, setLastPointsEarned] = useState<number>(0);
 
   const findOrCreateCustomer = useLoyaltyStore((s) => s.findOrCreateCustomer);
   const addPointsFromPurchase = useLoyaltyStore((s) => s.addPointsFromPurchase);
   const currentCustomer = useLoyaltyStore((s) => s.currentCustomer);
+  const isRemembered = useLoyaltyStore((s) => s.isRemembered);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -417,15 +419,15 @@ export function CheckoutModal() {
         
         // Add points from purchase
         if (loyaltyCustomer) {
+          const pointsEarned = Math.floor(total * 1); // 1 ponto por real
+          setLastPointsEarned(pointsEarned);
           await addPointsFromPurchase(loyaltyCustomer.id, total, orderId);
         }
         
         toast.success('Pedido enviado com sucesso!');
         setStep('confirmation');
-        // Show loyalty modal if customer is not registered
-        if (loyaltyCustomer && !loyaltyCustomer.isRegistered) {
-          setTimeout(() => setIsLoyaltyModalOpen(true), 500);
-        }
+        // Show loyalty modal
+        setTimeout(() => setIsLoyaltyModalOpen(true), 500);
       }
 
     } catch (error) {
@@ -441,16 +443,16 @@ export function CheckoutModal() {
     const loyaltyCustomer = await findOrCreateCustomer(lastOrderEmail);
     
     if (loyaltyCustomer) {
+      const pointsEarned = Math.floor(total * 1); // 1 ponto por real
+      setLastPointsEarned(pointsEarned);
       await addPointsFromPurchase(loyaltyCustomer.id, total, orderId);
     }
     
     toast.success('Pedido confirmado! Aguardando confirmação do pagamento.');
     setStep('confirmation');
     
-    // Show loyalty modal if customer is not registered
-    if (loyaltyCustomer && !loyaltyCustomer.isRegistered) {
-      setTimeout(() => setIsLoyaltyModalOpen(true), 500);
-    }
+    // Show loyalty modal
+    setTimeout(() => setIsLoyaltyModalOpen(true), 500);
   };
 
   const handleClose = () => {
@@ -461,6 +463,8 @@ export function CheckoutModal() {
     setStep('contact');
     setPixData(null);
     setCopied(false);
+    setLastPointsEarned(0);
+    setLastOrderEmail('');
     setCheckoutOpen(false);
   };
 
@@ -1091,6 +1095,7 @@ export function CheckoutModal() {
       isOpen={isLoyaltyModalOpen}
       onClose={() => setIsLoyaltyModalOpen(false)}
       email={lastOrderEmail}
+      pointsEarned={lastPointsEarned}
     />
     </>
   );
