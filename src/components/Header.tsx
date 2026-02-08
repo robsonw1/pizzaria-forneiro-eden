@@ -1,4 +1,4 @@
-import { ShoppingCart, Menu, X, Sun, Moon } from 'lucide-react';
+import { ShoppingCart, Menu, X, Sun, Moon, LogIn } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useCartStore, useUIStore } from '@/store/useStore';
@@ -9,7 +9,11 @@ import { Link } from 'react-router-dom';
 import { useTheme } from '@/hooks/use-theme';
 import logoForneiro from '@/assets/logo-forneiro.jpg';
 
-export function Header() {
+interface HeaderProps {
+  onLoginClick?: () => void;
+}
+
+export function Header({ onLoginClick }: HeaderProps) {
   const { getItemCount } = useCartStore();
   const { setCartOpen } = useUIStore();
   const settings = useSettingsStore((s) => s.settings);
@@ -40,12 +44,9 @@ export function Header() {
               <span className="mx-2 text-border">•</span>
               <span className="text-foreground">Retirada:</span> {settings.pickupTimeMin}–{settings.pickupTimeMax} min
             </div>
-            <Link to="/admin" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
-              Admin
-            </Link>
           </nav>
 
-          {/* Theme Toggle & Cart Button */}
+          {/* Theme Toggle & Login & Cart Button */}
           <div className="flex items-center gap-2 md:gap-4">
             <Button
               variant="ghost"
@@ -54,6 +55,16 @@ export function Header() {
               className="text-muted-foreground hover:text-foreground"
             >
               {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onLoginClick}
+              className="hidden md:flex items-center gap-2 text-muted-foreground hover:text-foreground"
+            >
+              <LogIn className="w-4 h-4" />
+              <span className="text-xs">Entrar</span>
             </Button>
 
             <Button
@@ -116,13 +127,17 @@ export function Header() {
                     <span className="text-foreground">Retirada:</span> {settings.pickupTimeMin}–{settings.pickupTimeMax} min
                   </div>
                 </div>
-                <Link 
-                  to="/admin" 
-                  className="block px-4 py-2 text-sm font-medium text-muted-foreground hover:text-primary hover:bg-secondary rounded-lg transition-colors"
-                  onClick={() => setIsMobileMenuOpen(false)}
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start px-4 py-2 text-sm font-medium text-muted-foreground hover:text-primary hover:bg-secondary rounded-lg transition-colors"
+                  onClick={() => {
+                    onLoginClick?.();
+                    setIsMobileMenuOpen(false);
+                  }}
                 >
-                  Admin
-                </Link>
+                  <LogIn className="w-4 h-4 mr-2" />
+                  Entrar
+                </Button>
               </div>
             </motion.nav>
           )}
