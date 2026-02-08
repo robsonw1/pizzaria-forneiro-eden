@@ -148,21 +148,31 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
 
   registerCustomer: async (email: string, cpf: string, name: string, phone?: string) => {
     try {
-      const { error } = await (supabase as any)
+      console.log('registerCustomer chamado com:', { email, cpf, name, phone });
+
+      // Usar UPSERT para garantir que os dados sejam salvos mesmo se o email for diferente
+      const { data, error } = await (supabase as any)
         .from('customers')
-        .update({
-          cpf,
-          name,
-          phone,
-          is_registered: true,
-          registered_at: new Date().toISOString(),
-        })
-        .eq('email', email);
+        .upsert(
+          {
+            email,
+            cpf,
+            name,
+            phone: phone || null,
+            is_registered: true,
+            registered_at: new Date().toISOString(),
+          },
+          { onConflict: 'email' }
+        )
+        .select()
+        .single();
 
       if (error) {
-        console.error('Erro ao registrar cliente:', error);
+        console.error('Erro ao registrar cliente (upsert):', error);
         return false;
       }
+
+      console.log('Cliente registrado com sucesso:', data);
 
       // Adicionar bônus de signup
       await get().addSignupBonus(email);
