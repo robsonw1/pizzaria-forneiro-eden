@@ -13,21 +13,23 @@ import { Label } from '@/components/ui/label';
 import { useLoyaltyStore } from '@/store/useLoyaltyStore';
 import { GoogleAuthButton } from '@/components/GoogleAuthButton';
 import { toast } from 'sonner';
-import { Gift, Star, Users } from 'lucide-react';
+import { Gift, Star, Users, Sparkles, TrendingUp } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 
 interface PostCheckoutLoyaltyModalProps {
   isOpen: boolean;
   onClose: () => void;
   email: string;
+  pointsEarned?: number;
 }
 
 export function PostCheckoutLoyaltyModal({
   isOpen,
   onClose,
   email,
+  pointsEarned = 0,
 }: PostCheckoutLoyaltyModalProps) {
-  const [step, setStep] = useState<'auth' | 'welcome' | 'form' | 'referral'>('auth');
+  const [step, setStep] = useState<'auth' | 'welcome' | 'form' | 'referral' | 'success'>('auth');
   const [currentEmail, setCurrentEmail] = useState('');
   const [formData, setFormData] = useState({
     name: '',
@@ -41,6 +43,7 @@ export function PostCheckoutLoyaltyModal({
   const registerCustomer = useLoyaltyStore((s) => s.registerCustomer);
   const registerReferralCode = useLoyaltyStore((s) => s.registerReferralCode);
   const currentCustomer = useLoyaltyStore((s) => s.currentCustomer);
+  const isRemembered = useLoyaltyStore((s) => s.isRemembered);
 
   const handleGoogleSuccess = (googleEmail: string) => {
     setCurrentEmail(googleEmail);
@@ -130,7 +133,62 @@ export function PostCheckoutLoyaltyModal({
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-md">
-        {step === 'auth' ? (
+        {/* TELA DE SUCESSO - Cliente logado com rememberMe */}
+        {isRemembered && currentCustomer ? (
+          <>
+            <DialogHeader>
+              <div className="flex items-center justify-center gap-2 mb-4">
+                <Sparkles className="w-8 h-8 text-primary animate-pulse" />
+                <DialogTitle>Parabéns!</DialogTitle>
+              </div>
+              <DialogDescription className="text-center pt-2">
+                Pontos adicionados com sucesso
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-8">
+              <div className="text-center">
+                <p className="text-sm text-muted-foreground mb-2">Seus pontos</p>
+                <p className="text-5xl font-bold text-primary">{pointsEarned}+</p>
+              </div>
+
+              <div className="bg-gradient-to-r from-green-500/10 to-emerald-600/10 rounded-lg p-4 space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900">
+                    <TrendingUp className="w-5 h-5 text-green-600 dark:text-green-400" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-sm">Seu saldo atual</p>
+                    <p className="text-lg font-bold">{currentCustomer.totalPoints} pontos</p>
+                  </div>
+                </div>
+
+                <Separator className="my-2" />
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="text-center">
+                    <p className="text-xs text-muted-foreground">Total Gasto</p>
+                    <p className="font-semibold text-sm">R$ {currentCustomer.totalSpent.toFixed(2)}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs text-muted-foreground">Compras</p>
+                    <p className="font-semibold text-sm">{currentCustomer.totalPurchases}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-blue-50 dark:bg-blue-950 rounded-lg p-3 text-xs text-muted-foreground">
+                <p>💡 Você está com login ativo! Continue acumulando pontos em cada compra e desbloqueie descontos exclusivos.</p>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button onClick={onClose} className="w-full">
+                Continuar Comprando
+              </Button>
+            </DialogFooter>
+          </>
+        ) : step === 'auth' ? (
           <>
             <DialogHeader>
               <div className="flex items-center justify-center gap-2 mb-4">
@@ -184,6 +242,12 @@ export function PostCheckoutLoyaltyModal({
                     </p>
                   </div>
                 </div>
+              </div>
+
+              <div className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 rounded-lg p-3 border border-purple-200 dark:border-purple-800">
+                <p className="text-xs text-muted-foreground">
+                  ✨ <span className="font-semibold text-foreground">Ou entre na sua conta</span> para garantir os pontos e ganhar descontos exclusivos!
+                </p>
               </div>
             </div>
 
