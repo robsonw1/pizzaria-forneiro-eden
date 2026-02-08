@@ -62,6 +62,7 @@ import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { DateRangeFilter } from '@/components/admin/DateRangeFilter';
 import { ScheduleSettings } from '@/components/admin/ScheduleSettings';
 import { PrintNodeSettings } from '@/components/admin/PrintNodeSettings';
+import { FaithfulCustomersAdmin } from '@/components/admin/FaithfulCustomersAdmin';
 import { toast } from 'sonner';
 import { format, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -594,6 +595,10 @@ const AdminDashboard = () => {
             <TabsTrigger value="settings" className="gap-2">
               <Settings className="w-4 h-4" />
               Configurações
+            </TabsTrigger>
+            <TabsTrigger value="customers" className="gap-2">
+              <Users className="w-4 h-4" />
+              Clientes Fiéis
             </TabsTrigger>
           </TabsList>
 
@@ -1194,6 +1199,11 @@ const AdminDashboard = () => {
 
               <PrintNodeSettings />
             </div>
+          </TabsContent>
+
+          {/* Customers Loyalty Tab */}
+          <TabsContent value="customers">
+            <FaithfulCustomersAdmin />
           </TabsContent>
         </Tabs>
       </div>
