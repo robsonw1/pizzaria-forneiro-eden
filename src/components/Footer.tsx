@@ -1,6 +1,8 @@
 import { Instagram, Facebook, Phone, MapPin, Clock, LogIn, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useSettingsStore, WeekSchedule } from '@/store/useSettingsStore';
+import { useLoyaltyStore } from '@/store/useLoyaltyStore';
+import { CustomerProfileDropdown } from '@/components/CustomerProfileDropdown';
 import logoForneiro from '@/assets/logo-forneiro.jpg';
 import { Link } from 'react-router-dom';
 
@@ -21,6 +23,7 @@ const dayLabels: Record<keyof WeekSchedule, string> = {
 
 export function Footer({ onLoginClick, onAdminClick }: FooterProps) {
   const settings = useSettingsStore((s) => s.settings);
+  const currentCustomer = useLoyaltyStore((s) => s.currentCustomer);
 
   const buildScheduleString = () => {
     const schedule = settings.schedule;
@@ -114,13 +117,22 @@ export function Footer({ onLoginClick, onAdminClick }: FooterProps) {
         {/* Actions Row */}
         <div className="border-t pt-6 mb-6">
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Button
-              onClick={onLoginClick}
-              className="flex items-center gap-2 w-full sm:w-auto"
-            >
-              <LogIn className="w-4 h-4" />
-              Entrar na Minha Conta
-            </Button>
+            {currentCustomer ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">Minha Conta:</span>
+                  <CustomerProfileDropdown />
+                </div>
+              </>
+            ) : (
+              <Button
+                onClick={onLoginClick}
+                className="flex items-center gap-2 w-full sm:w-auto"
+              >
+                <LogIn className="w-4 h-4" />
+                Entrar na Minha Conta
+              </Button>
+            )}
             <Button
               onClick={onAdminClick}
               variant="outline"
