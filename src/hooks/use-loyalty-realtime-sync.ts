@@ -8,89 +8,115 @@ import { useLoyaltyStore } from '@/store/useLoyaltyStore';
  */
 export const useLoyaltyRealtimeSync = () => {
   const currentCustomer = useLoyaltyStore((s) => s.currentCustomer);
-  const loginCustomer = useLoyaltyStore((s) => s.loginCustomer);
   const getTransactionHistory = useLoyaltyStore((s) => s.getTransactionHistory);
   const getCoupons = useLoyaltyStore((s) => s.getCoupons);
-  const getReferrals = useLoyaltyStore((s) => s.getReferrals);
 
   useEffect(() => {
-    if (!currentCustomer) return;
+    if (!currentCustomer?.id) return;
 
     let isMounted = true;
+    const customerId = currentCustomer.id;
 
-    // Subscribe to customer changes
-    const customersSubscription = (supabase as any)
-      .from(`customers:id=eq.${currentCustomer.id}`)
-      .on('*', async (payload: any) => {
-        if (!isMounted) return;
-        console.log('Customer updated:', payload);
+    try {
+      // Subscribe to customer changes
+      const customerChannel = supabase.channel(`customer_${customerId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'customers',
+            filter: `id=eq.${customerId}`
+          },
+          async (payload: any) => {
+            if (!isMounted) return;
+            console.log('👤 Customer updated:', payload.new);
+            
+            const mapCustomerFromDB = (dbData: any) => ({
+              id: dbData.id,
+              email: dbData.email,
+              cpf: dbData.cpf,
+              name: dbData.name,
+              phone: dbData.phone,
+              totalPoints: dbData.total_points || 0,
+              totalSpent: dbData.total_spent || 0,
+              totalPurchases: dbData.total_purchases || 0,
+              isRegistered: dbData.is_registered || false,
+              registeredAt: dbData.registered_at,
+              createdAt: dbData.created_at,
+              lastPurchaseAt: dbData.last_purchase_at,
+            });
 
-        // Recarregar dados do cliente
-        const { data, error } = await (supabase as any)
-          .from('customers')
-          .select('*')
-          .eq('id', currentCustomer.id)
-          .single();
+            useLoyaltyStore.setState(state => ({
+              ...state,
+              currentCustomer: mapCustomerFromDB(payload.new),
+              points: payload.new.total_points || 0
+            }));
+          }
+        )
+        .subscribe((status) => {
+          console.log('Customer subscription status:', status);
+        });
 
-        if (!error && data) {
-          const mapCustomerFromDB = (dbData: any) => ({
-            id: dbData.id,
-            email: dbData.email,
-            cpf: dbData.cpf,
-            name: dbData.name,
-            phone: dbData.phone,
-            totalPoints: dbData.total_points || 0,
-            totalSpent: dbData.total_spent || 0,
-            totalPurchases: dbData.total_purchases || 0,
-            isRegistered: dbData.is_registered || false,
-            registeredAt: dbData.registered_at,
-            createdAt: dbData.created_at,
-            lastPurchaseAt: dbData.last_purchase_at,
-          });
+      // Subscribe to transactions changes
+      const transactionsChannel = supabase.channel(`transactions_${customerId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'loyalty_transactions',
+            filter: `customer_id=eq.${customerId}`
+          },
+          async (payload: any) => {
+            if (!isMounted) return;
+            console.log('📊 Transaction updated:', payload.new);
+            
+            const transactions = await getTransactionHistory(customerId);
+            useLoyaltyStore.setState(state => ({
+              ...state,
+              transactions
+            }));
+          }
+        )
+        .subscribe((status) => {
+          console.log('Transactions subscription status:', status);
+        });
 
-          const useLoyalty = useLoyaltyStore.getState();
-          useLoyalty.setCurrentCustomer(mapCustomerFromDB(data));
-        }
-      })
-      .subscribe();
+      // Subscribe to coupons changes
+      const couponsChannel = supabase.channel(`coupons_${customerId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'loyalty_coupons',
+            filter: `customer_id=eq.${customerId}`
+          },
+          async (payload: any) => {
+            if (!isMounted) return;
+            console.log('🎁 Coupon updated:', payload.new);
+            
+            const coupons = await getCoupons(customerId);
+            useLoyaltyStore.setState(state => ({
+              ...state,
+              coupons
+            }));
+          }
+        )
+        .subscribe((status) => {
+          console.log('Coupons subscription status:', status);
+        });
 
-    // Subscribe to transactions changes
-    const transactionsSubscription = (supabase as any)
-      .from(`loyalty_transactions:customer_id=eq.${currentCustomer.id}`)
-      .on('*', async (payload: any) => {
-        if (!isMounted) return;
-        console.log('Transaction updated:', payload);
-
-        // Recarregar histórico de transações
-        const transactions = await getTransactionHistory(currentCustomer.id);
-        if (transactions.length > 0) {
-          const useLoyalty = useLoyaltyStore.getState();
-          useLoyalty.transactions = transactions;
-        }
-      })
-      .subscribe();
-
-    // Subscribe to coupons changes
-    const couponsSubscription = (supabase as any)
-      .from(`loyalty_coupons:customer_id=eq.${currentCustomer.id}`)
-      .on('*', async (payload: any) => {
-        if (!isMounted) return;
-        console.log('Coupon updated:', payload);
-
-        // Recarregar cupons
-        const coupons = await getCoupons(currentCustomer.id);
-        if (coupons) {
-          const useLoyalty = useLoyaltyStore.getState();
-          useLoyalty.coupons = coupons;
-        }
-      })
-      .subscribe();
-
-    return () => {
-      isMounted = false;
-      customersSubscription?.unsubscribe();
-      transactionsSubscription?.unsubscribe();
-      couponsSubscription?.unsubscribe();
-    };
-  }, [currentCustomer, getTransactionHistory, getCoupons, getReferrals]);
+      return () => {
+        isMounted = false;
+        supabase.removeChannel(customerChannel);
+        supabase.removeChannel(transactionsChannel);
+        supabase.removeChannel(couponsChannel);
+      };
+    } catch (error) {
+      console.error('Erro ao iniciar realtime sync:', error);
+      return () => {};
+    }
+  }, [currentCustomer?.id, getTransactionHistory, getCoupons]);
 };
