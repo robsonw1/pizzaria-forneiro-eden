@@ -11,8 +11,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useLoyaltyStore } from '@/store/useLoyaltyStore';
+import { GoogleAuthButton } from '@/components/GoogleAuthButton';
 import { toast } from 'sonner';
 import { Gift, Star, Users } from 'lucide-react';
+import { Separator } from '@/components/ui/separator';
 
 interface PostCheckoutLoyaltyModalProps {
   isOpen: boolean;
@@ -25,7 +27,8 @@ export function PostCheckoutLoyaltyModal({
   onClose,
   email,
 }: PostCheckoutLoyaltyModalProps) {
-  const [step, setStep] = useState<'welcome' | 'form' | 'referral'>('welcome');
+  const [step, setStep] = useState<'auth' | 'welcome' | 'form' | 'referral'>('auth');
+  const [currentEmail, setCurrentEmail] = useState(email);
   const [formData, setFormData] = useState({
     name: '',
     cpf: '',
@@ -39,6 +42,12 @@ export function PostCheckoutLoyaltyModal({
   const registerReferralCode = useLoyaltyStore((s) => s.registerReferralCode);
   const currentCustomer = useLoyaltyStore((s) => s.currentCustomer);
 
+  const handleGoogleSuccess = (googleEmail: string) => {
+    setCurrentEmail(googleEmail);
+    setStep('form');
+    toast.success('✅ Email do Google preenchido!');
+  };
+
   const handleRegister = async () => {
     if (!formData.name.trim() || !formData.cpf.trim()) {
       toast.error('Preencha o nome e CPF');
@@ -48,7 +57,7 @@ export function PostCheckoutLoyaltyModal({
     setIsLoading(true);
     try {
       const success = await registerCustomer(
-        email,
+        currentEmail,
         formData.cpf.replace(/\D/g, ''),
         formData.name,
         formData.phone || undefined
@@ -108,14 +117,82 @@ export function PostCheckoutLoyaltyModal({
   const handleSkipReferral = () => {
     setReferralCode('');
     setLastCustomerId(null);
-    setStep('welcome');
+    setCurrentEmail(email);
+    setFormData({ name: '', cpf: '', phone: '' });
+    setStep('auth');
     onClose();
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-md">
-        {step === 'welcome' ? (
+        {step === 'auth' ? (
+          <>
+            <DialogHeader>
+              <div className="flex items-center justify-center gap-2 mb-4">
+                <Gift className="w-8 h-8 text-primary" />
+                <DialogTitle>Ganhe Pontos com Cada Compra!</DialogTitle>
+              </div>
+              <DialogDescription className="text-center pt-2">
+                Escolha como deseja prosseguir
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              <GoogleAuthButton onSuccess={handleGoogleSuccess} loading={isLoading} />
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <Separator className="w-full" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">ou</span>
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-r from-primary/10 to-primary/5 rounded-lg p-4 space-y-3">
+                <div className="flex items-start gap-3">
+                  <Star className="w-5 h-5 text-primary mt-1" />
+                  <div>
+                    <p className="font-semibold text-sm">50 Pontos de Bônus</p>
+                    <p className="text-xs text-muted-foreground">
+                      R$ 2,50 em desconto na sua próxima compra
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <Star className="w-5 h-5 text-primary mt-1" />
+                  <div>
+                    <p className="font-semibold text-sm">10% de Desconto</p>
+                    <p className="text-xs text-muted-foreground">
+                      Aproveite agora neste pedido!
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <Star className="w-5 h-5 text-primary mt-1" />
+                  <div>
+                    <p className="font-semibold text-sm">1% de Pontos</p>
+                    <p className="text-xs text-muted-foreground">
+                      Ganhe em cada compra (100 pontos = R$ 5)
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter className="flex gap-2">
+              <Button variant="outline" onClick={handleSkip} className="flex-1">
+                Agora Não
+              </Button>
+              <Button onClick={() => setStep('form')} className="flex-1">
+                Cadastro Manual
+              </Button>
+            </DialogFooter>
+          </>
+        ) : step === 'welcome' ? (
           <>
             <DialogHeader>
               <div className="flex items-center justify-center gap-2 mb-4">
@@ -235,7 +312,7 @@ export function PostCheckoutLoyaltyModal({
               </div>
 
               <p className="text-xs text-muted-foreground">
-                Email: <strong>{email}</strong>
+                Email: <strong>{currentEmail}</strong>
               </p>
             </div>
 
