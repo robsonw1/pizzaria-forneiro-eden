@@ -7,14 +7,27 @@ import { Footer } from '@/components/Footer';
 import { CustomerLoginModal } from '@/components/CustomerLoginModal';
 import { useLoyaltyStore } from '@/store/useLoyaltyStore';
 import { useLoyaltyRealtimeSync } from '@/hooks/use-loyalty-realtime-sync';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const Index = () => {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const currentCustomer = useLoyaltyStore((s) => s.currentCustomer);
+  const restoreRememberedLogin = useLoyaltyStore((s) => s.restoreRememberedLogin);
 
   // Sincronizar dados de loyalty em tempo real
   useLoyaltyRealtimeSync();
+
+  // Restaurar login lembrado ao inicializar
+  useEffect(() => {
+    const restoreLogin = async () => {
+      const restored = await restoreRememberedLogin();
+      if (restored) {
+        console.log('✅ Login automático restaurado');
+      }
+    };
+
+    restoreLogin();
+  }, [restoreRememberedLogin]);
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
