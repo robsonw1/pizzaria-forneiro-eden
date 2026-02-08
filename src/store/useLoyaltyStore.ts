@@ -65,6 +65,7 @@ interface LoyaltyStore {
   activeCoupon: LoyaltyCoupon | null;
   referrals: ReferralProgram[];
   referralCode: string;
+  isRemembered: boolean;
   
   // Actions
   findOrCreateCustomer: (email: string) => Promise<Customer | null>;
@@ -78,8 +79,9 @@ interface LoyaltyStore {
   getTransactionHistory: (customerId: string) => Promise<LoyaltyTransaction[]>;
   
   // Login/Logout
-  loginCustomer: (email: string, cpf: string) => Promise<boolean>;
+  loginCustomer: (email: string, cpf: string, rememberMe?: boolean) => Promise<boolean>;
   logoutCustomer: () => Promise<void>;
+  restoreRememberedLogin: () => Promise<boolean>;
   
   // Coupon actions
   generateAutoCoupon: (customerId: string) => Promise<LoyaltyCoupon | null>;
@@ -108,6 +110,7 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
   activeCoupon: null,
   referrals: [],
   referralCode: '',
+  isRemembered: false,
 
   findOrCreateCustomer: async (email: string) => {
     try {
@@ -359,9 +362,9 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
     set({ pointsToRedeem: points });
   },
 
-  loginCustomer: async (email: string, cpf: string) => {
+  loginCustomer: async (email: string, cpf: string, rememberMe?: boolean) => {
     try {
-      console.log('Tentando fazer login com:', { email, cpf });
+      console.log('Tentando fazer login com:', { email, cpf, rememberMe });
 
       // Buscar cliente por email e CPF
       const { data, error } = await (supabase as any)
@@ -385,15 +388,27 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
         get().getReferrals(customer.id),
       ]);
 
+      // Se rememberMe está ativado, salvar credenciais no localStorage
+      if (rememberMe) {
+        localStorage.setItem('loyalty_remembered_login', JSON.stringify({
+          email,
+          cpf,
+          timestamp: Date.now(),
+        }));
+      } else {
+        localStorage.removeItem('loyalty_remembered_login');
+      }
+
       set({
         currentCustomer: customer,
         points: customer.totalPoints,
         transactions,
         coupons,
         referrals,
+        isRemembered: !!rememberMe,
       });
 
-      console.log('✅ Login bem-sucedido:', customer);
+      console.log('✅ Login bem-sucedido:', customer, '| Remembered:', rememberMe);
       return true;
     } catch (error) {
       console.error('Erro em loginCustomer:', error);
@@ -401,8 +416,32 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
     }
   },
 
+  restoreRememberedLogin: async () => {
+    try {
+      const remembered = localStorage.getItem('loyalty_remembered_login');
+      if (!remembered) {
+        console.log('ℹ️ Nenhum login lembrado encontrado');
+        return false;
+      }
+
+      const { email, cpf } = JSON.parse(remembered);
+      console.log('🔄 Restaurando login lembrado:', email);
+
+      const success = await get().loginCustomer(email, cpf, true);
+      if (success) {
+        set({ isRemembered: true });
+      }
+      return success;
+    } catch (error) {
+      console.error('Erro ao restaurar login lembrado:', error);
+      localStorage.removeItem('loyalty_remembered_login');
+      return false;
+    }
+  },
+
   logoutCustomer: async () => {
     console.log('Fazendo logout do cliente');
+    localStorage.removeItem('loyalty_remembered_login');
     set({
       currentCustomer: null,
       points: 0,
@@ -412,6 +451,7 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
       activeCoupon: null,
       referrals: [],
       referralCode: '',
+      isRemembered: false,
     });
   },
 
