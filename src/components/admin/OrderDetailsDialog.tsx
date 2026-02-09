@@ -192,6 +192,12 @@ export function OrderDetailsDialog({ open, onOpenChange, order }: OrderDetailsDi
                 <span>{formatPrice(order.deliveryFee)}</span>
               </div>
             )}
+            {order.pointsDiscount && order.pointsDiscount > 0 && (
+              <div className="flex justify-between text-sm text-green-600 font-medium">
+                <span>Desconto (Pontos Lealdade: {order.pointsRedeemed}) </span>
+                <span>-{formatPrice(order.pointsDiscount)}</span>
+              </div>
+            )}
             <div className="flex justify-between font-bold text-lg">
               <span>Total</span>
               <span className="text-primary">{formatPrice(order.total)}</span>
