@@ -7,9 +7,10 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Progress } from '@/components/ui/progress';
-import { LogOut, Sparkles, TrendingUp, Gift, Clock } from 'lucide-react';
+import { LogOut, Sparkles, TrendingUp, Gift, Clock, MapPin } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { CustomerHistoryDrawer } from '@/components/CustomerHistoryDrawer';
+import { DeliveryAddressDialog } from '@/components/DeliveryAddressDialog';
 
 export function CustomerProfileDropdown() {
   const currentCustomer = useLoyaltyStore((s) => s.currentCustomer);
@@ -17,6 +18,7 @@ export function CustomerProfileDropdown() {
   const coupons = useLoyaltyStore((s) => s.coupons);
   const [isOpen, setIsOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [addressOpen, setAddressOpen] = useState(false);
 
   if (!currentCustomer) {
     return null;
@@ -174,6 +176,15 @@ export function CustomerProfileDropdown() {
             {/* Botões de Ação */}
             <div className="pt-2 border-t space-y-2">
               <Button
+                onClick={() => setAddressOpen(true)}
+                variant="outline"
+                size="sm"
+                className="w-full flex items-center justify-center gap-2"
+              >
+                <MapPin className="w-4 h-4" />
+                Meu Endereço
+              </Button>
+              <Button
                 onClick={() => setHistoryOpen(true)}
                 variant="outline"
                 size="sm"
@@ -200,6 +211,12 @@ export function CustomerProfileDropdown() {
       <CustomerHistoryDrawer
         isOpen={historyOpen}
         onClose={() => setHistoryOpen(false)}
+      />
+
+      {/* Address Dialog */}
+      <DeliveryAddressDialog
+        isOpen={addressOpen}
+        onClose={() => setAddressOpen(false)}
       />
     </>
   );
