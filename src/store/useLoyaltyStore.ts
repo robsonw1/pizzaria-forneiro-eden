@@ -14,6 +14,13 @@ export interface Customer {
   registeredAt?: string;
   createdAt: string;
   lastPurchaseAt?: string;
+  // Endereço padrão de entrega
+  street?: string;
+  number?: string;
+  complement?: string;
+  neighborhood?: string;
+  city?: string;
+  zipCode?: string;
 }
 
 export interface LoyaltyTransaction {
@@ -77,11 +84,20 @@ interface LoyaltyStore {
   setCurrentCustomer: (customer: Customer | null) => void;
   setPointsToRedeem: (points: number) => void;
   getTransactionHistory: (customerId: string) => Promise<LoyaltyTransaction[]>;
+  refreshCurrentCustomer: () => Promise<void>;
   
   // Login/Logout
   loginCustomer: (email: string, cpf: string, rememberMe?: boolean) => Promise<boolean>;
   logoutCustomer: () => Promise<void>;
   restoreRememberedLogin: () => Promise<boolean>;
+  saveDefaultAddress: (address: {
+    street: string;
+    number: string;
+    complement?: string;
+    neighborhood: string;
+    city: string;
+    zipCode: string;
+  }) => Promise<boolean>;
   
   // Coupon actions
   generateAutoCoupon: (customerId: string) => Promise<LoyaltyCoupon | null>;
@@ -362,6 +378,33 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
     set({ pointsToRedeem: points });
   },
 
+  refreshCurrentCustomer: async () => {
+    try {
+      const state = get();
+      if (!state.currentCustomer?.id) {
+        console.log('Nenhum cliente logado para refrescar');
+        return;
+      }
+
+      const { data, error } = await (supabase as any)
+        .from('customers')
+        .select('*')
+        .eq('id', state.currentCustomer.id)
+        .single();
+
+      if (!error && data) {
+        const customer = mapCustomerFromDB(data);
+        set({
+          currentCustomer: customer,
+          points: customer.totalPoints,
+        });
+        console.log('✅ Dados do cliente atualizados:', customer.totalPoints, 'pontos');
+      }
+    } catch (error) {
+      console.error('Erro ao refrescar cliente:', error);
+    }
+  },
+
   loginCustomer: async (email: string, cpf: string, rememberMe?: boolean) => {
     try {
       console.log('Tentando fazer login com:', { email, cpf, rememberMe });
@@ -453,6 +496,44 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
       referralCode: '',
       isRemembered: false,
     });
+  },
+
+  saveDefaultAddress: async (address) => {
+    try {
+      const state = get();
+      if (!state.currentCustomer?.id) {
+        console.error('Nenhum cliente logado para salvar endereço');
+        return false;
+      }
+
+      const { error, data } = await (supabase as any)
+        .from('customers')
+        .update({
+          street: address.street,
+          number: address.number,
+          complement: address.complement || null,
+          neighborhood: address.neighborhood,
+          city: address.city,
+          zip_code: address.zipCode,
+        })
+        .eq('id', state.currentCustomer.id)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Erro ao salvar endereço:', error);
+        return false;
+      }
+
+      // Atualizar currentCustomer com o novo endereço
+      const customer = mapCustomerFromDB(data);
+      set({ currentCustomer: customer });
+      console.log('✅ Endereço padrão salvo com sucesso');
+      return true;
+    } catch (error) {
+      console.error('Erro em saveDefaultAddress:', error);
+      return false;
+    }
   },
 
   getTransactionHistory: async (customerId: string) => {
@@ -747,6 +828,13 @@ function mapCustomerFromDB(data: any): Customer {
     registeredAt: data.registered_at,
     createdAt: data.created_at,
     lastPurchaseAt: data.last_purchase_at,
+    // Endereço padrão
+    street: data.street,
+    number: data.number,
+    complement: data.complement,
+    neighborhood: data.neighborhood,
+    city: data.city,
+    zipCode: data.zip_code,
   };
 }
 
