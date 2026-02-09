@@ -234,7 +234,7 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
       
       const { data, error } = await (supabase as any)
         .from('customers')
-        .select('id')
+        .select('id, total_points, received_signup_bonus')
         .eq(emailOrId.includes('@') ? 'email' : 'id', emailOrId)
         .single();
 
@@ -245,6 +245,12 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
 
       customerId = data.id;
 
+      // Verificar se já recebeu bônus
+      if (data.received_signup_bonus) {
+        console.log('ℹ️ Cliente já recebeu bônus de signup');
+        return;
+      }
+
       const signupBonus = getSignupBonusPoints();
       
       // Calcular data de expiração dos pontos
@@ -253,10 +259,16 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
       expiresAtDate.setDate(expiresAtDate.getDate() + expirationDays);
       const expiresAtISO = expiresAtDate.toISOString();
 
-      // Adicionar pontos
+      // Adicionar pontos ao total existente
+      const newTotalPoints = (data.total_points || 0) + signupBonus;
+
+      // Atualizar pontos e marcar como recebido
       await (supabase as any)
         .from('customers')
-        .update({ total_points: signupBonus })
+        .update({ 
+          total_points: newTotalPoints,
+          received_signup_bonus: true,
+        })
         .eq('id', customerId);
 
       // Registrar transação com hora local e data de expiração
@@ -271,7 +283,7 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
           expires_at: expiresAtISO,
         }]);
 
-      console.log('✅ Bônus de signup adicionado:', signupBonus, 'pontos');
+      console.log('✅ Bônus de signup adicionado:', signupBonus, 'pontos | Total:', newTotalPoints);
     } catch (error) {
       console.error('Erro em addSignupBonus:', error);
     }
