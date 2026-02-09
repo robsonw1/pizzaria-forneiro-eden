@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '@/integrations/supabase/client';
+import { useLoyaltySettingsStore } from './useLoyaltySettingsStore';
 
 export interface Customer {
   id: string;
@@ -112,10 +113,11 @@ interface LoyaltyStore {
   getReferrals: (customerId: string) => Promise<ReferralProgram[]>;
 }
 
-const POINTS_PER_REAL = 1; // 1 ponto por real gasto
-const POINTS_VALUE = 5; // 100 pontos = R$ 5
-const SIGNUP_BONUS_POINTS = 50;
-const REFERRAL_BONUS_POINTS = 100; // Pontos por referência concluída
+const getPointsPerReal = () => useLoyaltySettingsStore.getState().settings?.pointsPerReal ?? 1;
+const getPointsValue = () => useLoyaltySettingsStore.getState().settings?.discountPer100Points ?? 5;
+const getSignupBonusPoints = () => useLoyaltySettingsStore.getState().settings?.signupBonusPoints ?? 50;
+const getReferralBonusPoints = () => useLoyaltySettingsStore.getState().settings?.referralBonusPoints ?? 100;
+const getMinPointsToRedeem = () => useLoyaltySettingsStore.getState().settings?.minPointsToRedeem ?? 50;
 
 // Helper para obter hora local em formato ISO string sem timezone
 const getLocalISOString = (): string => {
@@ -243,24 +245,33 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
 
       customerId = data.id;
 
+      const signupBonus = getSignupBonusPoints();
+      
+      // Calcular data de expiração dos pontos
+      const expirationDays = useLoyaltySettingsStore.getState().settings?.pointsExpirationDays ?? 365;
+      const expiresAtDate = new Date();
+      expiresAtDate.setDate(expiresAtDate.getDate() + expirationDays);
+      const expiresAtISO = expiresAtDate.toISOString();
+
       // Adicionar pontos
       await (supabase as any)
         .from('customers')
-        .update({ total_points: SIGNUP_BONUS_POINTS })
+        .update({ total_points: signupBonus })
         .eq('id', customerId);
 
-      // Registrar transação com hora local
+      // Registrar transação com hora local e data de expiração
       await (supabase as any)
         .from('loyalty_transactions')
         .insert([{
           customer_id: customerId,
-          points_earned: SIGNUP_BONUS_POINTS,
+          points_earned: signupBonus,
           transaction_type: 'signup_bonus',
-          description: 'Bônus de cadastro - 50 pontos',
+          description: `Bônus de cadastro - ${signupBonus} pontos`,
           created_at: getLocalISOString(),
+          expires_at: expiresAtISO,
         }]);
 
-      console.log('✅ Bônus de signup adicionado:', SIGNUP_BONUS_POINTS, 'pontos');
+      console.log('✅ Bônus de signup adicionado:', signupBonus, 'pontos');
     } catch (error) {
       console.error('Erro em addSignupBonus:', error);
     }
@@ -274,7 +285,8 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
         return;
       }
 
-      const pointsEarned = Math.floor(amount * POINTS_PER_REAL);
+      const pointsPerReal = getPointsPerReal();
+      const pointsEarned = Math.floor(amount * pointsPerReal);
 
       // Buscar pontos atuais do cliente
       const { data: customerData, error: fetchError } = await (supabase as any)
@@ -295,6 +307,12 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
 
       const localISO = getLocalISOString();
 
+      // Calcular data de expiração dos pontos
+      const expirationDays = useLoyaltySettingsStore.getState().settings?.pointsExpirationDays ?? 365;
+      const expiresAtDate = new Date();
+      expiresAtDate.setDate(expiresAtDate.getDate() + expirationDays);
+      const expiresAtISO = expiresAtDate.toISOString();
+
       // Atualizar total de pontos e gasto
       await (supabase as any)
         .from('customers')
@@ -306,7 +324,7 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
         })
         .eq('id', customerId);
 
-      // Registrar transação com hora local
+      // Registrar transação com hora local e data de expiração
       await (supabase as any)
         .from('loyalty_transactions')
         .insert([{
@@ -316,6 +334,7 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
           transaction_type: 'purchase',
           description: `Compra no valor de R$ ${amount.toFixed(2)} - ${pointsEarned} pontos`,
           created_at: localISO,
+          expires_at: expiresAtISO,
         }]);
 
       // Se é primeira compra, validar e completar referral pendente
@@ -344,8 +363,9 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
         return { success: false, discountAmount: 0 };
       }
 
-      // Calcular desconto (100 pontos = R$ 5)
-      const discountAmount = (pointsToSpend / 100) * POINTS_VALUE;
+      // Calcular desconto (100 pontos = configuração dinâmica)
+      const pointsValue = getPointsValue();
+      const discountAmount = (pointsToSpend / 100) * pointsValue;
 
       // Atualizar pontos
       await (supabase as any)
@@ -383,7 +403,18 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
         .single();
 
       if (error || !data) return null;
-      return mapCustomerFromDB(data);
+      
+      // Recalcular pontos válidos antes de retornar
+      await recalculateValidPoints(data.id);
+      
+      // Buscar dados atualizados
+      const { data: updatedData } = await (supabase as any)
+        .from('customers')
+        .select('*')
+        .eq('id', data.id)
+        .single();
+
+      return mapCustomerFromDB(updatedData);
     } catch (error) {
       console.error('Erro em getCustomerByEmail:', error);
       return null;
@@ -408,6 +439,9 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
         console.log('Nenhum cliente logado para refrescar');
         return;
       }
+
+      // Recalcular pontos válidos
+      await recalculateValidPoints(state.currentCustomer.id);
 
       const { data, error } = await (supabase as any)
         .from('customers')
@@ -649,6 +683,7 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
   generateReferralCode: async (customerId: string) => {
     try {
       const referralCode = `REF${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+      const referralBonusPoints = getReferralBonusPoints();
       
       const { data, error } = await (supabase as any)
         .from('referral_program')
@@ -656,7 +691,7 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
           referrer_id: customerId,
           referral_code: referralCode,
           status: 'pending',
-          bonus_points: REFERRAL_BONUS_POINTS,
+          bonus_points: referralBonusPoints,
           expires_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
         }])
         .select()
@@ -765,12 +800,13 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
         .single();
 
       // Atualizar referral como completed
+      const referralBonusPoints = getReferralBonusPoints();
       const { error: updateError } = await (supabase as any)
         .from('referral_program')
         .update({
           status: 'completed',
           completed_at: getLocalISOString(),
-          referrer_points_earned: REFERRAL_BONUS_POINTS,
+          referrer_points_earned: referralBonusPoints,
           referred_points_earned: 50,
         })
         .eq('id', referralData.id);
@@ -781,7 +817,8 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
       }
 
       // Adicionar pontos ao referenciador
-      const referrerNewPoints = (referrerData?.total_points || 0) + REFERRAL_BONUS_POINTS;
+      const referralBonusPoints2 = getReferralBonusPoints();
+      const referrerNewPoints = (referrerData?.total_points || 0) + referralBonusPoints2;
       await (supabase as any)
         .from('customers')
         .update({ total_points: referrerNewPoints })
@@ -795,6 +832,7 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
         .eq('id', referredCustomerId);
 
       // Registrar transações com hora local
+      const referralBonusPoints3 = getReferralBonusPoints();
       const localISO = getLocalISOString();
 
       await (supabase as any)
@@ -802,9 +840,9 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
         .insert([
           {
             customer_id: referrerId,
-            points_earned: REFERRAL_BONUS_POINTS,
+            points_earned: referralBonusPoints3,
             transaction_type: 'signup_bonus',
-            description: `Seu amigo completou a primeira compra! ${REFERRAL_BONUS_POINTS} pontos de referência`,
+            description: `Seu amigo completou a primeira compra! ${referralBonusPoints3} pontos de referência`,
             created_at: localISO,
           },
           {
@@ -839,6 +877,49 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
     }
   },
 }));
+
+// Função auxiliar que recalcula e atualiza pontos válidos (não expirados)
+async function recalculateValidPoints(customerId: string): Promise<number> {
+  try {
+    // Buscar todos os loyalty_transactions do cliente
+    const { data: transactions, error } = await (supabase as any)
+      .from('loyalty_transactions')
+      .select('points_earned, points_spent, expires_at, used_at, transaction_type')
+      .eq('customer_id', customerId);
+
+    if (error) {
+      console.error('Erro ao buscar transações:', error);
+      return 0;
+    }
+
+    const now = new Date();
+    
+    // Somar pontos válidos (não expirados)
+    let validPoints = 0;
+    if (transactions && Array.isArray(transactions)) {
+      for (const tx of transactions) {
+        // Ignorar transações já usadas ou expiradas
+        if (tx.used_at) continue;
+        if (tx.expires_at && new Date(tx.expires_at) < now) continue;
+        
+        // Adicionar pontos ganhos e subtrair pontos gastos
+        if (tx.points_earned) validPoints += tx.points_earned;
+        if (tx.points_spent) validPoints -= tx.points_spent;
+      }
+    }
+
+    // Atualizar total_points na tabela customers
+    await (supabase as any)
+      .from('customers')
+      .update({ total_points: Math.max(0, validPoints) })
+      .eq('id', customerId);
+
+    return Math.max(0, validPoints);
+  } catch (error) {
+    console.error('Erro em recalculateValidPoints:', error);
+    return 0;
+  }
+}
 
 // Helper para mapear dados do DB
 function mapCustomerFromDB(data: any): Customer {
