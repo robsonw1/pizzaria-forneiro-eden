@@ -58,6 +58,8 @@ export const useOrdersStore = create<OrdersStore>()(
               delivery_fee: newOrder.deliveryFee,
               status: newOrder.status,
               total: newOrder.total,
+              points_discount: newOrder.pointsDiscount || 0,
+              points_redeemed: newOrder.pointsRedeemed || 0,
               created_at: localISO,
               address: addressWithMetadata,
             },
