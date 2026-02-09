@@ -98,6 +98,9 @@ export function CheckoutModal() {
   const [isLoyaltyModalOpen, setIsLoyaltyModalOpen] = useState(false);
   const [lastOrderEmail, setLastOrderEmail] = useState<string>('');
   const [lastPointsEarned, setLastPointsEarned] = useState<number>(0);
+  const [lastPointsDiscount, setLastPointsDiscount] = useState<number>(0);
+  const [lastPointsRedeemed, setLastPointsRedeemed] = useState<number>(0);
+  const [lastFinalTotal, setLastFinalTotal] = useState<number>(0);
 
   const findOrCreateCustomer = useLoyaltyStore((s) => s.findOrCreateCustomer);
   const addPointsFromPurchase = useLoyaltyStore((s) => s.addPointsFromPurchase);
@@ -381,8 +384,8 @@ export function CheckoutModal() {
     };
   };
 
-  const processOrder = async (orderPayload: any) => {
-    console.log('Processando pedido...');
+  const processOrder = async (orderPayload: any, pointsDiscount: number = 0, pointsRedeemed: number = 0) => {
+    console.log('Processando pedido...', { pointsDiscount, pointsRedeemed });
     
     // Determinar se deve auto-imprimir baseado em modo e método de pagamento
     let shouldAutoPrint = false;
@@ -424,7 +427,9 @@ export function CheckoutModal() {
       paymentMethod,
       items,
       subtotal,
-      total,
+      total: orderPayload.totals.total, // Use final total from payload
+      pointsDiscount: pointsDiscount,
+      pointsRedeemed: pointsRedeemed,
       status: 'pending',
       observations,
     }, shouldAutoPrint);
@@ -515,7 +520,7 @@ export function CheckoutModal() {
           }
           
           // Process order (handles Supabase insert + auto-print logic)
-          await processOrder(orderPayload);
+          await processOrder(orderPayload, pointsDiscount, pointsToRedeem);
           
           setStep('pix');
         } else {
@@ -523,7 +528,7 @@ export function CheckoutModal() {
         }
       } else {
         // For card and cash, just process order directly
-        await processOrder(orderPayload);
+        await processOrder(orderPayload, pointsDiscount, pointsToRedeem);
         
         // Redeem points if any were selected
         if (pointsToRedeem > 0 && loyaltyCustomer) {
@@ -547,6 +552,12 @@ export function CheckoutModal() {
         } else {
           toast.success('Pedido enviado com sucesso!');
         }
+        
+        // Store discount info for confirmation display
+        setLastPointsDiscount(pointsDiscount);
+        setLastPointsRedeemed(pointsToRedeem);
+        setLastFinalTotal(finalTotal);
+        
         setStep('confirmation');
         // Show loyalty modal for non-logged customers
         setTimeout(() => setIsLoyaltyModalOpen(true), 500);
@@ -591,6 +602,12 @@ export function CheckoutModal() {
     }
     
     toast.success('Pedido confirmado! Aguardando confirmação do pagamento.');
+    
+    // Store discount info for confirmation display
+    setLastPointsDiscount(pointsDiscount);
+    setLastPointsRedeemed(pointsToRedeem);
+    setLastFinalTotal(finalTotal);
+    
     setStep('confirmation');
     
     // Show loyalty modal for non-logged customers
@@ -611,6 +628,9 @@ export function CheckoutModal() {
     setLastOrderEmail('');
     setSaveAsDefault(false);
     setPointsToRedeem(0);
+    setLastPointsDiscount(0);
+    setLastPointsRedeemed(0);
+    setLastFinalTotal(0);
     setCheckoutOpen(false);
   };
 
@@ -1295,7 +1315,10 @@ export function CheckoutModal() {
                       <p><span className="text-muted-foreground">Telefone:</span> {customer.phone}</p>
                       <p><span className="text-muted-foreground">Entrega:</span> {deliveryType === 'delivery' ? 'Em domicílio' : 'Retirada'}</p>
                       <p><span className="text-muted-foreground">Pagamento:</span> {getPaymentMethodLabel()}</p>
-                      <p className="font-semibold text-primary">Total: {formatPrice(total)}</p>
+                      {lastPointsDiscount > 0 && (
+                        <p className="text-green-600 font-medium">Desconto (Pontos): -{formatPrice(lastPointsDiscount)}</p>
+                      )}
+                      <p className="font-semibold text-primary">Total: {lastFinalTotal > 0 ? formatPrice(lastFinalTotal) : formatPrice(total)}</p>
                     </div>
                   </div>
 
