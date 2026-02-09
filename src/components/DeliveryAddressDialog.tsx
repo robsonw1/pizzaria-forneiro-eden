@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -9,9 +9,11 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useLoyaltyStore } from '@/store/useLoyaltyStore';
+import { useNeighborhoodsStore } from '@/store/useNeighborhoodsStore';
 import { toast } from 'sonner';
-import { MapPin, Edit2 } from 'lucide-react';
+import { MapPin } from 'lucide-react';
 
 interface DeliveryAddressDialogProps {
   isOpen: boolean;
@@ -24,6 +26,8 @@ export function DeliveryAddressDialog({
 }: DeliveryAddressDialogProps) {
   const currentCustomer = useLoyaltyStore((s) => s.currentCustomer);
   const saveDefaultAddress = useLoyaltyStore((s) => s.saveDefaultAddress);
+  const neighborhoods = useNeighborhoodsStore((s) => s.neighborhoods);
+  const activeNeighborhoods = neighborhoods.filter(n => n.isActive);
 
   const [formData, setFormData] = useState({
     street: currentCustomer?.street || '',
@@ -34,6 +38,20 @@ export function DeliveryAddressDialog({
     zipCode: currentCustomer?.zipCode || '',
   });
   const [isLoading, setIsLoading] = useState(false);
+
+  // Sincronizar formData quando currentCustomer mudar
+  useEffect(() => {
+    if (isOpen && currentCustomer) {
+      setFormData({
+        street: currentCustomer.street || '',
+        number: currentCustomer.number || '',
+        complement: currentCustomer.complement || '',
+        neighborhood: currentCustomer.neighborhood || '',
+        city: currentCustomer.city || '',
+        zipCode: currentCustomer.zipCode || '',
+      });
+    }
+  }, [isOpen, currentCustomer]);
 
   const handleSave = async () => {
     if (!formData.street.trim() || !formData.number.trim() || !formData.neighborhood.trim()) {
@@ -56,6 +74,13 @@ export function DeliveryAddressDialog({
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(price);
   };
 
   return (
@@ -118,15 +143,31 @@ export function DeliveryAddressDialog({
             </div>
           </div>
 
+          {/* Bairro como SELECT com valores de taxa em tempo real */}
           <div className="space-y-2">
             <Label htmlFor="neighborhood">Bairro *</Label>
-            <Input
-              id="neighborhood"
-              placeholder="Bairro"
+            <Select 
               value={formData.neighborhood}
-              onChange={(e) => setFormData({ ...formData, neighborhood: e.target.value })}
+              onValueChange={(value) => setFormData({ ...formData, neighborhood: value })}
               disabled={isLoading}
-            />
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Selecione um bairro" />
+              </SelectTrigger>
+              <SelectContent>
+                {activeNeighborhoods.length > 0 ? (
+                  activeNeighborhoods.map((nb) => (
+                    <SelectItem key={nb.id} value={nb.name}>
+                      {nb.name} - {formatPrice(nb.deliveryFee)}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem value="" disabled>
+                    Nenhum bairro disponível
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">
