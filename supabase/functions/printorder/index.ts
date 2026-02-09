@@ -182,6 +182,10 @@ function buildHTML(order: any, items: any[]): string {
     )
     .join("");
 
+  const pointsDiscountHTML = order.points_discount && order.points_discount > 0 
+    ? `<div style="font-size: 12px; color: green; margin-top: 10px;">Desconto (Pontos): -R$ ${(order.points_discount || 0).toFixed(2)}</div>`
+    : "";
+
   return `
     <!DOCTYPE html>
     <html>
@@ -200,6 +204,7 @@ function buildHTML(order: any, items: any[]): string {
       <div>Cliente: ${order.customer_name || "S/N"}</div>
       <hr>
       <div>${itemsHTML}</div>
+      ${pointsDiscountHTML}
       <div class="total">Total: R$ ${(order.total || 0).toFixed(2)}</div>
     </body>
     </html>
