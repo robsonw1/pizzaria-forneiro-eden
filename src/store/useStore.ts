@@ -157,7 +157,14 @@ export const useCheckoutStore = create<CheckoutStore>((set, get) => ({
   calculatePointsDiscount: () => {
     const points = get().pointsToRedeem;
     const settings = useLoyaltySettingsStore.getState().settings;
+    const minPoints = settings?.minPointsToRedeem ?? 50;
     const discountPer100Points = settings?.discountPer100Points ?? 5;
+    
+    // Só calcula desconto se atingiu o mínimo
+    if (points < minPoints) {
+      return 0;
+    }
+    
     return (points / 100) * discountPer100Points;
   },
   
