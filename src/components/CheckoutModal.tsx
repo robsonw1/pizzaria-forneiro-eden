@@ -535,11 +535,11 @@ export function CheckoutModal() {
           await redeemPoints(loyaltyCustomer.id, pointsToRedeem);
         }
         
-        // Add points from purchase (based on final total without discount)
+        // Add points from purchase (but only if NO points were redeemed for discount)
         if (loyaltyCustomer) {
           const pointsEarned = Math.floor(finalTotal * 1); // 1 ponto por real
           setLastPointsEarned(pointsEarned);
-          await addPointsFromPurchase(loyaltyCustomer.id, finalTotal, orderId);
+          await addPointsFromPurchase(loyaltyCustomer.id, finalTotal, orderId, pointsToRedeem);
           // Refrescar dados do cliente se estiver logado
           if (isRemembered) {
             await new Promise(resolve => setTimeout(resolve, 500));
@@ -588,10 +588,10 @@ export function CheckoutModal() {
             await redeemPoints(loyaltyCustomer.id, pointsToRedeem);
           }
           
-          // Add points from purchase (based on final total)
+          // Add points from purchase (but only if NO points were redeemed for discount)
           const pointsEarned = Math.floor(finalTotal * 1); // 1 ponto por real
           setLastPointsEarned(pointsEarned);
-          await addPointsFromPurchase(loyaltyCustomer.id, finalTotal, lastOrderEmail);
+          await addPointsFromPurchase(loyaltyCustomer.id, finalTotal, lastOrderEmail, pointsToRedeem);
           // Atualizar dados do cliente
           await new Promise(resolve => setTimeout(resolve, 500));
           await refreshCurrentCustomer();
