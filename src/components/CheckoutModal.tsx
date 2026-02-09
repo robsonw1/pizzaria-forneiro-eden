@@ -1387,8 +1387,8 @@ export function CheckoutModal() {
       </DialogContent>
     </Dialog>
 
-    {/* Loyalty Registration Modal - Show for all non-logged customers */}
-    {!isRemembered && (
+    {/* Loyalty Registration Modal - Show only for non-registered, non-logged customers */}
+    {!isRemembered && !currentCustomer?.isRegistered && (
       <PostCheckoutLoyaltyModal 
         isOpen={isLoyaltyModalOpen}
         onClose={() => setIsLoyaltyModalOpen(false)}
