@@ -422,19 +422,13 @@ export function CheckoutModal() {
     const orderId = `PED-${Date.now().toString().slice(-5)}`;
     const orderPayload = buildOrderPayload(orderId);
 
-    // Extract email for loyalty system
-    // Se cliente está logado com rememberMe, usar email da conta logada
-    // Senão, usar email do formulário ou gerar temporário
-    const customerEmail = isRemembered && currentCustomer?.email
-      ? currentCustomer.email
-      : (customer.email && customer.email.includes('@') 
-        ? customer.email 
-        : `temp-${Date.now()}@forneiroeden.local`);
-    setLastOrderEmail(customerEmail);
-
     try {
-      // Find or create customer in loyalty system
-      const loyaltyCustomer = await findOrCreateCustomer(customerEmail);
+      // Only create/find customer if they're logged in
+      let loyaltyCustomer = null;
+      if (isRemembered && currentCustomer?.email) {
+        loyaltyCustomer = await findOrCreateCustomer(currentCustomer.email);
+        setLastOrderEmail(currentCustomer.email);
+      }
       
       // Save address as default if requested and customer exists
       if (saveAsDefault && currentCustomer && deliveryType === 'delivery') {
@@ -509,8 +503,10 @@ export function CheckoutModal() {
         
         toast.success('Pedido enviado com sucesso!');
         setStep('confirmation');
-        // Show loyalty modal
-        setTimeout(() => setIsLoyaltyModalOpen(true), 500);
+        // Show loyalty modal only if customer is logged in
+        if (loyaltyCustomer) {
+          setTimeout(() => setIsLoyaltyModalOpen(true), 500);
+        }
       }
 
     } catch (error) {
@@ -522,25 +518,32 @@ export function CheckoutModal() {
   };
 
   const handlePixConfirmed = async () => {
-    const orderId = `PED-${Date.now().toString().slice(-5)}`;
-    const loyaltyCustomer = await findOrCreateCustomer(lastOrderEmail);
-    
-    if (loyaltyCustomer) {
-      const pointsEarned = Math.floor(total * 1); // 1 ponto por real
-      setLastPointsEarned(pointsEarned);
-      await addPointsFromPurchase(loyaltyCustomer.id, total, orderId);
-      // Refrescar dados do cliente se estiver logado
-      if (isRemembered) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-        await refreshCurrentCustomer();
+    // Only add loyalty points if customer is logged in
+    if (isRemembered && currentCustomer?.email) {
+      try {
+        const loyaltyCustomer = await findOrCreateCustomer(currentCustomer.email);
+        setLastOrderEmail(currentCustomer.email);
+        
+        if (loyaltyCustomer) {
+          const pointsEarned = Math.floor(total * 1); // 1 ponto por real
+          setLastPointsEarned(pointsEarned);
+          await addPointsFromPurchase(loyaltyCustomer.id, total, lastOrderEmail);
+          // Atualizar dados do cliente
+          await new Promise(resolve => setTimeout(resolve, 500));
+          await refreshCurrentCustomer();
+        }
+      } catch (error) {
+        console.error('Erro ao adicionar pontos:', error);
       }
     }
     
     toast.success('Pedido confirmado! Aguardando confirmação do pagamento.');
     setStep('confirmation');
     
-    // Show loyalty modal
-    setTimeout(() => setIsLoyaltyModalOpen(true), 500);
+    // Show loyalty modal only if customer is logged in
+    if (isRemembered && currentCustomer?.email) {
+      setTimeout(() => setIsLoyaltyModalOpen(true), 500);
+    }
   };
 
   const handleClose = () => {
@@ -1196,13 +1199,15 @@ export function CheckoutModal() {
       </DialogContent>
     </Dialog>
 
-    {/* Loyalty Registration Modal */}
-    <PostCheckoutLoyaltyModal 
-      isOpen={isLoyaltyModalOpen}
-      onClose={() => setIsLoyaltyModalOpen(false)}
-      email={lastOrderEmail}
-      pointsEarned={lastPointsEarned}
-    />
+    {/* Loyalty Registration Modal - Only show if logged in or has email */}
+    {lastOrderEmail && (
+      <PostCheckoutLoyaltyModal 
+        isOpen={isLoyaltyModalOpen}
+        onClose={() => setIsLoyaltyModalOpen(false)}
+        email={lastOrderEmail}
+        pointsEarned={lastPointsEarned}
+      />
+    )}
     </>
   );
 }
