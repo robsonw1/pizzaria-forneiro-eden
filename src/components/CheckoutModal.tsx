@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -91,9 +91,12 @@ export function CheckoutModal() {
   const [isLoyaltyModalOpen, setIsLoyaltyModalOpen] = useState(false);
   const [lastOrderEmail, setLastOrderEmail] = useState<string>('');
   const [lastPointsEarned, setLastPointsEarned] = useState<number>(0);
+  const [saveAsDefault, setSaveAsDefault] = useState(false);
 
   const findOrCreateCustomer = useLoyaltyStore((s) => s.findOrCreateCustomer);
   const addPointsFromPurchase = useLoyaltyStore((s) => s.addPointsFromPurchase);
+  const refreshCurrentCustomer = useLoyaltyStore((s) => s.refreshCurrentCustomer);
+  const saveDefaultAddress = useLoyaltyStore((s) => s.saveDefaultAddress);
   const currentCustomer = useLoyaltyStore((s) => s.currentCustomer);
   const isRemembered = useLoyaltyStore((s) => s.isRemembered);
 
@@ -133,14 +136,17 @@ export function CheckoutModal() {
           return false;
         }
         return true;
+      case 'delivery':
+        // Always valid - customer just needs to choose
+        return true;
       case 'address':
+        // Skip validation if pickup
         if (deliveryType === 'pickup') return true;
+        // Validate address fields only for delivery
         if (!address.street || !address.number || !selectedNeighborhood) {
           toast.error('Por favor, preencha o endereço completo');
           return false;
         }
-        return true;
-      case 'delivery':
         return true;
       case 'payment':
         // CPF é obrigatório APENAS para PIX
@@ -161,7 +167,14 @@ export function CheckoutModal() {
   };
 
   const nextStep = () => {
-    const steps: Step[] = ['contact', 'address', 'delivery', 'payment'];
+    const baseSteps: Step[] = ['contact', 'delivery', 'address', 'payment'];
+    
+    // Skip address step if pickup
+    let steps = baseSteps;
+    if (deliveryType === 'pickup') {
+      steps = ['contact', 'delivery', 'payment'];
+    }
+    
     const currentIndex = steps.indexOf(step as any);
     
     if (!validateStep(step)) return;
@@ -172,7 +185,14 @@ export function CheckoutModal() {
   };
 
   const prevStep = () => {
-    const steps: Step[] = ['contact', 'address', 'delivery', 'payment'];
+    const baseSteps: Step[] = ['contact', 'delivery', 'address', 'payment'];
+    
+    // Skip address step if pickup
+    let steps = baseSteps;
+    if (deliveryType === 'pickup') {
+      steps = ['contact', 'delivery', 'payment'];
+    }
+    
     const currentIndex = steps.indexOf(step as any);
     if (currentIndex > 0) {
       setStep(steps[currentIndex - 1]);
@@ -366,15 +386,37 @@ export function CheckoutModal() {
     const orderId = `PED-${Date.now().toString().slice(-5)}`;
     const orderPayload = buildOrderPayload(orderId);
 
-    // Extract email for loyalty system (use real email if provided, otherwise will be filled in loyalty modal)
-    const customerEmail = customer.email && customer.email.includes('@') 
-      ? customer.email 
-      : `temp-${Date.now()}@forneiroeden.local`;
+    // Extract email for loyalty system
+    // Se cliente está logado com rememberMe, usar email da conta logada
+    // Senão, usar email do formulário ou gerar temporário
+    const customerEmail = isRemembered && currentCustomer?.email
+      ? currentCustomer.email
+      : (customer.email && customer.email.includes('@') 
+        ? customer.email 
+        : `temp-${Date.now()}@forneiroeden.local`);
     setLastOrderEmail(customerEmail);
 
     try {
       // Find or create customer in loyalty system
       const loyaltyCustomer = await findOrCreateCustomer(customerEmail);
+      
+      // Save address as default if requested and customer exists
+      if (saveAsDefault && currentCustomer && deliveryType === 'delivery') {
+        try {
+          await saveDefaultAddress({
+            street: address.street,
+            number: address.number,
+            complement: address.complement || '',
+            neighborhood: selectedNeighborhood?.name || '',
+            city: address.city || 'São Paulo',
+            zipCode: address.zipCode || '',
+          });
+          toast.success('Endereço salvo como padrão!');
+        } catch (error) {
+          console.error('Erro ao salvar endereço:', error);
+          // Don't fail the order if address save fails
+        }
+      }
       
       if (paymentMethod === 'pix') {
         // Create PIX payment and show QR code
@@ -422,6 +464,11 @@ export function CheckoutModal() {
           const pointsEarned = Math.floor(total * 1); // 1 ponto por real
           setLastPointsEarned(pointsEarned);
           await addPointsFromPurchase(loyaltyCustomer.id, total, orderId);
+          // Refrescar dados do cliente se estiver logado
+          if (isRemembered) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+            await refreshCurrentCustomer();
+          }
         }
         
         toast.success('Pedido enviado com sucesso!');
@@ -446,6 +493,11 @@ export function CheckoutModal() {
       const pointsEarned = Math.floor(total * 1); // 1 ponto por real
       setLastPointsEarned(pointsEarned);
       await addPointsFromPurchase(loyaltyCustomer.id, total, orderId);
+      // Refrescar dados do cliente se estiver logado
+      if (isRemembered) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        await refreshCurrentCustomer();
+      }
     }
     
     toast.success('Pedido confirmado! Aguardando confirmação do pagamento.');
@@ -465,6 +517,7 @@ export function CheckoutModal() {
     setCopied(false);
     setLastPointsEarned(0);
     setLastOrderEmail('');
+    setSaveAsDefault(false);
     setCheckoutOpen(false);
   };
 
@@ -515,11 +568,11 @@ export function CheckoutModal() {
             {/* Progress Steps */}
             {!['confirmation', 'pix'].includes(step) && (
               <div className="flex items-center justify-between mt-6 mb-8">
-                {['contact', 'address', 'delivery', 'payment'].map((s, i) => (
+                {['contact', 'delivery', 'address', 'payment'].map((s, i) => (
                   <div key={s} className="flex items-center">
                     <div
                       className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium
-                        ${step === s || ['contact', 'address', 'delivery', 'payment'].indexOf(step as any) > i
+                        ${step === s || ['contact', 'delivery', 'address', 'payment'].indexOf(step as any) > i
                           ? 'bg-primary text-primary-foreground'
                           : 'bg-secondary text-muted-foreground'
                         }`}
@@ -528,7 +581,7 @@ export function CheckoutModal() {
                     </div>
                     {i < 3 && (
                       <div className={`w-8 md:w-16 h-1 mx-1 rounded
-                        ${['contact', 'address', 'delivery', 'payment'].indexOf(step as any) > i
+                        ${['contact', 'delivery', 'address', 'payment'].indexOf(step as any) > i
                           ? 'bg-primary'
                           : 'bg-secondary'
                         }`}
@@ -586,8 +639,84 @@ export function CheckoutModal() {
                 </motion.div>
               )}
 
-              {/* Step 2: Address */}
-              {step === 'address' && (
+              {/* Step 2: Delivery */}
+              {step === 'delivery' && (
+                <motion.div
+                  key="delivery"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="space-y-4"
+                >
+                  <h3 className="font-semibold flex items-center gap-2">
+                    <Truck className="w-5 h-5 text-primary" />
+                    Forma de Entrega
+                  </h3>
+
+                  <RadioGroup value={deliveryType} onValueChange={(v) => setDeliveryType(v as 'delivery' | 'pickup')}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="relative">
+                        <RadioGroupItem value="delivery" id="delivery" className="peer sr-only" />
+                        <Label
+                          htmlFor="delivery"
+                          className="flex items-center gap-4 p-4 border-2 rounded-xl cursor-pointer
+                            peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/5
+                            hover:bg-secondary transition-colors"
+                        >
+                          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                            <Truck className="w-6 h-6 text-primary" />
+                          </div>
+                          <div>
+                            <p className="font-semibold">Entrega em domicílio</p>
+                            <p className="text-sm text-muted-foreground">
+                              Taxa: {selectedNeighborhood ? formatPrice(selectedNeighborhood.deliveryFee) : 'Selecione o bairro'}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {settings.deliveryTimeMin}-{settings.deliveryTimeMax} min
+                            </p>
+                          </div>
+                        </Label>
+                      </div>
+
+                      <div className="relative">
+                        <RadioGroupItem value="pickup" id="pickup" className="peer sr-only" />
+                        <Label
+                          htmlFor="pickup"
+                          className="flex items-center gap-4 p-4 border-2 rounded-xl cursor-pointer
+                            peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/5
+                            hover:bg-secondary transition-colors"
+                        >
+                          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                            <Store className="w-6 h-6 text-primary" />
+                          </div>
+                          <div>
+                            <p className="font-semibold">Retirada na loja</p>
+                            <p className="text-sm text-muted-foreground">Sem taxa</p>
+                            <p className="text-xs text-muted-foreground">
+                              {settings.pickupTimeMin}-{settings.pickupTimeMax} min
+                            </p>
+                          </div>
+                        </Label>
+                      </div>
+                    </div>
+                  </RadioGroup>
+
+                  <div>
+                    <Label htmlFor="observations">Observações do pedido</Label>
+                    <Textarea
+                      id="observations"
+                      placeholder="Ex: Sem cebola, molho extra, etc."
+                      value={observations}
+                      onChange={(e) => setObservations(e.target.value)}
+                      className="mt-1"
+                      rows={3}
+                    />
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Step 3: Address (ONLY if delivery type is 'delivery') */}
+              {step === 'address' && deliveryType === 'delivery' && (
                 <motion.div
                   key="address"
                   initial={{ opacity: 0, x: 20 }}
@@ -669,82 +798,23 @@ export function CheckoutModal() {
                         className="mt-1"
                       />
                     </div>
-                  </div>
-                </motion.div>
-              )}
 
-              {/* Step 3: Delivery */}
-              {step === 'delivery' && (
-                <motion.div
-                  key="delivery"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  className="space-y-4"
-                >
-                  <h3 className="font-semibold flex items-center gap-2">
-                    <Truck className="w-5 h-5 text-primary" />
-                    Forma de Entrega
-                  </h3>
-
-                  <RadioGroup value={deliveryType} onValueChange={(v) => setDeliveryType(v as 'delivery' | 'pickup')}>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="relative">
-                        <RadioGroupItem value="delivery" id="delivery" className="peer sr-only" />
-                        <Label
-                          htmlFor="delivery"
-                          className="flex items-center gap-4 p-4 border-2 rounded-xl cursor-pointer
-                            peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/5
-                            hover:bg-secondary transition-colors"
+                    {/* Save as default option if customer is logged in */}
+                    {currentCustomer && (
+                      <div className="flex items-center gap-2 p-3 bg-secondary/50 rounded-lg">
+                        <Checkbox
+                          id="save-as-default"
+                          checked={saveAsDefault}
+                          onCheckedChange={(checked) => setSaveAsDefault(checked as boolean)}
+                        />
+                        <Label 
+                          htmlFor="save-as-default" 
+                          className="text-sm cursor-pointer"
                         >
-                          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                            <Truck className="w-6 h-6 text-primary" />
-                          </div>
-                          <div>
-                            <p className="font-semibold">Entrega em domicílio</p>
-                            <p className="text-sm text-muted-foreground">
-                              Taxa: {selectedNeighborhood ? formatPrice(selectedNeighborhood.deliveryFee) : 'Selecione o bairro'}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {settings.deliveryTimeMin}-{settings.deliveryTimeMax} min
-                            </p>
-                          </div>
+                          Salvar como endereço padrão
                         </Label>
                       </div>
-
-                      <div className="relative">
-                        <RadioGroupItem value="pickup" id="pickup" className="peer sr-only" />
-                        <Label
-                          htmlFor="pickup"
-                          className="flex items-center gap-4 p-4 border-2 rounded-xl cursor-pointer
-                            peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/5
-                            hover:bg-secondary transition-colors"
-                        >
-                          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                            <Store className="w-6 h-6 text-primary" />
-                          </div>
-                          <div>
-                            <p className="font-semibold">Retirada na loja</p>
-                            <p className="text-sm text-muted-foreground">Sem taxa</p>
-                            <p className="text-xs text-muted-foreground">
-                              {settings.pickupTimeMin}-{settings.pickupTimeMax} min
-                            </p>
-                          </div>
-                        </Label>
-                      </div>
-                    </div>
-                  </RadioGroup>
-
-                  <div>
-                    <Label htmlFor="observations">Observações do pedido</Label>
-                    <Textarea
-                      id="observations"
-                      placeholder="Ex: Sem cebola, molho extra, etc."
-                      value={observations}
-                      onChange={(e) => setObservations(e.target.value)}
-                      className="mt-1"
-                      rows={3}
-                    />
+                    )}
                   </div>
                 </motion.div>
               )}
