@@ -77,7 +77,7 @@ interface LoyaltyStore {
   // Actions
   findOrCreateCustomer: (email: string) => Promise<Customer | null>;
   registerCustomer: (email: string, cpf: string, name: string, phone?: string) => Promise<boolean>;
-  addPointsFromPurchase: (customerId: string, amount: number, orderId: string) => Promise<void>;
+  addPointsFromPurchase: (customerId: string, amount: number, orderId: string, pointsRedeemed?: number) => Promise<void>;
   addSignupBonus: (customerId: string) => Promise<void>;
   redeemPoints: (customerId: string, pointsToSpend: number) => Promise<{ success: boolean; discountAmount: number }>;
   getCustomerByEmail: (email: string) => Promise<Customer | null>;
@@ -173,6 +173,12 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
     try {
       console.log('registerCustomer chamado com:', { email, cpf, name, phone });
 
+      // Converter para hora local
+      const now = new Date();
+      const offset = now.getTimezoneOffset() * 60000;
+      const localTime = new Date(now.getTime() - offset);
+      const localISO = localTime.toISOString().split('Z')[0];
+
       // Usar UPSERT para garantir que os dados sejam salvos mesmo se o email for diferente
       const { data, error } = await (supabase as any)
         .from('customers')
@@ -183,7 +189,7 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
             name,
             phone: phone || null,
             is_registered: true,
-            registered_at: new Date().toISOString(),
+            registered_at: localISO,
           },
           { onConflict: 'email' }
         )
@@ -237,7 +243,12 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
         .update({ total_points: SIGNUP_BONUS_POINTS })
         .eq('id', customerId);
 
-      // Registrar transação
+      // Registrar transação com hora local
+      const now = new Date();
+      const offset = now.getTimezoneOffset() * 60000;
+      const localTime = new Date(now.getTime() - offset);
+      const localISO = localTime.toISOString().split('Z')[0];
+
       await (supabase as any)
         .from('loyalty_transactions')
         .insert([{
@@ -245,6 +256,7 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
           points_earned: SIGNUP_BONUS_POINTS,
           transaction_type: 'signup_bonus',
           description: 'Bônus de cadastro - 50 pontos',
+          created_at: localISO,
         }]);
 
       console.log('✅ Bônus de signup adicionado:', SIGNUP_BONUS_POINTS, 'pontos');
@@ -253,8 +265,14 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
     }
   },
 
-  addPointsFromPurchase: async (customerId: string, amount: number, orderId: string) => {
+  addPointsFromPurchase: async (customerId: string, amount: number, orderId: string, pointsRedeemed: number = 0) => {
     try {
+      // Se cliente usou pontos para desconto, não ganha pontos nesta compra
+      if (pointsRedeemed > 0) {
+        console.log('⏭️ Pontos para compra NÃO adicionados (cliente usou desconto de pontos nesta compra)');
+        return;
+      }
+
       const pointsEarned = Math.floor(amount * POINTS_PER_REAL);
 
       // Buscar pontos atuais do cliente
@@ -274,6 +292,12 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
       const newTotalPurchases = (customerData.total_purchases || 0) + 1;
       const isFirstPurchase = (customerData.total_purchases || 0) === 0;
 
+      // Converter para hora local
+      const now = new Date();
+      const offset = now.getTimezoneOffset() * 60000;
+      const localTime = new Date(now.getTime() - offset);
+      const localISO = localTime.toISOString().split('Z')[0];
+
       // Atualizar total de pontos e gasto
       await (supabase as any)
         .from('customers')
@@ -281,11 +305,12 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
           total_points: newTotalPoints,
           total_spent: newTotalSpent,
           total_purchases: newTotalPurchases,
-          last_purchase_at: new Date().toISOString(),
+          last_purchase_at: localISO,
         })
         .eq('id', customerId);
 
-      // Registrar transação
+      // Registrar transação com hora local
+
       await (supabase as any)
         .from('loyalty_transactions')
         .insert([{
@@ -294,6 +319,7 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
           points_earned: pointsEarned,
           transaction_type: 'purchase',
           description: `Compra no valor de R$ ${amount.toFixed(2)} - ${pointsEarned} pontos`,
+          created_at: localISO,
         }]);
 
       // Se é primeira compra, validar e completar referral pendente
@@ -333,7 +359,12 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
         })
         .eq('id', customerId);
 
-      // Registrar transação
+      // Registrar transação com hora local
+      const now = new Date();
+      const offset = now.getTimezoneOffset() * 60000;
+      const localTime = new Date(now.getTime() - offset);
+      const localISO = localTime.toISOString().split('Z')[0];
+
       await (supabase as any)
         .from('loyalty_transactions')
         .insert([{
@@ -341,6 +372,7 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
           points_spent: pointsToSpend,
           transaction_type: 'redemption',
           description: `Resgate de ${pointsToSpend} pontos - Desconto de R$ ${discountAmount.toFixed(2)}`,
+          created_at: localISO,
         }]);
 
       console.log('✅ Pontos resgatados:', pointsToSpend, 'pontos = R$', discountAmount);
@@ -771,7 +803,12 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
         .update({ total_points: referredNewPoints })
         .eq('id', referredCustomerId);
 
-      // Registrar transações
+      // Registrar transações com hora local
+      const now = new Date();
+      const offset = now.getTimezoneOffset() * 60000;
+      const localTime = new Date(now.getTime() - offset);
+      const localISO = localTime.toISOString().split('Z')[0];
+
       await (supabase as any)
         .from('loyalty_transactions')
         .insert([
@@ -780,12 +817,14 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
             points_earned: REFERRAL_BONUS_POINTS,
             transaction_type: 'signup_bonus',
             description: `Seu amigo completou a primeira compra! ${REFERRAL_BONUS_POINTS} pontos de referência`,
+            created_at: localISO,
           },
           {
             customer_id: referredCustomerId,
             points_earned: 50,
             transaction_type: 'signup_bonus',
             description: `Foi indicado e fez a primeira compra! 50 pontos de bônus`,
+            created_at: localISO,
           }
         ]);
 
