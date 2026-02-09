@@ -40,7 +40,9 @@ import {
   Banknote,
   Copy,
   Check,
-  AlertCircle
+  AlertCircle,
+  Gift,
+  Star
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -66,6 +68,8 @@ export function CheckoutModal() {
     selectedNeighborhood,
     needsChange,
     changeAmount,
+    saveAsDefault,
+    pointsToRedeem,
     setCustomer,
     setAddress,
     setDeliveryType,
@@ -74,6 +78,9 @@ export function CheckoutModal() {
     setSelectedNeighborhood,
     setNeedsChange,
     setChangeAmount,
+    setSaveAsDefault,
+    setPointsToRedeem,
+    calculatePointsDiscount,
     getDeliveryFee,
     reset,
   } = useCheckoutStore();
@@ -91,12 +98,12 @@ export function CheckoutModal() {
   const [isLoyaltyModalOpen, setIsLoyaltyModalOpen] = useState(false);
   const [lastOrderEmail, setLastOrderEmail] = useState<string>('');
   const [lastPointsEarned, setLastPointsEarned] = useState<number>(0);
-  const [saveAsDefault, setSaveAsDefault] = useState(false);
 
   const findOrCreateCustomer = useLoyaltyStore((s) => s.findOrCreateCustomer);
   const addPointsFromPurchase = useLoyaltyStore((s) => s.addPointsFromPurchase);
   const refreshCurrentCustomer = useLoyaltyStore((s) => s.refreshCurrentCustomer);
   const saveDefaultAddress = useLoyaltyStore((s) => s.saveDefaultAddress);
+  const redeemPoints = useLoyaltyStore((s) => s.redeemPoints);
   const currentCustomer = useLoyaltyStore((s) => s.currentCustomer);
   const isRemembered = useLoyaltyStore((s) => s.isRemembered);
 
@@ -133,8 +140,20 @@ export function CheckoutModal() {
           setSelectedNeighborhood(matchingNeighborhood);
         }
       }
+
+      // Se tem endereço padrão, marca como salvo
+      if (currentCustomer.street) {
+        setSaveAsDefault(true);
+      }
     }
   }, [isCheckoutOpen, currentCustomer?.street]);
+
+  // Resetar pontos a resgatar quando checkout abre
+  useEffect(() => {
+    if (isCheckoutOpen) {
+      setPointsToRedeem(0);
+    }
+  }, [isCheckoutOpen]);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -353,6 +372,8 @@ export function CheckoutModal() {
         deliveryFee,
         total,
         itemCount: items.reduce((sum, item) => sum + item.quantity, 0),
+        pointsDiscount: 0,
+        pointsRedeemed: 0,
       },
       
       // Observations
@@ -420,7 +441,18 @@ export function CheckoutModal() {
     
     setIsProcessing(true);
     const orderId = `PED-${Date.now().toString().slice(-5)}`;
+    
+    // Calculate final total with points discount
+    const pointsDiscount = calculatePointsDiscount();
+    const finalTotal = total - pointsDiscount;
+    
+    // Create payload with final total
     const orderPayload = buildOrderPayload(orderId);
+    orderPayload.totals.total = finalTotal;
+    if (pointsDiscount > 0) {
+      orderPayload.totals.pointsDiscount = pointsDiscount;
+      orderPayload.totals.pointsRedeemed = pointsToRedeem;
+    }
 
     try {
       // Only create/find customer if they're logged in
@@ -441,7 +473,6 @@ export function CheckoutModal() {
             city: address.city || 'São Paulo',
             zipCode: address.zipCode || '',
           });
-          toast.success('Endereço salvo como padrão!');
         } catch (error) {
           console.error('Erro ao salvar endereço:', error);
           // Don't fail the order if address save fails
@@ -449,11 +480,11 @@ export function CheckoutModal() {
       }
       
       if (paymentMethod === 'pix') {
-        // Create PIX payment and show QR code
+        // Create PIX payment with final total (including points discount)
         const { data: mpData, error: mpError } = await supabase.functions.invoke('mercadopago-payment', {
           body: {
             orderId,
-            amount: total,
+            amount: finalTotal,
             description: `Pedido ${orderId} - Forneiro Éden`,
             payerEmail: 'cliente@forneiroeden.com',
             payerName: customer.name,
@@ -478,6 +509,11 @@ export function CheckoutModal() {
             expirationDate: mpData.expirationDate
           });
           
+          // Redeem points if any were selected
+          if (pointsToRedeem > 0 && loyaltyCustomer) {
+            await redeemPoints(loyaltyCustomer.id, pointsToRedeem);
+          }
+          
           // Process order (handles Supabase insert + auto-print logic)
           await processOrder(orderPayload);
           
@@ -489,11 +525,16 @@ export function CheckoutModal() {
         // For card and cash, just process order directly
         await processOrder(orderPayload);
         
-        // Add points from purchase
+        // Redeem points if any were selected
+        if (pointsToRedeem > 0 && loyaltyCustomer) {
+          await redeemPoints(loyaltyCustomer.id, pointsToRedeem);
+        }
+        
+        // Add points from purchase (based on final total without discount)
         if (loyaltyCustomer) {
-          const pointsEarned = Math.floor(total * 1); // 1 ponto por real
+          const pointsEarned = Math.floor(finalTotal * 1); // 1 ponto por real
           setLastPointsEarned(pointsEarned);
-          await addPointsFromPurchase(loyaltyCustomer.id, total, orderId);
+          await addPointsFromPurchase(loyaltyCustomer.id, finalTotal, orderId);
           // Refrescar dados do cliente se estiver logado
           if (isRemembered) {
             await new Promise(resolve => setTimeout(resolve, 500));
@@ -501,7 +542,11 @@ export function CheckoutModal() {
           }
         }
         
-        toast.success('Pedido enviado com sucesso!');
+        if (pointsDiscount > 0) {
+          toast.success(`Pedido enviado! Descontos de ${formatPrice(pointsDiscount)} aplicados.`);
+        } else {
+          toast.success('Pedido enviado com sucesso!');
+        }
         setStep('confirmation');
         // Show loyalty modal for non-logged customers
         setTimeout(() => setIsLoyaltyModalOpen(true), 500);
@@ -516,6 +561,10 @@ export function CheckoutModal() {
   };
 
   const handlePixConfirmed = async () => {
+    // Calculate final total with points discount
+    const pointsDiscount = calculatePointsDiscount();
+    const finalTotal = total - pointsDiscount;
+    
     // Only add loyalty points if customer is logged in
     if (isRemembered && currentCustomer?.email) {
       try {
@@ -523,9 +572,15 @@ export function CheckoutModal() {
         setLastOrderEmail(currentCustomer.email);
         
         if (loyaltyCustomer) {
-          const pointsEarned = Math.floor(total * 1); // 1 ponto por real
+          // Redeem points first if any were selected
+          if (pointsToRedeem > 0) {
+            await redeemPoints(loyaltyCustomer.id, pointsToRedeem);
+          }
+          
+          // Add points from purchase (based on final total)
+          const pointsEarned = Math.floor(finalTotal * 1); // 1 ponto por real
           setLastPointsEarned(pointsEarned);
-          await addPointsFromPurchase(loyaltyCustomer.id, total, lastOrderEmail);
+          await addPointsFromPurchase(loyaltyCustomer.id, finalTotal, lastOrderEmail);
           // Atualizar dados do cliente
           await new Promise(resolve => setTimeout(resolve, 500));
           await refreshCurrentCustomer();
@@ -555,6 +610,7 @@ export function CheckoutModal() {
     setLastPointsEarned(0);
     setLastOrderEmail('');
     setSaveAsDefault(false);
+    setPointsToRedeem(0);
     setCheckoutOpen(false);
   };
 
@@ -838,18 +894,32 @@ export function CheckoutModal() {
 
                     {/* Save as default option if customer is logged in */}
                     {currentCustomer && (
-                      <div className="flex items-center gap-2 p-3 bg-secondary/50 rounded-lg">
+                      <div className={`flex items-center gap-2 p-3 rounded-lg border-2 transition-colors ${
+                        saveAsDefault 
+                          ? 'bg-primary/10 border-primary' 
+                          : 'bg-secondary/50 border-secondary'
+                      }`}>
                         <Checkbox
                           id="save-as-default"
                           checked={saveAsDefault}
                           onCheckedChange={(checked) => setSaveAsDefault(checked as boolean)}
                         />
-                        <Label 
-                          htmlFor="save-as-default" 
-                          className="text-sm cursor-pointer"
-                        >
-                          Salvar como endereço padrão
-                        </Label>
+                        <div className="flex-1">
+                          <Label 
+                            htmlFor="save-as-default" 
+                            className="text-sm font-medium cursor-pointer"
+                          >
+                            Usar como endereço padrão
+                          </Label>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {currentCustomer.street 
+                              ? 'Será salvo como preferido para próximos pedidos' 
+                              : 'Marque para usar automaticamente nos próximos pedidos'}
+                          </p>
+                        </div>
+                        {currentCustomer.street && (
+                          <Home className="w-4 h-4 text-primary" />
+                        )}
                       </div>
                     )}
                   </div>
@@ -998,6 +1068,84 @@ export function CheckoutModal() {
 
                   <Separator className="my-6" />
 
+                  {/* Loyalty Points Redemption - Only for logged in customers */}
+                  {isRemembered && currentCustomer && currentCustomer.totalPoints > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-200 space-y-4"
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <Gift className="w-5 h-5 text-amber-600" />
+                        <h4 className="font-semibold text-amber-900">Resgate de Pontos</h4>
+                        <Star className="w-4 h-4 text-amber-500 ml-auto" />
+                      </div>
+
+                      <div className="bg-white rounded-lg p-3 flex items-center justify-between border border-amber-100">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Saldo disponível</p>
+                          <p className="text-2xl font-bold text-amber-600">{currentCustomer.totalPoints} pts</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-muted-foreground">Equivale a</p>
+                          <p className="text-lg font-semibold text-primary">
+                            {formatPrice((currentCustomer.totalPoints / 100) * 5)}
+                          </p>
+                        </div>
+                      </div>
+
+                      {currentCustomer.totalPoints > 0 && (
+                        <>
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <Label htmlFor="points-slider" className="text-sm font-medium">
+                                Quanto deseja gastar?
+                              </Label>
+                              <span className="text-sm font-semibold text-primary">
+                                {pointsToRedeem} pts
+                              </span>
+                            </div>
+                            <input
+                              id="points-slider"
+                              type="range"
+                              min="0"
+                              max={currentCustomer.totalPoints}
+                              value={pointsToRedeem}
+                              onChange={(e) => setPointsToRedeem(parseInt(e.target.value))}
+                              className="w-full h-2 bg-amber-200 rounded-lg appearance-none cursor-pointer"
+                              style={{
+                                background: `linear-gradient(to right, #f59e0b 0%, #f59e0b ${(pointsToRedeem / currentCustomer.totalPoints) * 100}%, #fef3c7 ${(pointsToRedeem / currentCustomer.totalPoints) * 100}%, #fef3c7 100%)`
+                              }}
+                            />
+                          </div>
+
+                          {pointsToRedeem > 0 && (
+                            <motion.div
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              className="bg-white rounded-lg p-3 border border-green-200 flex items-center justify-between"
+                            >
+                              <div>
+                                <p className="text-xs text-muted-foreground">Desconto</p>
+                                <p className="text-lg font-bold text-green-600">
+                                  -{formatPrice(calculatePointsDiscount())}
+                                </p>
+                              </div>
+                              <CheckCircle className="w-5 h-5 text-green-600" />
+                            </motion.div>
+                          )}
+
+                          <p className="text-xs text-center text-muted-foreground">
+                            100 pontos = R$ 5 de desconto
+                          </p>
+                        </>
+                      )}
+                    </motion.div>
+                  )}
+
+                  <Separator className="my-6" />
+
                   {/* Order Summary */}
                   <div className="bg-secondary/50 rounded-xl p-4 space-y-3">
                     <h4 className="font-semibold">Resumo do Pedido</h4>
@@ -1026,11 +1174,20 @@ export function CheckoutModal() {
                       <span>{deliveryType === 'pickup' ? 'Grátis' : formatPrice(deliveryFee)}</span>
                     </div>
 
+                    {pointsToRedeem > 0 && (
+                      <div className="flex justify-between text-sm text-green-600 font-medium">
+                        <span>Desconto (pontos)</span>
+                        <span>-{formatPrice(calculatePointsDiscount())}</span>
+                      </div>
+                    )}
+
                     <Separator />
 
                     <div className="flex justify-between text-lg font-bold">
                       <span>Total</span>
-                      <span className="text-primary">{formatPrice(total)}</span>
+                      <span className="text-primary">
+                        {formatPrice(total - (pointsToRedeem > 0 ? calculatePointsDiscount() : 0))}
+                      </span>
                     </div>
                   </div>
                 </motion.div>
