@@ -415,18 +415,7 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
         .single();
 
       if (error || !data) return null;
-      
-      // Recalcular pontos válidos antes de retornar
-      await recalculateValidPoints(data.id);
-      
-      // Buscar dados atualizados
-      const { data: updatedData } = await (supabase as any)
-        .from('customers')
-        .select('*')
-        .eq('id', data.id)
-        .single();
-
-      return mapCustomerFromDB(updatedData);
+      return mapCustomerFromDB(data);
     } catch (error) {
       console.error('Erro em getCustomerByEmail:', error);
       return null;
@@ -451,9 +440,6 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
         console.log('Nenhum cliente logado para refrescar');
         return;
       }
-
-      // Recalcular pontos válidos
-      await recalculateValidPoints(state.currentCustomer.id);
 
       const { data, error } = await (supabase as any)
         .from('customers')
@@ -889,49 +875,6 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
     }
   },
 }));
-
-// Função auxiliar que recalcula e atualiza pontos válidos (não expirados)
-async function recalculateValidPoints(customerId: string): Promise<number> {
-  try {
-    // Buscar todos os loyalty_transactions do cliente
-    const { data: transactions, error } = await (supabase as any)
-      .from('loyalty_transactions')
-      .select('points_earned, points_spent, expires_at, used_at, transaction_type')
-      .eq('customer_id', customerId);
-
-    if (error) {
-      console.error('Erro ao buscar transações:', error);
-      return 0;
-    }
-
-    const now = new Date();
-    
-    // Somar pontos válidos (não expirados)
-    let validPoints = 0;
-    if (transactions && Array.isArray(transactions)) {
-      for (const tx of transactions) {
-        // Ignorar transações já usadas ou expiradas
-        if (tx.used_at) continue;
-        if (tx.expires_at && new Date(tx.expires_at) < now) continue;
-        
-        // Adicionar pontos ganhos e subtrair pontos gastos
-        if (tx.points_earned) validPoints += tx.points_earned;
-        if (tx.points_spent) validPoints -= tx.points_spent;
-      }
-    }
-
-    // Atualizar total_points na tabela customers
-    await (supabase as any)
-      .from('customers')
-      .update({ total_points: Math.max(0, validPoints) })
-      .eq('id', customerId);
-
-    return Math.max(0, validPoints);
-  } catch (error) {
-    console.error('Erro em recalculateValidPoints:', error);
-    return 0;
-  }
-}
 
 // Helper para mapear dados do DB
 function mapCustomerFromDB(data: any): Customer {
