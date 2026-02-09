@@ -62,6 +62,7 @@ import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { DateRangeFilter } from '@/components/admin/DateRangeFilter';
 import { ScheduleSettings } from '@/components/admin/ScheduleSettings';
 import { PrintNodeSettings } from '@/components/admin/PrintNodeSettings';
+import { LoyaltySettingsPanel } from '@/components/admin/LoyaltySettingsPanel';
 import { FaithfulCustomersAdmin } from '@/components/admin/FaithfulCustomersAdmin';
 import { toast } from 'sonner';
 import { format, startOfDay, endOfDay } from 'date-fns';
@@ -690,7 +691,16 @@ const AdminDashboard = () => {
                           <TableRow key={order.id}>
                             <TableCell className="font-medium">{order.id}</TableCell>
                             <TableCell>{order.customer.name}</TableCell>
-                            <TableCell>{formatPrice(order.total)}</TableCell>
+                            <TableCell>
+                              <div className="flex flex-col gap-1">
+                                <span className="font-semibold">{formatPrice(order.total)}</span>
+                                {order.pointsDiscount && order.pointsDiscount > 0 && (
+                                  <span className="text-xs text-green-600 font-medium">
+                                    -{formatPrice(order.pointsDiscount)} (pontos)
+                                  </span>
+                                )}
+                              </div>
+                            </TableCell>
                             <TableCell>{getStatusBadge(order.status)}</TableCell>
                             <TableCell>
                               {format(new Date(order.createdAt), "dd/MM/yyyy HH:mm", { locale: ptBR })}
@@ -906,7 +916,16 @@ const AdminDashboard = () => {
                           <TableCell className="font-medium">{order.id}</TableCell>
                           <TableCell>{order.customer.name}</TableCell>
                           <TableCell>{order.items.length} itens</TableCell>
-                          <TableCell>{formatPrice(order.total)}</TableCell>
+                          <TableCell>
+                            <div className="flex flex-col gap-1">
+                              <span className="font-semibold">{formatPrice(order.total)}</span>
+                              {order.pointsDiscount && order.pointsDiscount > 0 && (
+                                <span className="text-xs text-green-600 font-medium">
+                                  -{formatPrice(order.pointsDiscount)} (pontos)
+                                </span>
+                              )}
+                            </div>
+                          </TableCell>
                           <TableCell>
                             <Badge variant="outline">
                               {order.paymentMethod === 'pix' ? 'PIX' : order.paymentMethod === 'card' ? 'Cartão' : 'Dinheiro'}
@@ -1196,6 +1215,8 @@ const AdminDashboard = () => {
                   </Button>
                 </CardContent>
               </Card>
+
+              <LoyaltySettingsPanel />
 
               <PrintNodeSettings />
             </div>
