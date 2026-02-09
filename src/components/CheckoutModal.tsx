@@ -21,6 +21,7 @@ import { useNeighborhoodsStore } from '@/store/useNeighborhoodsStore';
 import { useOrdersStore } from '@/store/useOrdersStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { useLoyaltyStore } from '@/store/useLoyaltyStore';
+import { useLoyaltySettingsStore } from '@/store/useLoyaltySettingsStore';
 import { supabase } from '@/integrations/supabase/client';
 import { PostCheckoutLoyaltyModal } from './PostCheckoutLoyaltyModal';
 import { 
@@ -514,8 +515,9 @@ export function CheckoutModal() {
             expirationDate: mpData.expirationDate
           });
           
-          // Redeem points if any were selected
-          if (pointsToRedeem > 0 && loyaltyCustomer) {
+          // Redeem points if any were selected and meet minimum
+          const minPoints = useLoyaltySettingsStore.getState().settings?.minPointsToRedeem ?? 50;
+          if (pointsToRedeem > 0 && pointsToRedeem >= minPoints && loyaltyCustomer) {
             await redeemPoints(loyaltyCustomer.id, pointsToRedeem);
           }
           
@@ -530,8 +532,9 @@ export function CheckoutModal() {
         // For card and cash, just process order directly
         await processOrder(orderPayload, pointsDiscount, pointsToRedeem);
         
-        // Redeem points if any were selected
-        if (pointsToRedeem > 0 && loyaltyCustomer) {
+        // Redeem points if any were selected and meet minimum
+        const minPoints = useLoyaltySettingsStore.getState().settings?.minPointsToRedeem ?? 50;
+        if (pointsToRedeem > 0 && pointsToRedeem >= minPoints && loyaltyCustomer) {
           await redeemPoints(loyaltyCustomer.id, pointsToRedeem);
         }
         
@@ -1118,7 +1121,7 @@ export function CheckoutModal() {
                               <Label htmlFor="points-slider" className="text-sm font-medium">
                                 Quanto deseja gastar?
                               </Label>
-                              <span className="text-sm font-semibold text-primary">
+                              <span className={`text-sm font-semibold ${pointsToRedeem > 0 && pointsToRedeem < (useLoyaltySettingsStore.getState().settings?.minPointsToRedeem ?? 50) ? 'text-red-500' : 'text-primary'}`}>
                                 {pointsToRedeem} pts
                               </span>
                             </div>
@@ -1134,9 +1137,14 @@ export function CheckoutModal() {
                                 background: `linear-gradient(to right, #f59e0b 0%, #f59e0b ${(pointsToRedeem / currentCustomer.totalPoints) * 100}%, #fef3c7 ${(pointsToRedeem / currentCustomer.totalPoints) * 100}%, #fef3c7 100%)`
                               }}
                             />
+                            {pointsToRedeem > 0 && pointsToRedeem < (useLoyaltySettingsStore.getState().settings?.minPointsToRedeem ?? 50) && (
+                              <p className="text-xs text-red-500 font-medium">
+                                ⚠️ Mínimo de {useLoyaltySettingsStore.getState().settings?.minPointsToRedeem ?? 50} pontos para resgate
+                              </p>
+                            )}
                           </div>
 
-                          {pointsToRedeem > 0 && (
+                          {pointsToRedeem > 0 && pointsToRedeem >= (useLoyaltySettingsStore.getState().settings?.minPointsToRedeem ?? 50) && (
                             <motion.div
                               initial={{ opacity: 0 }}
                               animate={{ opacity: 1 }}
@@ -1153,7 +1161,13 @@ export function CheckoutModal() {
                           )}
 
                           <p className="text-xs text-center text-muted-foreground">
-                            100 pontos = R$ 5 de desconto
+                            100 pontos = R$ {useLoyaltySettingsStore.getState().settings?.discountPer100Points ?? 5} de desconto
+                            {currentCustomer.totalPoints > 0 && (
+                              <>
+                                <br />
+                                <span className="text-amber-600 font-medium">Mínimo: {useLoyaltySettingsStore.getState().settings?.minPointsToRedeem ?? 50} pontos</span>
+                              </>
+                            )}
                           </p>
                         </>
                       )}
@@ -1190,7 +1204,7 @@ export function CheckoutModal() {
                       <span>{deliveryType === 'pickup' ? 'Grátis' : formatPrice(deliveryFee)}</span>
                     </div>
 
-                    {pointsToRedeem > 0 && (
+                    {pointsToRedeem > 0 && pointsToRedeem >= (useLoyaltySettingsStore.getState().settings?.minPointsToRedeem ?? 50) && (
                       <div className="flex justify-between text-sm text-green-600 font-medium">
                         <span>Desconto (pontos)</span>
                         <span>-{formatPrice(calculatePointsDiscount())}</span>
@@ -1202,7 +1216,7 @@ export function CheckoutModal() {
                     <div className="flex justify-between text-lg font-bold">
                       <span>Total</span>
                       <span className="text-primary">
-                        {formatPrice(total - (pointsToRedeem > 0 ? calculatePointsDiscount() : 0))}
+                        {formatPrice(total - (pointsToRedeem > 0 && pointsToRedeem >= (useLoyaltySettingsStore.getState().settings?.minPointsToRedeem ?? 50) ? calculatePointsDiscount() : 0))}
                       </span>
                     </div>
                   </div>
