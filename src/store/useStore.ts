@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { CartItem, Product, Neighborhood, neighborhoodsData } from '@/data/products';
+import { useLoyaltySettingsStore } from './useLoyaltySettingsStore';
 
 interface CartStore {
   items: CartItem[];
@@ -155,8 +156,9 @@ export const useCheckoutStore = create<CheckoutStore>((set, get) => ({
   
   calculatePointsDiscount: () => {
     const points = get().pointsToRedeem;
-    // 100 pontos = R$ 5
-    return (points / 100) * 5;
+    const settings = useLoyaltySettingsStore.getState().settings;
+    const discountPer100Points = settings?.discountPer100Points ?? 5;
+    return (points / 100) * discountPer100Points;
   },
   
   getDeliveryFee: () => {
