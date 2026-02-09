@@ -5,6 +5,18 @@ import { supabase } from '@/integrations/supabase/client';
 
 type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'delivering' | 'delivered' | 'cancelled';
 
+// Helper para obter hora local em formato ISO string sem timezone
+const getLocalISOString = (): string => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const date = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  const seconds = String(now.getSeconds()).padStart(2, '0');
+  return `${year}-${month}-${date}T${hours}:${minutes}:${seconds}`;
+};
+
 interface OrdersStore {
   orders: Order[];
   addOrder: (order: Omit<Order, 'id' | 'createdAt'>, autoprint?: boolean) => Promise<Order>;
@@ -37,12 +49,8 @@ export const useOrdersStore = create<OrdersStore>()(
         };
 
         try {
-          // Salvar no Supabase com hora local correta (não UTC)
-          const now = new Date();
-          // Criar ISO string com hora local ao invés de UTC
-          const offset = now.getTimezoneOffset() * 60000;
-          const localTime = new Date(now.getTime() - offset);
-          const localISO = localTime.toISOString().split('Z')[0]; // Remove o Z de UTC
+          // Salvar no Supabase com hora local correta
+          const localISO = getLocalISOString();
           
           // Store payment_method as metadata in address JSONB
           const addressWithMetadata = {
@@ -123,10 +131,7 @@ export const useOrdersStore = create<OrdersStore>()(
                   console.log(`Printorder sucesso na tentativa ${attempt}`);
                   
                   // Se printorder funcionou, marcar como impresso com hora local
-                  const printTime = new Date();
-                  const printOffset = printTime.getTimezoneOffset() * 60000;
-                  const localPrintTime = new Date(printTime.getTime() - printOffset);
-                  const printedAtLocal = localPrintTime.toISOString().split('Z')[0];
+                  const printedAtLocal = getLocalISOString();
                   
                   const { error: updateError } = await (supabase as any)
                     .from('orders')
