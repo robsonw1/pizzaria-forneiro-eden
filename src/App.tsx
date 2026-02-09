@@ -1,9 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { useEffect } from "react";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useRealtimeSync } from "@/hooks/use-realtime-sync";
+import { useLoyaltySettingsStore } from "@/store/useLoyaltySettingsStore";
 import Index from "./pages/Index.tsx";
 import AdminLogin from "./pages/AdminLogin.tsx";
 import AdminDashboard from "./pages/AdminDashboard.tsx";
@@ -14,6 +16,12 @@ const queryClient = new QueryClient();
 // Componente wrapper para usar hooks
 const AppContent = () => {
   useRealtimeSync();
+  const { loadSettings } = useLoyaltySettingsStore();
+
+  // Carregar configurações de fidelização ao iniciar
+  useEffect(() => {
+    loadSettings();
+  }, [loadSettings]);
   
   return (
     <Routes>
