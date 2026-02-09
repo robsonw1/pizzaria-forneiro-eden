@@ -449,6 +449,8 @@ export function CheckoutModal() {
     const orderId = `PED-${Date.now().toString().slice(-5)}`;
     
     // Calculate final total with points discount
+    const minPointsRequired = useLoyaltySettingsStore.getState().settings?.minPointsToRedeem ?? 50;
+    const validPointsToRedeem = pointsToRedeem >= minPointsRequired ? pointsToRedeem : 0;
     const pointsDiscount = calculatePointsDiscount();
     const finalTotal = total - pointsDiscount;
     
@@ -457,7 +459,7 @@ export function CheckoutModal() {
     orderPayload.totals.total = finalTotal;
     if (pointsDiscount > 0) {
       orderPayload.totals.pointsDiscount = pointsDiscount;
-      orderPayload.totals.pointsRedeemed = pointsToRedeem;
+      orderPayload.totals.pointsRedeemed = validPointsToRedeem;
     }
 
     try {
@@ -517,12 +519,12 @@ export function CheckoutModal() {
           
           // Redeem points if any were selected and meet minimum
           const minPoints = useLoyaltySettingsStore.getState().settings?.minPointsToRedeem ?? 50;
-          if (pointsToRedeem > 0 && pointsToRedeem >= minPoints && loyaltyCustomer) {
-            await redeemPoints(loyaltyCustomer.id, pointsToRedeem);
+          if (validPointsToRedeem > 0 && validPointsToRedeem >= minPoints && loyaltyCustomer) {
+            await redeemPoints(loyaltyCustomer.id, validPointsToRedeem);
           }
           
           // Process order (handles Supabase insert + auto-print logic)
-          await processOrder(orderPayload, pointsDiscount, pointsToRedeem);
+          await processOrder(orderPayload, pointsDiscount, validPointsToRedeem);
           
           setStep('pix');
         } else {
@@ -530,19 +532,19 @@ export function CheckoutModal() {
         }
       } else {
         // For card and cash, just process order directly
-        await processOrder(orderPayload, pointsDiscount, pointsToRedeem);
+        await processOrder(orderPayload, pointsDiscount, validPointsToRedeem);
         
         // Redeem points if any were selected and meet minimum
         const minPoints = useLoyaltySettingsStore.getState().settings?.minPointsToRedeem ?? 50;
-        if (pointsToRedeem > 0 && pointsToRedeem >= minPoints && loyaltyCustomer) {
-          await redeemPoints(loyaltyCustomer.id, pointsToRedeem);
+        if (validPointsToRedeem > 0 && validPointsToRedeem >= minPoints && loyaltyCustomer) {
+          await redeemPoints(loyaltyCustomer.id, validPointsToRedeem);
         }
         
         // Add points from purchase (but only if NO points were redeemed for discount)
         if (loyaltyCustomer) {
           const pointsEarned = Math.floor(finalTotal * 1); // 1 ponto por real
           setLastPointsEarned(pointsEarned);
-          await addPointsFromPurchase(loyaltyCustomer.id, finalTotal, orderId, pointsToRedeem);
+          await addPointsFromPurchase(loyaltyCustomer.id, finalTotal, orderId, validPointsToRedeem);
           // Refrescar dados do cliente se estiver logado
           if (isRemembered) {
             await new Promise(resolve => setTimeout(resolve, 500));
@@ -558,7 +560,7 @@ export function CheckoutModal() {
         
         // Store discount info for confirmation display
         setLastPointsDiscount(pointsDiscount);
-        setLastPointsRedeemed(pointsToRedeem);
+        setLastPointsRedeemed(validPointsToRedeem);
         setLastFinalTotal(finalTotal);
         
         setStep('confirmation');
@@ -579,6 +581,10 @@ export function CheckoutModal() {
     const pointsDiscount = calculatePointsDiscount();
     const finalTotal = total - pointsDiscount;
     
+    // Calculate validPointsToRedeem (same validation as in handleSubmitOrder)
+    const minPointsRequired = useLoyaltySettingsStore.getState().settings?.minPointsToRedeem ?? 50;
+    const validPointsToRedeem = pointsToRedeem >= minPointsRequired ? pointsToRedeem : 0;
+    
     // Only add loyalty points if customer is logged in
     if (isRemembered && currentCustomer?.email) {
       try {
@@ -590,7 +596,7 @@ export function CheckoutModal() {
           // Note: Points redemption already happened in handleSubmitOrder before PIX generation
           const pointsEarned = Math.floor(finalTotal * 1); // 1 ponto por real
           setLastPointsEarned(pointsEarned);
-          await addPointsFromPurchase(loyaltyCustomer.id, finalTotal, lastOrderEmail, pointsToRedeem);
+          await addPointsFromPurchase(loyaltyCustomer.id, finalTotal, lastOrderEmail, validPointsToRedeem);
           // Atualizar dados do cliente
           await new Promise(resolve => setTimeout(resolve, 500));
           await refreshCurrentCustomer();
@@ -604,7 +610,7 @@ export function CheckoutModal() {
     
     // Store discount info for confirmation display
     setLastPointsDiscount(pointsDiscount);
-    setLastPointsRedeemed(pointsToRedeem);
+    setLastPointsRedeemed(validPointsToRedeem);
     setLastFinalTotal(finalTotal);
     
     setStep('confirmation');
