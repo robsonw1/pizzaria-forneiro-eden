@@ -303,6 +303,8 @@ export const useOrdersStore = create<OrdersStore>()(
                   })) || [],
                   subtotal: row.total,
                   total: row.total,
+                  pointsDiscount: row.points_discount || 0,
+                  pointsRedeemed: row.points_redeemed || 0,
                   status: row.status as any,
                   observations: '',
                   createdAt: createdAtDate,
