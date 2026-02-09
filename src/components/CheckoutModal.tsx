@@ -583,12 +583,8 @@ export function CheckoutModal() {
         setLastOrderEmail(currentCustomer.email);
         
         if (loyaltyCustomer) {
-          // Redeem points first if any were selected
-          if (pointsToRedeem > 0) {
-            await redeemPoints(loyaltyCustomer.id, pointsToRedeem);
-          }
-          
           // Add points from purchase (but only if NO points were redeemed for discount)
+          // Note: Points redemption already happened in handleSubmitOrder before PIX generation
           const pointsEarned = Math.floor(finalTotal * 1); // 1 ponto por real
           setLastPointsEarned(pointsEarned);
           await addPointsFromPurchase(loyaltyCustomer.id, finalTotal, lastOrderEmail, pointsToRedeem);
