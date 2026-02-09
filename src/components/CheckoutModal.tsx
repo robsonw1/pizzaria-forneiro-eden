@@ -503,10 +503,8 @@ export function CheckoutModal() {
         
         toast.success('Pedido enviado com sucesso!');
         setStep('confirmation');
-        // Show loyalty modal only if customer is logged in
-        if (loyaltyCustomer) {
-          setTimeout(() => setIsLoyaltyModalOpen(true), 500);
-        }
+        // Show loyalty modal for non-logged customers
+        setTimeout(() => setIsLoyaltyModalOpen(true), 500);
       }
 
     } catch (error) {
@@ -540,8 +538,8 @@ export function CheckoutModal() {
     toast.success('Pedido confirmado! Aguardando confirmação do pagamento.');
     setStep('confirmation');
     
-    // Show loyalty modal only if customer is logged in
-    if (isRemembered && currentCustomer?.email) {
+    // Show loyalty modal for non-logged customers
+    if (!isRemembered) {
       setTimeout(() => setIsLoyaltyModalOpen(true), 500);
     }
   };
@@ -1199,12 +1197,12 @@ export function CheckoutModal() {
       </DialogContent>
     </Dialog>
 
-    {/* Loyalty Registration Modal - Only show if logged in or has email */}
-    {lastOrderEmail && (
+    {/* Loyalty Registration Modal - Show for all non-logged customers */}
+    {!isRemembered && (
       <PostCheckoutLoyaltyModal 
         isOpen={isLoyaltyModalOpen}
         onClose={() => setIsLoyaltyModalOpen(false)}
-        email={lastOrderEmail}
+        email={lastOrderEmail || ''}
         pointsEarned={lastPointsEarned}
       />
     )}
