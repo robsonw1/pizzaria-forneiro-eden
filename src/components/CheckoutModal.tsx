@@ -100,6 +100,42 @@ export function CheckoutModal() {
   const currentCustomer = useLoyaltyStore((s) => s.currentCustomer);
   const isRemembered = useLoyaltyStore((s) => s.isRemembered);
 
+  // Pré-preencher dados de contato quando cliente logado abre checkout
+  useEffect(() => {
+    if (isCheckoutOpen && currentCustomer && isRemembered) {
+      if (currentCustomer.name && !customer.name) {
+        setCustomer({ name: currentCustomer.name });
+      }
+      if (currentCustomer.phone && !customer.phone) {
+        setCustomer({ phone: currentCustomer.phone });
+      }
+    }
+  }, [isCheckoutOpen, currentCustomer?.name, currentCustomer?.phone, isRemembered]);
+
+  // Pré-preencher endereço salvo quando checkout abre
+  useEffect(() => {
+    if (isCheckoutOpen && currentCustomer?.street && !address.street) {
+      setAddress({
+        street: currentCustomer.street,
+        number: currentCustomer.number || '',
+        complement: currentCustomer.complement || '',
+        reference: '',
+        city: currentCustomer.city || '',
+        zipCode: currentCustomer.zipCode || '',
+      });
+
+      // Pre-select neighborhood
+      if (currentCustomer.neighborhood) {
+        const matchingNeighborhood = activeNeighborhoods.find(
+          (n) => n.name === currentCustomer.neighborhood
+        );
+        if (matchingNeighborhood) {
+          setSelectedNeighborhood(matchingNeighborhood);
+        }
+      }
+    }
+  }, [isCheckoutOpen, currentCustomer?.street]);
+
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
