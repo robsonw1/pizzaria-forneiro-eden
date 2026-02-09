@@ -595,7 +595,7 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
     try {
       const { data, error } = await (supabase as any)
         .from('loyalty_transactions')
-        .select('*')
+        .select('id, customer_id, order_id, points_earned, points_spent, transaction_type, description, created_at, expires_at')
         .eq('customer_id', customerId)
         .order('created_at', { ascending: false });
 
