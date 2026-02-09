@@ -34,6 +34,8 @@ interface CheckoutStore {
   selectedNeighborhood: Neighborhood | null;
   needsChange: boolean;
   changeAmount: string;
+  saveAsDefault: boolean;
+  pointsToRedeem: number;
   setCustomer: (customer: Partial<CheckoutStore['customer']>) => void;
   setAddress: (address: Partial<CheckoutStore['address']>) => void;
   setDeliveryType: (type: 'delivery' | 'pickup') => void;
@@ -42,6 +44,9 @@ interface CheckoutStore {
   setSelectedNeighborhood: (neighborhood: Neighborhood | null) => void;
   setNeedsChange: (needs: boolean) => void;
   setChangeAmount: (amount: string) => void;
+  setSaveAsDefault: (save: boolean) => void;
+  setPointsToRedeem: (points: number) => void;
+  calculatePointsDiscount: () => number;
   getDeliveryFee: () => number;
   reset: () => void;
 }
@@ -118,6 +123,8 @@ export const useCheckoutStore = create<CheckoutStore>((set, get) => ({
   selectedNeighborhood: null,
   needsChange: false,
   changeAmount: '',
+  saveAsDefault: false,
+  pointsToRedeem: 0,
 
   setCustomer: (customer) => set((state) => ({
     customer: { ...state.customer, ...customer }
@@ -142,6 +149,16 @@ export const useCheckoutStore = create<CheckoutStore>((set, get) => ({
 
   setChangeAmount: (amount) => set({ changeAmount: amount }),
   
+  setSaveAsDefault: (save) => set({ saveAsDefault: save }),
+  
+  setPointsToRedeem: (points) => set({ pointsToRedeem: Math.max(0, points) }),
+  
+  calculatePointsDiscount: () => {
+    const points = get().pointsToRedeem;
+    // 100 pontos = R$ 5
+    return (points / 100) * 5;
+  },
+  
   getDeliveryFee: () => {
     const { deliveryType, selectedNeighborhood } = get();
     if (deliveryType === 'pickup') return 0;
@@ -157,6 +174,8 @@ export const useCheckoutStore = create<CheckoutStore>((set, get) => ({
     selectedNeighborhood: null,
     needsChange: false,
     changeAmount: '',
+    saveAsDefault: false,
+    pointsToRedeem: 0,
   }),
 }));
 
