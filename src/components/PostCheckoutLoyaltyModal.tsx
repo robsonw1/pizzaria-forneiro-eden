@@ -45,6 +45,18 @@ export function PostCheckoutLoyaltyModal({
   const currentCustomer = useLoyaltyStore((s) => s.currentCustomer);
   const isRemembered = useLoyaltyStore((s) => s.isRemembered);
 
+  const handleClose = () => {
+    // Reset internal state quando fecha, mas não toca no loyalty store se estiver logado
+    if (!isRemembered) {
+      setStep('auth');
+      setCurrentEmail('');
+      setFormData({ name: '', cpf: '', phone: '' });
+      setReferralCode('');
+      setLastCustomerId(null);
+    }
+    onClose();
+  };
+
   const handleGoogleSuccess = (googleEmail: string) => {
     setCurrentEmail(googleEmail);
     setStep('form');
@@ -183,7 +195,7 @@ export function PostCheckoutLoyaltyModal({
             </div>
 
             <DialogFooter>
-              <Button onClick={onClose} className="w-full">
+              <Button onClick={handleClose} className="w-full">
                 Continuar Comprando
               </Button>
             </DialogFooter>
