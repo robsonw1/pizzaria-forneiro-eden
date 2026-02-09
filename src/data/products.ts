@@ -63,6 +63,8 @@ export interface Order {
   items: CartItem[];
   subtotal: number;
   total: number;
+  pointsDiscount?: number;
+  pointsRedeemed?: number;
   status: 'pending' | 'confirmed' | 'preparing' | 'delivering' | 'delivered' | 'cancelled';
   observations?: string;
   createdAt: Date;
