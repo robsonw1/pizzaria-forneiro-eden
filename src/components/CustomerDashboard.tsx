@@ -99,22 +99,7 @@ export function CustomerDashboard({ onLogout }: CustomerDashboardProps) {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Gift className="w-4 h-4 text-primary" />
-              Cupons Disponíveis
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">
-              {coupons.filter((c) => c.isActive && !c.isUsed).length}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              cupons ativos
-            </p>
-          </CardContent>
-        </Card>
+
       </div>
 
       {/* Cupons */}
