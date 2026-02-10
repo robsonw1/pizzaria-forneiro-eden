@@ -22,6 +22,7 @@ import { useOrdersStore } from '@/store/useOrdersStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { useLoyaltyStore } from '@/store/useLoyaltyStore';
 import { useLoyaltySettingsStore } from '@/store/useLoyaltySettingsStore';
+import { useCouponManagementStore } from '@/store/useCouponManagementStore';
 import { supabase } from '@/integrations/supabase/client';
 import { PostCheckoutLoyaltyModal } from './PostCheckoutLoyaltyModal';
 import { 
@@ -43,6 +44,7 @@ import {
   Check,
   AlertCircle,
   Gift,
+  XCircle,
   Star
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -102,7 +104,13 @@ export function CheckoutModal() {
   const [lastPointsDiscount, setLastPointsDiscount] = useState<number>(0);
   const [lastPointsRedeemed, setLastPointsRedeemed] = useState<number>(0);
   const [lastFinalTotal, setLastFinalTotal] = useState<number>(0);
+  const [couponCode, setCouponCode] = useState<string>('');
+  const [couponDiscount, setCouponDiscount] = useState<number>(0);
+  const [appliedCoupon, setAppliedCoupon] = useState<string>('');
+  const [couponValidationMessage, setCouponValidationMessage] = useState<string>('');
 
+  const validateAndUseCoupon = useCouponManagementStore((s) => s.validateAndUseCoupon);
+  const markCouponAsUsed = useCouponManagementStore((s) => s.markCouponAsUsed);
   const findOrCreateCustomer = useLoyaltyStore((s) => s.findOrCreateCustomer);
   const addPointsFromPurchase = useLoyaltyStore((s) => s.addPointsFromPurchase);
   const refreshCurrentCustomer = useLoyaltyStore((s) => s.refreshCurrentCustomer);
@@ -169,6 +177,39 @@ export function CheckoutModal() {
   const subtotal = getSubtotal();
   const deliveryFee = getDeliveryFee();
   const total = subtotal + deliveryFee;
+
+  const handleApplyCoupon = async () => {
+    if (!couponCode.trim()) {
+      setCouponValidationMessage('❌ Digite o código do cupom');
+      return;
+    }
+
+    if (!isRemembered) {
+      setCouponValidationMessage('❌ Apenas clientes registrados podem usar cupons');
+      return;
+    }
+
+    const result = await validateAndUseCoupon(couponCode.toUpperCase(), currentCustomer?.id);
+    
+    if (result.valid) {
+      setAppliedCoupon(couponCode.toUpperCase());
+      setCouponDiscount(result.discount);
+      setCouponValidationMessage(`✅ ${result.message}`);
+      toast.success(result.message);
+    } else {
+      setCouponDiscount(0);
+      setAppliedCoupon('');
+      setCouponValidationMessage(result.message);
+      toast.error(result.message);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setCouponCode('');
+    setAppliedCoupon('');
+    setCouponDiscount(0);
+    setCouponValidationMessage('');
+  };
 
   const formatCpf = (value: string) => {
     const cleaned = value.replace(/\D/g, '');
@@ -378,6 +419,8 @@ export function CheckoutModal() {
         itemCount: items.reduce((sum, item) => sum + item.quantity, 0),
         pointsDiscount: 0,
         pointsRedeemed: 0,
+        couponDiscount: 0,
+        appliedCoupon: '',
       },
       
       // Observations
@@ -448,11 +491,12 @@ export function CheckoutModal() {
     setIsProcessing(true);
     const orderId = `PED-${Date.now().toString().slice(-5)}`;
     
-    // Calculate final total with points discount
+    // Calculate final total with points discount and coupon discount
     const minPointsRequired = useLoyaltySettingsStore.getState().settings?.minPointsToRedeem ?? 50;
     const validPointsToRedeem = pointsToRedeem >= minPointsRequired ? pointsToRedeem : 0;
     const pointsDiscount = calculatePointsDiscount();
-    const finalTotal = total - pointsDiscount;
+    const couponDiscountAmount = (total * couponDiscount) / 100; // Cupom é percentual
+    const finalTotal = total - pointsDiscount - couponDiscountAmount;
     
     // Create payload with final total
     const orderPayload = buildOrderPayload(orderId);
@@ -460,6 +504,10 @@ export function CheckoutModal() {
     if (pointsDiscount > 0) {
       orderPayload.totals.pointsDiscount = pointsDiscount;
       orderPayload.totals.pointsRedeemed = validPointsToRedeem;
+    }
+    if (couponDiscountAmount > 0) {
+      orderPayload.totals.couponDiscount = couponDiscountAmount;
+      orderPayload.totals.appliedCoupon = appliedCoupon;
     }
 
     try {
@@ -558,6 +606,11 @@ export function CheckoutModal() {
           toast.success('Pedido enviado com sucesso!');
         }
         
+        // Mark coupon as used if applied
+        if (appliedCoupon) {
+          await markCouponAsUsed(appliedCoupon, currentCustomer?.id);
+        }
+        
         // Store discount info for confirmation display
         setLastPointsDiscount(pointsDiscount);
         setLastPointsRedeemed(validPointsToRedeem);
@@ -636,6 +689,10 @@ export function CheckoutModal() {
     setLastPointsDiscount(0);
     setLastPointsRedeemed(0);
     setLastFinalTotal(0);
+    setCouponCode('');
+    setCouponDiscount(0);
+    setAppliedCoupon('');
+    setCouponValidationMessage('');
     setCheckoutOpen(false);
   };
 
@@ -1180,6 +1237,63 @@ export function CheckoutModal() {
                     </motion.div>
                   )}
 
+                  {/* Coupon Section */}
+                  {isRemembered && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950 dark:to-pink-950 rounded-xl p-4 space-y-3 border border-purple-200 dark:border-purple-800"
+                    >
+                      <h4 className="font-semibold flex items-center gap-2">
+                        <Gift className="w-4 h-4 text-purple-600" />
+                        Usar Cupom de Promoção
+                      </h4>
+
+                      {!appliedCoupon ? (
+                        <div className="space-y-2">
+                          <div className="flex gap-2">
+                            <Input
+                              placeholder="Digite o código do cupom"
+                              value={couponCode}
+                              onChange={(e) => {
+                                setCouponCode(e.target.value.toUpperCase());
+                                setCouponValidationMessage('');
+                              }}
+                              className="flex-1"
+                            />
+                            <Button
+                              onClick={handleApplyCoupon}
+                              variant="outline"
+                              size="sm"
+                            >
+                              Aplicar
+                            </Button>
+                          </div>
+                          {couponValidationMessage && (
+                            <p className={`text-xs ${couponValidationMessage.includes('✅') ? 'text-green-600' : 'text-red-600'}`}>
+                              {couponValidationMessage}
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="bg-white dark:bg-slate-900 rounded-lg p-3 flex items-center justify-between border-2 border-green-200">
+                          <div>
+                            <p className="text-xs text-muted-foreground">Cupom Aplicado</p>
+                            <p className="font-mono font-bold text-green-600">{appliedCoupon}</p>
+                            <p className="text-xs text-green-600">-{couponDiscount}% de desconto</p>
+                          </div>
+                          <button
+                            onClick={handleRemoveCoupon}
+                            className="p-2 hover:bg-red-50 rounded transition"
+                            title="Remover cupom"
+                          >
+                            <XCircle className="w-4 h-4 text-red-500" />
+                          </button>
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+
                   <Separator className="my-6" />
 
                   {/* Order Summary */}
@@ -1217,12 +1331,19 @@ export function CheckoutModal() {
                       </div>
                     )}
 
+                    {appliedCoupon && couponDiscount > 0 && (
+                      <div className="flex justify-between text-sm text-purple-600 font-medium">
+                        <span>Desconto (cupom {appliedCoupon})</span>
+                        <span>-{formatPrice((total * couponDiscount) / 100)}</span>
+                      </div>
+                    )}
+
                     <Separator />
 
                     <div className="flex justify-between text-lg font-bold">
                       <span>Total</span>
                       <span className="text-primary">
-                        {formatPrice(total - (pointsToRedeem > 0 && pointsToRedeem >= (useLoyaltySettingsStore.getState().settings?.minPointsToRedeem ?? 50) ? calculatePointsDiscount() : 0))}
+                        {formatPrice(total - (pointsToRedeem > 0 && pointsToRedeem >= (useLoyaltySettingsStore.getState().settings?.minPointsToRedeem ?? 50) ? calculatePointsDiscount() : 0) - (appliedCoupon && couponDiscount > 0 ? (total * couponDiscount) / 100 : 0))}
                       </span>
                     </div>
                   </div>
