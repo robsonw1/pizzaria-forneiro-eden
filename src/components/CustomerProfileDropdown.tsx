@@ -157,20 +157,6 @@ export function CustomerProfileDropdown() {
                   </p>
                 </div>
               </div>
-
-              {/* Cupons Disponíveis */}
-              <div className="flex items-center justify-between bg-secondary/50 rounded-lg p-3">
-                <div className="flex items-center gap-2">
-                  <Gift className="w-4 h-4 text-primary" />
-                  <span className="text-sm font-medium">Cupons</span>
-                </div>
-                <div className="text-right">
-                  <p className="font-bold text-sm">
-                    {coupons.filter((c) => c.isActive && !c.isUsed).length}
-                  </p>
-                  <p className="text-xs text-muted-foreground">ativos</p>
-                </div>
-              </div>
             </div>
 
             {/* Botões de Ação */}
