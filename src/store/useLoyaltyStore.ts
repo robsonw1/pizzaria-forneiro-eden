@@ -355,11 +355,7 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
         await get().completeReferralFromPurchase(customerId);
       }
 
-      // Verificar se atingiu 100 pontos para gerar cupom automático
-      if (newTotalPoints >= 100 && customerData.total_points < 100) {
-        console.log('🎁 Cliente atingiu 100 pontos! Gerando cupom automático...');
-        await get().generateAutoCoupon(customerId);
-      }
+      // Nota: Cupons agora são gerados manualmente pelo admin via painel de controle
 
       console.log('✅ Pontos adicionados:', pointsEarned, '| Total:', newTotalPoints);
     } catch (error) {
