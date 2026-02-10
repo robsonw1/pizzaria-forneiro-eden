@@ -106,6 +106,16 @@ const getLocalISOString = (): string => {
   return `${year}-${month}-${date}T${hours}:${minutes}:${seconds}`;
 };
 
+// 🔒 NORMALIZAR EMAIL: Lowercase + Trim + Remove acentos (URGENTE #6)
+// Evita múltiplas contas do mesmo cliente com variações de email
+const normalizeEmail = (email: string): string => {
+  return email
+    .toLowerCase()
+    .trim()
+    .normalize('NFD')                           // Remove acentos
+    .replace(/[\u0300-\u036f]/g, '');          // Remove diacríticos
+};
+
 export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
   currentCustomer: null,
   points: 0,
@@ -117,11 +127,14 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
 
   findOrCreateCustomer: async (email: string) => {
     try {
+      // 🔒 Normalizar email para evitar múltiplas contas (URGENTE #6)
+      const normalizedEmail = normalizeEmail(email);
+      
       // Procurar cliente existente
       const { data, error } = await (supabase as any)
         .from('customers')
         .select('*')
-        .eq('email', email)
+        .eq('email', normalizedEmail)
         .single();
 
       if (error && error.code !== 'PGRST116') {
@@ -135,10 +148,10 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
         return customer;
       }
 
-      // Criar novo cliente não registrado
+      // Criar novo cliente não registrado (email já será normalizado pelo trigger)
       const { data: newCustomer, error: createError } = await (supabase as any)
         .from('customers')
-        .insert([{ email, is_registered: false, created_at: new Date() }])
+        .insert([{ email: normalizedEmail, is_registered: false, created_at: new Date() }])
         .select()
         .single();
 
@@ -158,14 +171,17 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
 
   registerCustomer: async (email: string, cpf: string, name: string, phone?: string) => {
     try {
-      console.log('registerCustomer chamado com:', { email, cpf, name, phone });
+      // 🔒 Normalizar email (URGENTE #6)
+      const normalizedEmail = normalizeEmail(email);
+      
+      console.log('registerCustomer chamado com:', { normalizedEmail, cpf, name, phone });
 
       // Usar UPSERT para garantir que os dados sejam salvos mesmo se o email for diferente
       const { data, error } = await (supabase as any)
         .from('customers')
         .upsert(
           {
-            email,
+            email: normalizedEmail,
             cpf,
             name,
             phone: phone || null,
@@ -185,10 +201,10 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
       console.log('Cliente registrado com sucesso:', data);
 
       // Adicionar bônus de signup
-      await get().addSignupBonus(email);
+      await get().addSignupBonus(normalizedEmail);
 
       // Recarregar dados do cliente
-      const customer = await get().getCustomerByEmail(email);
+      const customer = await get().getCustomerByEmail(normalizedEmail);
       if (customer) {
         set({ currentCustomer: customer, points: customer.totalPoints });
       }
@@ -425,13 +441,16 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
 
   loginCustomer: async (email: string, cpf: string, rememberMe?: boolean) => {
     try {
-      console.log('Tentando fazer login com:', { email, cpf, rememberMe });
+      // 🔒 Normalizar email (URGENTE #6)
+      const normalizedEmail = normalizeEmail(email);
+      
+      console.log('Tentando fazer login com:', { normalizedEmail, cpf, rememberMe });
 
       // Buscar cliente por email e CPF
       const { data, error } = await (supabase as any)
         .from('customers')
         .select('*')
-        .eq('email', email)
+        .eq('email', normalizedEmail)
         .eq('cpf', cpf.replace(/\D/g, ''))
         .single();
 
@@ -451,7 +470,7 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
       // Se rememberMe está ativado, salvar credenciais no localStorage
       if (rememberMe) {
         localStorage.setItem('loyalty_remembered_login', JSON.stringify({
-          email,
+          email: normalizedEmail,
           cpf,
           timestamp: Date.now(),
         }));
