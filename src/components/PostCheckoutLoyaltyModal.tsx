@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { useLoyaltyStore } from '@/store/useLoyaltyStore';
 import { GoogleAuthButton } from '@/components/GoogleAuthButton';
 import { toast } from 'sonner';
-import { Gift, Star, Users, Sparkles, TrendingUp } from 'lucide-react';
+import { Gift, Star, Sparkles, TrendingUp } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 
 interface PostCheckoutLoyaltyModalProps {
@@ -29,19 +29,17 @@ export function PostCheckoutLoyaltyModal({
   email,
   pointsEarned = 0,
 }: PostCheckoutLoyaltyModalProps) {
-  const [step, setStep] = useState<'auth' | 'welcome' | 'form' | 'referral' | 'success'>('auth');
+  const [step, setStep] = useState<'auth' | 'welcome' | 'form' | 'success'>('auth');
   const [currentEmail, setCurrentEmail] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     cpf: '',
     phone: '',
   });
-  const [referralCode, setReferralCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [lastCustomerId, setLastCustomerId] = useState<string | null>(null);
 
   const registerCustomer = useLoyaltyStore((s) => s.registerCustomer);
-  const registerReferralCode = useLoyaltyStore((s) => s.registerReferralCode);
   const currentCustomer = useLoyaltyStore((s) => s.currentCustomer);
   const isRemembered = useLoyaltyStore((s) => s.isRemembered);
 
@@ -51,7 +49,6 @@ export function PostCheckoutLoyaltyModal({
       setStep('auth');
       setCurrentEmail('');
       setFormData({ name: '', cpf: '', phone: '' });
-      setReferralCode('');
       setLastCustomerId(null);
     }
     onClose();
@@ -84,14 +81,10 @@ export function PostCheckoutLoyaltyModal({
       );
 
       if (success) {
-        if (currentCustomer?.id) {
-          setLastCustomerId(currentCustomer.id);
-          toast.success('✅ Cadastro realizado! Você ganhou 50 pontos + 10% de desconto!');
-          setFormData({ name: '', cpf: '', phone: '' });
-          setStep('referral');
-        } else {
-          toast.error('Erro ao recuperar dados do cliente');
-        }
+        toast.success('✅ Cadastro realizado! Você ganhou 50 pontos + 10% de desconto!');
+        setFormData({ name: '', cpf: '', phone: '' });
+        setLastCustomerId(null);
+        onClose();
       } else {
         toast.error('Erro ao registrar. Tente novamente.');
       }
@@ -104,41 +97,6 @@ export function PostCheckoutLoyaltyModal({
   };
 
   const handleSkip = () => {
-    onClose();
-  };
-
-  const handleApplyReferral = async () => {
-    if (!referralCode.trim()) {
-      toast.error('Digite um código de referência');
-      return;
-    }
-
-    if (!lastCustomerId) {
-      toast.error('Erro: cliente não identificado');
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      await registerReferralCode(referralCode, lastCustomerId);
-      toast.success('✅ Código de referência aplicado! Você ganhará 50 pontos na primeira compra.');
-      setReferralCode('');
-      setLastCustomerId(null);
-      setStep('welcome');
-      onClose();
-    } catch (error) {
-      console.error('Erro:', error);
-      toast.error('Código de referência inválido ou já utilizado');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSkipReferral = () => {
-    setReferralCode('');
-    setLastCustomerId(null);
-    setFormData({ name: '', cpf: '', phone: '' });
-    setStep('auth');
     onClose();
   };
 
@@ -419,69 +377,6 @@ export function PostCheckoutLoyaltyModal({
                 className="flex-1"
               >
                 {isLoading ? 'Cadastrando...' : 'Confirmar'}
-              </Button>
-            </DialogFooter>
-          </>
-        ) : step === 'referral' ? (
-          <>
-            <DialogHeader>
-              <div className="flex items-center justify-center gap-2 mb-4">
-                <Users className="w-8 h-8 text-primary" />
-                <DialogTitle>Indique e Ganhe!</DialogTitle>
-              </div>
-              <DialogDescription className="text-center pt-2">
-                Tem um código de referência? Aplique agora
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-4 py-4">
-              <div className="bg-blue-50 dark:bg-blue-950 rounded-lg p-4 space-y-2">
-                <div className="flex items-start gap-3">
-                  <Gift className="w-5 h-5 text-primary mt-1" />
-                  <div>
-                    <p className="font-semibold text-sm">50 Pontos de Bônus</p>
-                    <p className="text-xs text-muted-foreground">
-                      Ganhe na sua primeira compra usando o código
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="referral">Código de Referência (opcional)</Label>
-                <Input
-                  id="referral"
-                  placeholder="Cole o código aqui"
-                  value={referralCode}
-                  onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
-                  disabled={isLoading}
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter' && referralCode.trim()) {
-                      handleApplyReferral();
-                    }
-                  }}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Deixe em branco para continuar sem código
-                </p>
-              </div>
-            </div>
-
-            <DialogFooter className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={handleSkipReferral}
-                disabled={isLoading}
-                className="flex-1"
-              >
-                Agora Não
-              </Button>
-              <Button
-                onClick={handleApplyReferral}
-                disabled={isLoading || !referralCode.trim()}
-                className="flex-1"
-              >
-                {isLoading ? 'Aplicando...' : 'Aplicar Código'}
               </Button>
             </DialogFooter>
           </>
