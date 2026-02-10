@@ -40,7 +40,6 @@ export function LoyaltySettingsPanel() {
         silverThreshold: parseInt(form.silverThreshold?.toString() || '500'),
         goldThreshold: parseInt(form.goldThreshold?.toString() || '1500'),
         signupBonusPoints: parseInt(form.signupBonusPoints?.toString() || '50'),
-        referralBonusPoints: parseInt(form.referralBonusPoints?.toString() || '100'),
         pointsExpirationDays: parseInt(form.pointsExpirationDays?.toString() || '365'),
       });
 
@@ -247,17 +246,7 @@ export function LoyaltySettingsPanel() {
               />
               <p className="text-xs text-muted-foreground mt-1">Pontos concedidos ao novo cliente</p>
             </div>
-            <div>
-              <Label htmlFor="referral-bonus">Bônus de Referência</Label>
-              <Input
-                id="referral-bonus"
-                type="number"
-                value={form.referralBonusPoints || 100}
-                onChange={(e) => setForm({ ...form, referralBonusPoints: parseInt(e.target.value) })}
-                className="mt-2"
-              />
-              <p className="text-xs text-muted-foreground mt-1">Pontos concedidos ao referidor</p>
-            </div>
+
           </div>
         </div>
 
