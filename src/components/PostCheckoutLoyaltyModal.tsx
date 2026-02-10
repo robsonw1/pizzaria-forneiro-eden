@@ -71,13 +71,18 @@ export function PostCheckoutLoyaltyModal({
       return;
     }
 
+    if (!formData.phone.trim() || formData.phone.length < 14) {
+      toast.error('Preencha o telefone válido (mínimo 11 dígitos)');
+      return;
+    }
+
     setIsLoading(true);
     try {
       const success = await registerCustomer(
         currentEmail,
         formData.cpf.replace(/\D/g, ''),
         formData.name,
-        formData.phone || undefined
+        formData.phone.replace(/\D/g, '')
       );
 
       if (success) {
@@ -351,12 +356,22 @@ export function PostCheckoutLoyaltyModal({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="phone">Telefone (opcional)</Label>
+                <Label htmlFor="phone">Telefone/WhatsApp *</Label>
                 <Input
                   id="phone"
                   placeholder="(11) 99999-9999"
                   value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  onChange={(e) => {
+                    let value = e.target.value.replace(/\D/g, '');
+                    if (value.length > 11) value = value.slice(0, 11);
+                    if (value.length <= 2) {
+                      setFormData({ ...formData, phone: value });
+                    } else if (value.length <= 7) {
+                      setFormData({ ...formData, phone: `(${value.slice(0, 2)}) ${value.slice(2)}` });
+                    } else {
+                      setFormData({ ...formData, phone: `(${value.slice(0, 2)}) ${value.slice(2, 7)}-${value.slice(7)}` });
+                    }
+                  }}
                   disabled={isLoading}
                 />
               </div>
