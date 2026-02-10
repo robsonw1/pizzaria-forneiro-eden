@@ -37,6 +37,7 @@ import {
   DollarSign,
   Package,
   Users,
+  Gift,
   Edit,
   Trash2,
   Plus,
@@ -64,6 +65,7 @@ import { ScheduleSettings } from '@/components/admin/ScheduleSettings';
 import { PrintNodeSettings } from '@/components/admin/PrintNodeSettings';
 import { LoyaltySettingsPanel } from '@/components/admin/LoyaltySettingsPanel';
 import { FaithfulCustomersAdmin } from '@/components/admin/FaithfulCustomersAdmin';
+import { CouponManagementPanel } from '@/components/admin/CouponManagementPanel';
 import { toast } from 'sonner';
 import { format, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -600,6 +602,10 @@ const AdminDashboard = () => {
             <TabsTrigger value="customers" className="gap-2">
               <Users className="w-4 h-4" />
               Clientes Fiéis
+            </TabsTrigger>
+            <TabsTrigger value="coupons" className="gap-2">
+              <Gift className="w-4 h-4" />
+              Cupons
             </TabsTrigger>
           </TabsList>
 
@@ -1225,6 +1231,11 @@ const AdminDashboard = () => {
           {/* Customers Loyalty Tab */}
           <TabsContent value="customers">
             <FaithfulCustomersAdmin />
+          </TabsContent>
+
+          {/* Coupons Tab */}
+          <TabsContent value="coupons">
+            <CouponManagementPanel />
           </TabsContent>
         </Tabs>
       </div>
