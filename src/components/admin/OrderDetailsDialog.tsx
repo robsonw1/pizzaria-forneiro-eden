@@ -198,6 +198,12 @@ export function OrderDetailsDialog({ open, onOpenChange, order }: OrderDetailsDi
                 <span>-{formatPrice(order.pointsDiscount)}</span>
               </div>
             )}
+            {order.appliedCoupon && order.couponDiscount && order.couponDiscount > 0 && (
+              <div className="flex justify-between text-sm text-purple-600 font-medium">
+                <span>Desconto (Cupom {order.appliedCoupon}) </span>
+                <span>-{formatPrice(order.couponDiscount)}</span>
+              </div>
+            )}
             <div className="flex justify-between font-bold text-lg">
               <span>Total</span>
               <span className="text-primary">{formatPrice(order.total)}</span>
