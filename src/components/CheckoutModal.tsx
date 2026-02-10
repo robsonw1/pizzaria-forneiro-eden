@@ -104,6 +104,8 @@ export function CheckoutModal() {
   const [lastPointsDiscount, setLastPointsDiscount] = useState<number>(0);
   const [lastPointsRedeemed, setLastPointsRedeemed] = useState<number>(0);
   const [lastFinalTotal, setLastFinalTotal] = useState<number>(0);
+  const [lastAppliedCoupon, setLastAppliedCoupon] = useState<string>('');
+  const [lastCouponDiscount, setLastCouponDiscount] = useState<number>(0);
   const [couponCode, setCouponCode] = useState<string>('');
   const [couponDiscount, setCouponDiscount] = useState<number>(0);
   const [appliedCoupon, setAppliedCoupon] = useState<string>('');
@@ -422,6 +424,8 @@ export function CheckoutModal() {
         couponDiscount: 0,
         appliedCoupon: '',
       },
+      couponDiscount: 0,
+      appliedCoupon: undefined,
       
       // Observations
       observations: observations || '',
@@ -474,6 +478,8 @@ export function CheckoutModal() {
       total: orderPayload.totals.total, // Use final total from payload
       pointsDiscount: pointsDiscount,
       pointsRedeemed: pointsRedeemed,
+      couponDiscount: orderPayload.totals.couponDiscount,
+      appliedCoupon: orderPayload.totals.appliedCoupon,
       status: 'pending',
       observations,
     }, shouldAutoPrint);
@@ -614,6 +620,8 @@ export function CheckoutModal() {
         // Store discount info for confirmation display
         setLastPointsDiscount(pointsDiscount);
         setLastPointsRedeemed(validPointsToRedeem);
+        setLastCouponDiscount(couponDiscountAmount);
+        setLastAppliedCoupon(appliedCoupon);
         setLastFinalTotal(finalTotal);
         
         setStep('confirmation');
@@ -664,6 +672,9 @@ export function CheckoutModal() {
     // Store discount info for confirmation display
     setLastPointsDiscount(pointsDiscount);
     setLastPointsRedeemed(validPointsToRedeem);
+    const newCouponDiscountAmount = (total * couponDiscount) / 100;
+    setLastCouponDiscount(newCouponDiscountAmount);
+    setLastAppliedCoupon(appliedCoupon);
     setLastFinalTotal(finalTotal);
     
     setStep('confirmation');
@@ -685,6 +696,8 @@ export function CheckoutModal() {
     setLastPointsEarned(0);
     setLastOrderEmail('');
     setSaveAsDefault(false);
+    setLastAppliedCoupon('');
+    setLastCouponDiscount(0);
     setPointsToRedeem(0);
     setLastPointsDiscount(0);
     setLastPointsRedeemed(0);
@@ -1454,6 +1467,9 @@ export function CheckoutModal() {
                       <p><span className="text-muted-foreground">Pagamento:</span> {getPaymentMethodLabel()}</p>
                       {lastPointsDiscount > 0 && (
                         <p className="text-green-600 font-medium">Desconto (Pontos): -{formatPrice(lastPointsDiscount)}</p>
+                      )}
+                      {lastAppliedCoupon && lastCouponDiscount > 0 && (
+                        <p className="text-purple-600 font-medium">Desconto (Cupom {lastAppliedCoupon}): -{formatPrice(lastCouponDiscount)}</p>
                       )}
                       <p className="font-semibold text-primary">Total: {lastFinalTotal > 0 ? formatPrice(lastFinalTotal) : formatPrice(total)}</p>
                     </div>
