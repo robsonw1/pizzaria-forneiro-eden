@@ -648,53 +648,83 @@ export function CheckoutModal() {
   };
 
   const handlePixConfirmed = async () => {
-    // Calculate final total with points discount
-    const pointsDiscount = calculatePointsDiscount();
-    const finalTotal = total - pointsDiscount;
-    
-    // Calculate validPointsToRedeem (same validation as in handleSubmitOrder)
-    const minPointsRequired = useLoyaltySettingsStore.getState().settings?.minPointsToRedeem ?? 50;
-    const validPointsToRedeem = pointsToRedeem >= minPointsRequired ? pointsToRedeem : 0;
-    
-    // Only add loyalty points if customer is logged in
-    if (isRemembered && currentCustomer?.email) {
-      try {
-        const loyaltyCustomer = await findOrCreateCustomer(currentCustomer.email);
-        setLastOrderEmail(currentCustomer.email);
-        
-        if (loyaltyCustomer) {
-          // Add points from purchase (but only if NO points were redeemed for discount)
-          // Note: Points redemption already happened in handleSubmitOrder before PIX generation
-          const pointsEarned = Math.floor(finalTotal * 1); // 1 ponto por real
-          setLastPointsEarned(pointsEarned);
-          await addPointsFromPurchase(loyaltyCustomer.id, finalTotal, lastOrderEmail, validPointsToRedeem);
-          // Atualizar dados do cliente
-          await new Promise(resolve => setTimeout(resolve, 500));
-          await refreshCurrentCustomer();
-        }
-      } catch (error) {
-        console.error('Erro ao adicionar pontos:', error);
-      }
+    // 🔒 VALIDAÇÃO CRÍTICA: Verificar status do pagamento no Mercado Pago ANTES de adicionar pontos
+    if (!pixData?.paymentId) {
+      toast.error('ID de pagamento não identificado');
+      return;
     }
-    
-    toast.success('Pedido confirmado! Aguardando confirmação do pagamento.');
-    
-    // 🔒 CRÍTICO: Cupom já foi marcado como usado em processOrder (não duplicar aqui)
-    // O processOrder é chamado ANTES do PIX ser gerado, então não precisamos marcar novamente
-    
-    // Store discount info for confirmation display
-    setLastPointsDiscount(pointsDiscount);
-    setLastPointsRedeemed(validPointsToRedeem);
-    const newCouponDiscountAmount = (total * couponDiscount) / 100;
-    setLastCouponDiscount(newCouponDiscountAmount);
-    setLastAppliedCoupon(appliedCoupon);
-    setLastFinalTotal(finalTotal);
-    
-    setStep('confirmation');
-    
-    // Show loyalty modal for non-logged customers
-    if (!isRemembered) {
+
+    setIsProcessing(true);
+    try {
+      // 1️⃣ VERIFICAR STATUS REAL NO MERCADO PAGO
+      const mpCheckResponse = await fetch('/.netlify/functions/mercadopago-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'check_status',
+          paymentId: pixData.paymentId
+        })
+      });
+
+      const mpStatus = await mpCheckResponse.json();
+      
+      // ❌ Se pagamento NÃO foi aprovado, NÃO adiciona pontos
+      if (mpStatus.status !== 'approved') {
+        toast.error(`Pagamento não foi aprovado. Status: ${mpStatus.status}`);
+        console.warn('❌ PIX não confirmado no Mercado Pago:', mpStatus);
+        return;
+      }
+
+      console.log('✅ Pagamento confirmado no Mercado Pago:', mpStatus);
+
+      // 2️⃣ AGORA SIM: Calcular desconto e ADICIONAR PONTOS
+      const pointsDiscount = calculatePointsDiscount();
+      const finalTotal = total - pointsDiscount;
+      
+      // Calculate validPointsToRedeem (same validation as in handleSubmitOrder)
+      const minPointsRequired = useLoyaltySettingsStore.getState().settings?.minPointsToRedeem ?? 50;
+      const validPointsToRedeem = pointsToRedeem >= minPointsRequired ? pointsToRedeem : 0;
+      
+      // Only add loyalty points if customer is logged in
+      if (isRemembered && currentCustomer?.email) {
+        try {
+          const loyaltyCustomer = await findOrCreateCustomer(currentCustomer.email);
+          setLastOrderEmail(currentCustomer.email);
+          
+          if (loyaltyCustomer) {
+            // Add points from purchase (but only if NO points were redeemed for discount)
+            // Note: Points redemption already happened in handleSubmitOrder before PIX generation
+            const pointsEarned = Math.floor(finalTotal * 1); // 1 ponto por real
+            setLastPointsEarned(pointsEarned);
+            await addPointsFromPurchase(loyaltyCustomer.id, finalTotal, lastOrderEmail, validPointsToRedeem);
+            // Atualizar dados do cliente
+            await new Promise(resolve => setTimeout(resolve, 500));
+            await refreshCurrentCustomer();
+          }
+        } catch (error) {
+          console.error('Erro ao adicionar pontos:', error);
+          toast.error('Erro ao processar pontos de fidelização');
+        }
+      }
+      
+      toast.success('✅ Pedido confirmado com sucesso!');
+      
+      // Store discount info for confirmation display
+      const calculatedCouponDiscount = (total * couponDiscount) / 100;
+      setLastPointsDiscount(pointsDiscount);
+      setLastPointsRedeemed(validPointsToRedeem);
+      setLastCouponDiscount(calculatedCouponDiscount);
+      setLastAppliedCoupon(appliedCoupon);
+      setLastFinalTotal(finalTotal);
+      
+      setStep('confirmation');
       setTimeout(() => setIsLoyaltyModalOpen(true), 500);
+
+    } catch (error) {
+      console.error('Erro ao confirmar PIX:', error);
+      toast.error('Erro ao confirmar pagamento. Verifique o status da sua transação.');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
