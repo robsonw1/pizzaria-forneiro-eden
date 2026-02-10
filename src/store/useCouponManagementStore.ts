@@ -242,13 +242,16 @@ export const useCouponManagementStore = create<CouponManagementState>((set, get)
     try {
       const now = new Date().toISOString();
 
+      // 🔒 SEGURANÇA: Usar UPDATE com WHERE is_used = false
+      // Isso garante que apenas cupons não utilizados sejam marcados (evita race condition)
       const { error } = await (supabase as any)
         .from('loyalty_coupons')
         .update({
           is_used: true,
           used_at: now,
         })
-        .eq('coupon_code', couponCode.toUpperCase());
+        .eq('coupon_code', couponCode.toUpperCase())
+        .eq('is_used', false);  // ⚠️ CRÍTICO: Só marca se ainda não foi usado
 
       if (error) {
         console.error('Erro ao marcar cupom como usado:', error);
@@ -257,6 +260,7 @@ export const useCouponManagementStore = create<CouponManagementState>((set, get)
 
       // Atualizar lista
       await get().getCoupons();
+      console.log('✅ Cupom marcado como usado:', couponCode);
       return true;
     } catch (error) {
       console.error('Erro em markCouponAsUsed:', error);
