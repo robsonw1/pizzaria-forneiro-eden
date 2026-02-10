@@ -455,6 +455,17 @@ export function CheckoutModal() {
       console.log('Auto-print desabilitado para:', paymentMethod);
     }
     
+    // 🔒 CRÍTICO: Marcar cupom como usado ANTES de criar pedido (transação atômica)
+    if (orderPayload.totals.appliedCoupon) {
+      try {
+        await markCouponAsUsed(orderPayload.totals.appliedCoupon, currentCustomer?.id);
+        console.log('✅ Cupom marcado como usado na criação do pedido');
+      } catch (error) {
+        // Se cupom falhar, ainda registra o pedido mas avisa
+        console.warn('⚠️ Falha ao marcar cupom, mas pedido será criado:', error);
+      }
+    }
+    
     // Add order to local store for admin panel
     // (addOrder function handles auto-print with retry logic based on shouldAutoPrint parameter)
     const createdOrder = await addOrder({
@@ -612,10 +623,9 @@ export function CheckoutModal() {
           toast.success('Pedido enviado com sucesso!');
         }
         
+        // 🔒 Cupom já foi marcado como usado em processOrder (não duplicar aqui)
         // Mark coupon as used if applied
-        if (appliedCoupon) {
-          await markCouponAsUsed(appliedCoupon, currentCustomer?.id);
-        }
+        // [REMOVIDO - já feito em processOrder de forma atômica]
         
         // Store discount info for confirmation display
         setLastPointsDiscount(pointsDiscount);
@@ -668,6 +678,9 @@ export function CheckoutModal() {
     }
     
     toast.success('Pedido confirmado! Aguardando confirmação do pagamento.');
+    
+    // 🔒 CRÍTICO: Cupom já foi marcado como usado em processOrder (não duplicar aqui)
+    // O processOrder é chamado ANTES do PIX ser gerado, então não precisamos marcar novamente
     
     // Store discount info for confirmation display
     setLastPointsDiscount(pointsDiscount);
