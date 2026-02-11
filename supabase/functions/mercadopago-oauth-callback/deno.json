@@ -1,0 +1,11 @@
+{
+  "imports": {
+    "https://esm.sh/": "https://esm.sh/"
+  },
+  "compilerOptions": {
+    "lib": [
+      "deno.window",
+      "deno.unstable"
+    ]
+  }
+}
