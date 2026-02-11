@@ -20,70 +20,66 @@ interface MercadoPagoConnection {
 export function PaymentSettingsPanel() {
   const [tenantId, setTenantId] = useState<string | null>(null);
   const [connection, setConnection] = useState<MercadoPagoConnection | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const { connectMercadoPago, disconnectMercadoPago } = useMercadoPagoOAuth(
     tenantId || ''
   );
 
-  // Obter tenant_id do usuário logado
+  // Carregar tenant_id on mount
   useEffect(() => {
-    const loadTenantId = async () => {
+    const loadTenantInfo = async () => {
       try {
+        // Verificar se usuário está logado
         const {
           data: { user },
         } = await supabase.auth.getUser();
-        
+
         if (!user) {
-          console.error('No user logged in');
+          console.log('No user logged in');
           setIsLoading(false);
           return;
         }
 
-        // Buscar tenant relacionado ao usuário
-        const { data, error } = await supabase
+        // Buscar primeiro tenant (para admins, geralmente existe um principal)
+        const { data: tenants, error: tenantsError } = await supabase
           .from('tenants')
           .select('id')
-          .limit(1)
-          .single();
+          .limit(1);
 
-        if (error || !data?.id) {
-          console.error('Error loading tenant:', error);
+        if (tenantsError || !tenants || tenants.length === 0) {
+          console.error('Error loading tenants:', tenantsError);
           setIsLoading(false);
           return;
         }
 
-        setTenantId(data.id);
+        const foundTenantId = tenants[0].id;
+        setTenantId(foundTenantId);
       } catch (error) {
-        console.error('Unexpected error loading tenant:', error);
-        setIsLoading(false);
+        console.error('Unexpected error:', error);
       }
     };
 
-    loadTenantId();
+    loadTenantInfo();
   }, []);
 
-  // Carregar conexão atual
+  // Carregar status da conexão
   useEffect(() => {
-    const loadConnection = async () => {
-      if (!tenantId) {
-        setIsLoading(false);
-        return;
-      }
+    if (!tenantId) {
+      setIsLoading(false);
+      return;
+    }
 
+    const loadConnection = async () => {
       try {
         setIsLoading(true);
-        const { data: tenant, error } = await supabase
+        const { data: tenant } = await supabase
           .from('tenants')
           .select('*')
           .eq('id', tenantId)
           .single();
 
-        if (error) {
-          console.error('Error loading connection:', error);
-          setConnection(null);
-        } else if (tenant) {
-          // Safe access com fallback
+        if (tenant) {
           const tenantData = tenant as Record<string, any>;
           const connData: MercadoPagoConnection = {
             mercadopago_access_token: tenantData.mercadopago_access_token || null,
@@ -95,7 +91,8 @@ export function PaymentSettingsPanel() {
           setConnection(connData);
         }
       } catch (error) {
-        console.error('Unexpected error loading connection:', error);
+        console.error('Error loading connection:', error);
+        // Não mostra erro, apenas continua
         setConnection(null);
       } finally {
         setIsLoading(false);
@@ -151,14 +148,7 @@ export function PaymentSettingsPanel() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {!tenantId ? (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                Erro ao carregar sua conta. Por favor, faça login novamente.
-              </AlertDescription>
-            </Alert>
-          ) : isLoading ? (
+          {isLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
             </div>
