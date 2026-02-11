@@ -99,6 +99,7 @@ export function CheckoutModal() {
   const [pixData, setPixData] = useState<PixData | null>(null);
   const [copied, setCopied] = useState(false);
   const [isLoyaltyModalOpen, setIsLoyaltyModalOpen] = useState(false);
+  const [lastOrderId, setLastOrderId] = useState<string>('');
   const [lastOrderEmail, setLastOrderEmail] = useState<string>('');
   const [lastPointsEarned, setLastPointsEarned] = useState<number>(0);
   const [lastPointsDiscount, setLastPointsDiscount] = useState<number>(0);
@@ -507,6 +508,7 @@ export function CheckoutModal() {
     
     setIsProcessing(true);
     const orderId = `PED-${Date.now().toString().slice(-5)}`;
+    setLastOrderId(orderId);
     
     // Calculate final total with points discount and coupon discount
     const minPointsRequired = useLoyaltySettingsStore.getState().settings?.minPointsToRedeem ?? 50;
@@ -654,32 +656,42 @@ export function CheckoutModal() {
       return;
     }
 
+    if (!lastOrderId) {
+      toast.error('ID do pedido não encontrado');
+      return;
+    }
+
     setIsProcessing(true);
     try {
-      // 1️⃣ VERIFICAR STATUS REAL NO MERCADO PAGO
-      const mpCheckResponse = await fetch('/.netlify/functions/mercadopago-payment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'check_status',
-          paymentId: pixData.paymentId
-        })
+      // 1️⃣ VALIDAR PAGAMENTO NA EDGE FUNCTION
+      console.log('🔄 Validando pagamento no Mercado Pago...', {
+        paymentId: pixData.paymentId,
+        orderId: lastOrderId
       });
 
-      const mpStatus = await mpCheckResponse.json();
-      
-      // ❌ Se pagamento NÃO foi aprovado, NÃO adiciona pontos
-      if (mpStatus.status !== 'approved') {
-        toast.error(`Pagamento não foi aprovado. Status: ${mpStatus.status}`);
-        console.warn('❌ PIX não confirmado no Mercado Pago:', mpStatus);
+      const { data: validationData, error: validationError } = await supabase.functions.invoke(
+        'validate-pix-payment',
+        {
+          body: {
+            paymentId: pixData.paymentId,
+            orderId: lastOrderId
+          }
+        }
+      );
+
+      if (validationError || !validationData?.success) {
+        const errorMsg = validationData?.error || validationError?.message || 'Erro ao validar pagamento';
+        toast.error(errorMsg);
+        console.error('❌ Validação falhou:', { validationData, validationError });
         return;
       }
 
-      console.log('✅ Pagamento confirmado no Mercado Pago:', mpStatus);
+      console.log('✅ Pagamento validado e aprovado:', validationData);
 
       // 2️⃣ AGORA SIM: Calcular desconto e ADICIONAR PONTOS
       const pointsDiscount = calculatePointsDiscount();
-      const finalTotal = total - pointsDiscount;
+      const couponDiscountAmount = (total * couponDiscount) / 100; // Cupom é percentual
+      const finalTotal = total - pointsDiscount - couponDiscountAmount;
       
       // Calculate validPointsToRedeem (same validation as in handleSubmitOrder)
       const minPointsRequired = useLoyaltySettingsStore.getState().settings?.minPointsToRedeem ?? 50;
@@ -710,10 +722,9 @@ export function CheckoutModal() {
       toast.success('✅ Pedido confirmado com sucesso!');
       
       // Store discount info for confirmation display
-      const calculatedCouponDiscount = (total * couponDiscount) / 100;
       setLastPointsDiscount(pointsDiscount);
       setLastPointsRedeemed(validPointsToRedeem);
-      setLastCouponDiscount(calculatedCouponDiscount);
+      setLastCouponDiscount(couponDiscountAmount);
       setLastAppliedCoupon(appliedCoupon);
       setLastFinalTotal(finalTotal);
       
