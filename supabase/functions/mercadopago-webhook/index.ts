@@ -29,26 +29,24 @@ async function validateWebhookSignature(body: string, signature: string): Promis
   }
 }
 
-// Obter token de acesso (customer ou fallback do sistema)
-async function getAccessToken(supabase: any, customerId?: string): Promise<string> {
+// Obter token de acesso (tenant ou fallback do sistema)
+async function getAccessToken(supabase: any): Promise<string> {
   const fallbackToken = Deno.env.get('MERCADO_PAGO_ACCESS_TOKEN');
 
-  // Se tiver customerId, tenta buscar token do cliente
-  if (customerId) {
-    try {
-      const { data } = await supabase
-        .from('tenants')
-        .select('mercadopago_access_token')
-        .eq('id', customerId)
-        .single();
+  // Tentar buscar token do primeiro/único tenant
+  try {
+    const { data } = await supabase
+      .from('tenants')
+      .select('id, mercadopago_access_token')
+      .limit(1)
+      .single();
 
-      if (data?.mercadopago_access_token) {
-        console.log(`✅ Usando token do cliente: ${customerId}`);
-        return data.mercadopago_access_token;
-      }
-    } catch (error) {
-      console.warn(`⚠️ Erro ao buscar token do cliente ${customerId}:`, error);
+    if (data?.mercadopago_access_token) {
+      console.log(`✅ Usando token do tenant: ${data.id}`);
+      return data.mercadopago_access_token;
     }
+  } catch (error) {
+    console.warn('⚠️ Nenhum tenant encontrado ou sem token configurado:', error);
   }
 
   if (!fallbackToken) {
