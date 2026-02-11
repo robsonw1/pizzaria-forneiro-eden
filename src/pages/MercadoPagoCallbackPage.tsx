@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/supabase-client';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 export function MercadoPagoCallbackPage() {
