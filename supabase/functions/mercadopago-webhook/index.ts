@@ -1,18 +1,12 @@
-// @ts-ignore - Deno imports are dynamically resolved at runtime
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-
-declare const Deno: {
-  env: {
-    get(name: string): string | undefined;
-  };
-};
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Validate webhook signature using HMAC-SHA256
+// Validate webhook signature
 async function validateWebhookSignature(body: string, signature: string): Promise<boolean> {
   const webhookSecret = Deno.env.get('MERCADO_PAGO_WEBHOOK_SECRET');
   
@@ -23,24 +17,10 @@ async function validateWebhookSignature(body: string, signature: string): Promis
 
   try {
     const encoder = new TextEncoder();
-    const keyData = encoder.encode(webhookSecret);
-    const bodyData = encoder.encode(body);
-    
-    // Use HMAC-SHA256 instead of plain SHA-256
-    const key = await crypto.subtle.importKey(
-      'raw',
-      keyData,
-      { name: 'HMAC', hash: 'SHA-256' },
-      false,
-      ['sign']
-    );
-    
-    const hashBuffer = await crypto.subtle.sign('HMAC', key, bodyData);
+    const data = encoder.encode(body + webhookSecret);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     const computedSignature = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    
-    console.log('Computed signature:', computedSignature);
-    console.log('Received signature:', signature);
     
     return computedSignature === signature;
   } catch (error) {
@@ -49,47 +29,78 @@ async function validateWebhookSignature(body: string, signature: string): Promis
   }
 }
 
-serve(async (req: Request) => {
+// Obter token de acesso (customer ou fallback do sistema)
+async function getAccessToken(supabase: any, customerId?: string): Promise<string> {
+  const fallbackToken = Deno.env.get('MERCADO_PAGO_ACCESS_TOKEN');
+
+  // Se tiver customerId, tenta buscar token do cliente
+  if (customerId) {
+    try {
+      const { data } = await supabase
+        .from('tenants')
+        .select('mercadopago_access_token')
+        .eq('id', customerId)
+        .single();
+
+      if (data?.mercadopago_access_token) {
+        console.log(`✅ Usando token do cliente: ${customerId}`);
+        return data.mercadopago_access_token;
+      }
+    } catch (error) {
+      console.warn(`⚠️ Erro ao buscar token do cliente ${customerId}:`, error);
+    }
+  }
+
+  if (!fallbackToken) {
+    throw new Error('MERCADO_PAGO_ACCESS_TOKEN not configured');
+  }
+
+  console.log('⚠️ Usando token do sistema (fallback)');
+  return fallbackToken;
+}
+
+serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const accessToken = Deno.env.get('MERCADO_PAGO_ACCESS_TOKEN');
-    
-    if (!accessToken) {
-      console.error('MERCADO_PAGO_ACCESS_TOKEN not configured');
-      return new Response(JSON.stringify({ error: 'Access token not configured' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') || '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+    );
 
     const body = await req.text();
     const signature = req.headers.get('x-signature') || '';
     
-    console.log('Webhook request received');
-    console.log('Body length:', body.length);
-    console.log('Signature header present:', !!signature);
-    
-    // Validate signature (disabled for testing - remove this comment in production)
+    // Validate signature
     const isValid = await validateWebhookSignature(body, signature);
-    console.log('Signature validation result:', isValid);
-    // Skip signature validation temporarily for debugging
-    // if (!isValid) {
-    //   console.warn('Invalid webhook signature detected');
-    //   return new Response(JSON.stringify({ error: 'Invalid signature' }), {
-    //     status: 401,
-    //     headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    //   });
-    // }
+    if (!isValid) {
+      console.warn('❌ Invalid webhook signature');
+      return new Response(JSON.stringify({ error: 'Invalid signature' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
 
     const payloadData = JSON.parse(body);
-    console.log('Webhook received:', JSON.stringify(payloadData, null, 2));
+    console.log('📨 Webhook received:', JSON.stringify(payloadData, null, 2));
 
     // Handle payment notification
     if (payloadData.type === 'payment' && payloadData.data?.id) {
       const paymentId = payloadData.data.id;
+      
+      // Obter token de acesso (tenta do cliente, fallback para sistema)
+      let accessToken;
+      try {
+        accessToken = await getAccessToken(supabase);
+      } catch (error) {
+        console.error('❌ Erro ao obter token de acesso:', error);
+        return new Response(JSON.stringify({ error: 'No access token available' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
       
       // Get payment details from Mercado Pago
       const paymentResponse = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
@@ -98,11 +109,16 @@ serve(async (req: Request) => {
         }
       });
 
+      if (!paymentResponse.ok) {
+        throw new Error(`Failed to fetch payment details: ${paymentResponse.statusText}`);
+      }
+
       const paymentData = await paymentResponse.json();
-      console.log('Payment data:', JSON.stringify(paymentData, null, 2));
+      console.log('💳 Payment data:', JSON.stringify(paymentData, null, 2));
 
       const orderId = paymentData.external_reference;
       const status = paymentData.status;
+      const mpStatus = paymentData.status;
 
       // Map Mercado Pago status to our status
       const statusMap: Record<string, string> = {
@@ -114,10 +130,40 @@ serve(async (req: Request) => {
         'refunded': 'reembolsado'
       };
 
-      console.log(`Order ${orderId} payment status: ${status} (${statusMap[status] || status})`);
+      const mappedStatus = statusMap[status] || status;
+      console.log(`📋 Order ${orderId} payment status: ${status} → ${mappedStatus}`);
 
-      // Here you could update order status in database if needed
-      // For now, we just log it
+      // ============================================================
+      // 🔄 UPDATE ORDER STATUS NO BANCO
+      // ============================================================
+      if (orderId) {
+        try {
+          const { error: updateError } = await supabase
+            .from('orders')
+            .update({
+              payment_status: mpStatus,
+              payment_confirmed_at: status === 'approved' ? new Date().toISOString() : null,
+              mercado_pago_id: paymentId.toString(),
+            })
+            .eq('id', orderId);
+
+          if (updateError) {
+            console.error(`❌ Erro ao atualizar order ${orderId}:`, updateError);
+          } else {
+            console.log(`✅ Order ${orderId} atualizado com status: ${mpStatus}`);
+          }
+        } catch (error) {
+          console.error(`❌ Exception ao atualizar order ${orderId}:`, error);
+        }
+      }
+
+      // ============================================================
+      // 📧 NOTIFICAÇÕES - TODO para desenvolvimentos futuros
+      // ============================================================
+      // Se rejection, notificar admin
+      if (status === 'rejected') {
+        console.warn(`⚠️ Pagamento rejeitado - Order ${orderId}. Considerar notificação ao admin.`);
+      }
     }
 
     return new Response(JSON.stringify({ received: true }), {
@@ -125,7 +171,7 @@ serve(async (req: Request) => {
     });
 
   } catch (error: unknown) {
-    console.error('Webhook error:', error);
+    console.error('❌ Webhook error:', error);
     const message = error instanceof Error ? error.message : 'Unknown error';
     return new Response(JSON.stringify({ error: message }), {
       status: 500,
