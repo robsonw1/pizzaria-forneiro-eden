@@ -29,8 +29,16 @@ export const useMercadoPagoOAuth = (tenantId: string): UseMercadoPagoOAuthReturn
         return;
       }
 
+      if (!tenantId || tenantId.trim() === '') {
+        toast.error('Estabelecimento não encontrado');
+        return;
+      }
+
       // 1. Gerar state aleatório
       const state = generateRandomState();
+
+      console.log('Updating tenant with ID:', tenantId);
+      console.log('State value:', state);
 
       // 2. Armazenar state no tenant (para validação após callback)
       const { error: updateError } = await supabase
@@ -39,7 +47,8 @@ export const useMercadoPagoOAuth = (tenantId: string): UseMercadoPagoOAuthReturn
         .eq('id', tenantId);
 
       if (updateError) {
-        toast.error('Erro ao preparar autenticação');
+        console.error('Update error:', updateError);
+        toast.error(`Erro ao preparar autenticação: ${updateError.message}`);
         return;
       }
 
