@@ -30,33 +30,30 @@ export function PaymentSettingsPanel() {
   useEffect(() => {
     const loadTenantInfo = async () => {
       try {
-        // Verificar se usuário está logado
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
-        if (!user) {
-          console.log('No user logged in');
-          setIsLoading(false);
-          return;
-        }
-
-        // Buscar primeiro tenant (para admins, geralmente existe um principal)
+        // Buscar primeiro tenant (sem dependência de auth)
         const { data: tenants, error: tenantsError } = await supabase
           .from('tenants')
           .select('id')
           .limit(1);
 
-        if (tenantsError || !tenants || tenants.length === 0) {
+        if (tenantsError) {
           console.error('Error loading tenants:', tenantsError);
           setIsLoading(false);
           return;
         }
 
+        if (!tenants || tenants.length === 0) {
+          console.log('No tenants found');
+          setIsLoading(false);
+          return;
+        }
+
         const foundTenantId = tenants[0].id;
+        console.log('Tenant ID loaded:', foundTenantId);
         setTenantId(foundTenantId);
       } catch (error) {
         console.error('Unexpected error:', error);
+        setIsLoading(false);
       }
     };
 
