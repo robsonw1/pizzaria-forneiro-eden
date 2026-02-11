@@ -18,6 +18,7 @@ interface TenantData {
 export function PaymentSettingsPanel() {
   const [tenantId, setTenantId] = useState<string | null>(null);
   const [token, setToken] = useState<string>('');
+  const [savedToken, setSavedToken] = useState<string>(''); // Token salvo no DB
   const [displayToken, setDisplayToken] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -46,10 +47,16 @@ export function PaymentSettingsPanel() {
         setTenantId(tenant.id);
         
         if (tenant.mercadopago_access_token) {
-          setToken(tenant.mercadopago_access_token);
+          const fullToken = tenant.mercadopago_access_token;
+          setSavedToken(fullToken);
+          setToken(fullToken);
           // Mostrar apenas últimos 20 caracteres
-          const lastChars = tenant.mercadopago_access_token.slice(-20);
+          const lastChars = fullToken.slice(-20);
           setDisplayToken(`...${lastChars}`);
+        } else {
+          setSavedToken('');
+          setToken('');
+          setDisplayToken('');
         }
       } catch (error) {
         console.error('Error loading tenant:', error);
@@ -62,7 +69,7 @@ export function PaymentSettingsPanel() {
     loadTenantInfo();
   }, []);
 
-  const isConnected = !!token;
+  const isConnected = !!savedToken;
 
   const handleSaveToken = async () => {
     if (!token.trim()) {
@@ -89,6 +96,7 @@ export function PaymentSettingsPanel() {
 
       if (error) throw error;
 
+      setSavedToken(token);
       setDisplayToken(`...${token.slice(-20)}`);
       setShowTokenInput(false);
       toast.success('Token Mercado Pago salvo com sucesso!');
@@ -120,6 +128,7 @@ export function PaymentSettingsPanel() {
 
       if (error) throw error;
 
+      setSavedToken('');
       setToken('');
       setDisplayToken('');
       setShowTokenInput(false);
@@ -224,12 +233,23 @@ export function PaymentSettingsPanel() {
               </div>
             </>
           ) : (
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                Nenhum token configurado. Adicione um Access Token do Mercado Pago para começar a receber pagamentos.
-              </AlertDescription>
-            </Alert>
+            <>
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Nenhum token configurado. Adicione um Access Token do Mercado Pago para começar a receber pagamentos.
+                </AlertDescription>
+              </Alert>
+
+              {!showTokenInput && (
+                <Button
+                  onClick={() => setShowTokenInput(true)}
+                  className="w-full"
+                >
+                  Adicionar Token
+                </Button>
+              )}
+            </>
           )}
 
           {showTokenInput && (
@@ -270,7 +290,7 @@ export function PaymentSettingsPanel() {
                 <Button
                   onClick={() => {
                     setShowTokenInput(false);
-                    setToken(token || ''); // Reset ao salvo
+                    setToken(savedToken); // Reset ao token salvo
                   }}
                   variant="outline"
                   className="flex-1"
