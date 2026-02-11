@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, AlertCircle, CheckCircle2, LogOut } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/supabase-client';
+import { supabase } from '@/integrations/supabase/client';
 import { useMercadoPagoOAuth } from '@/hooks/use-mercadopago-oauth';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
