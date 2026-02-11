@@ -45,6 +45,7 @@ import {
   XCircle,
   Sun,
   Moon,
+  CreditCard,
 } from 'lucide-react';
 import {
   Product,
@@ -66,6 +67,7 @@ import { PrintNodeSettings } from '@/components/admin/PrintNodeSettings';
 import { LoyaltySettingsPanel } from '@/components/admin/LoyaltySettingsPanel';
 import { FaithfulCustomersAdmin } from '@/components/admin/FaithfulCustomersAdmin';
 import { CouponManagementPanel } from '@/components/admin/CouponManagementPanel';
+import { PaymentSettingsPanel } from '@/components/admin/PaymentSettingsPanel';
 import { toast } from 'sonner';
 import { format, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -607,6 +609,10 @@ const AdminDashboard = () => {
               <Gift className="w-4 h-4" />
               Cupons
             </TabsTrigger>
+            <TabsTrigger value="payments" className="gap-2">
+              <CreditCard className="w-4 h-4" />
+              Pagamentos
+            </TabsTrigger>
           </TabsList>
 
           {/* Overview Tab */}
@@ -930,6 +936,11 @@ const AdminDashboard = () => {
                                   -{formatPrice(order.pointsDiscount)} (pontos)
                                 </span>
                               )}
+                              {order.appliedCoupon && order.couponDiscount && order.couponDiscount > 0 && (
+                                <span className="text-xs text-purple-600 font-medium">
+                                  -{formatPrice(order.couponDiscount)} ({order.appliedCoupon})
+                                </span>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell>
@@ -1236,6 +1247,11 @@ const AdminDashboard = () => {
           {/* Coupons Tab */}
           <TabsContent value="coupons">
             <CouponManagementPanel />
+          </TabsContent>
+
+          {/* Payments Tab */}
+          <TabsContent value="payments">
+            <PaymentSettingsPanel />
           </TabsContent>
         </Tabs>
       </div>
