@@ -372,6 +372,13 @@ export type Database = {
           slug: string
           created_at: string
           updated_at: string
+          mercadopago_access_token: string | null
+          mercadopago_refresh_token: string | null
+          mercadopago_user_id: string | null
+          mercadopago_merchant_account_id: string | null
+          mercadopago_connected_at: string | null
+          mercadopago_token_expires_at: string | null
+          mercadopago_oauth_state: string | null
         }
         Insert: {
           id?: string
@@ -379,6 +386,13 @@ export type Database = {
           slug: string
           created_at?: string
           updated_at?: string
+          mercadopago_access_token?: string | null
+          mercadopago_refresh_token?: string | null
+          mercadopago_user_id?: string | null
+          mercadopago_merchant_account_id?: string | null
+          mercadopago_connected_at?: string | null
+          mercadopago_token_expires_at?: string | null
+          mercadopago_oauth_state?: string | null
         }
         Update: {
           id?: string
@@ -386,6 +400,13 @@ export type Database = {
           slug?: string
           created_at?: string
           updated_at?: string
+          mercadopago_access_token?: string | null
+          mercadopago_refresh_token?: string | null
+          mercadopago_user_id?: string | null
+          mercadopago_merchant_account_id?: string | null
+          mercadopago_connected_at?: string | null
+          mercadopago_token_expires_at?: string | null
+          mercadopago_oauth_state?: string | null
         }
         Relationships: []
       }
