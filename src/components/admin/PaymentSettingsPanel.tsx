@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, AlertCircle, CheckCircle2, LogOut } from 'lucide-react';
+import { Loader2, AlertCircle, CheckCircle2, LogOut, CreditCard } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useMercadoPagoOAuth } from '@/hooks/use-mercadopago-oauth';
 import { formatDistanceToNow } from 'date-fns';
@@ -108,11 +108,7 @@ export function PaymentSettingsPanel() {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
-                <img
-                  src="https://www.mercadopago.com/org-img/MP3/home/logo.png"
-                  alt="Mercado Pago"
-                  className="h-6 w-auto"
-                />
+                <CreditCard className="w-5 h-5" />
                 Mercado Pago
               </CardTitle>
               <CardDescription>
@@ -214,11 +210,7 @@ export function PaymentSettingsPanel() {
                         </>
                       ) : (
                         <>
-                          <img
-                            src="https://www.mercadopago.com/org-img/MP3/home/logo.png"
-                            alt="Mercado Pago"
-                            className="h-4 w-auto mr-2"
-                          />
+                          <CreditCard className="w-4 h-4 mr-2" />
                           Conectar Mercado Pago
                         </>
                       )}
