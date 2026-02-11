@@ -20,7 +20,7 @@ interface MercadoPagoConnection {
 export function PaymentSettingsPanel() {
   const [tenantId, setTenantId] = useState<string | null>(null);
   const [connection, setConnection] = useState<MercadoPagoConnection | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const { connectMercadoPago, disconnectMercadoPago } = useMercadoPagoOAuth(
     tenantId || ''
@@ -33,15 +33,30 @@ export function PaymentSettingsPanel() {
         const {
           data: { user },
         } = await supabase.auth.getUser();
-        if (!user) return;
-
-        // Assumindo que tenants.id é armazenado em custom claims or via RLS
-        const { data } = await supabase.from('tenants').select('id').limit(1).single();
-        if (data?.id) {
-          setTenantId(data.id);
+        
+        if (!user) {
+          console.error('No user logged in');
+          setIsLoading(false);
+          return;
         }
+
+        // Buscar tenant relacionado ao usuário
+        const { data, error } = await supabase
+          .from('tenants')
+          .select('id')
+          .limit(1)
+          .single();
+
+        if (error || !data?.id) {
+          console.error('Error loading tenant:', error);
+          setIsLoading(false);
+          return;
+        }
+
+        setTenantId(data.id);
       } catch (error) {
-        console.error('Error loading tenant:', error);
+        console.error('Unexpected error loading tenant:', error);
+        setIsLoading(false);
       }
     };
 
@@ -51,22 +66,37 @@ export function PaymentSettingsPanel() {
   // Carregar conexão atual
   useEffect(() => {
     const loadConnection = async () => {
-      if (!tenantId) return;
+      if (!tenantId) {
+        setIsLoading(false);
+        return;
+      }
 
       try {
         setIsLoading(true);
-        const { data, error } = await supabase
+        const { data: tenant, error } = await supabase
           .from('tenants')
-          .select(
-            'mercadopago_access_token, mercadopago_user_id, mercadopago_connected_at, mercadopago_token_expires_at, mercadopago_merchant_account_id'
-          )
+          .select('*')
           .eq('id', tenantId)
           .single();
 
-        if (error) throw error;
-        setConnection(data);
+        if (error) {
+          console.error('Error loading connection:', error);
+          setConnection(null);
+        } else if (tenant) {
+          // Safe access com fallback
+          const tenantData = tenant as Record<string, any>;
+          const connData: MercadoPagoConnection = {
+            mercadopago_access_token: tenantData.mercadopago_access_token || null,
+            mercadopago_user_id: tenantData.mercadopago_user_id || null,
+            mercadopago_connected_at: tenantData.mercadopago_connected_at || null,
+            mercadopago_token_expires_at: tenantData.mercadopago_token_expires_at || null,
+            mercadopago_merchant_account_id: tenantData.mercadopago_merchant_account_id || null,
+          };
+          setConnection(connData);
+        }
       } catch (error) {
-        console.error('Error loading connection:', error);
+        console.error('Unexpected error loading connection:', error);
+        setConnection(null);
       } finally {
         setIsLoading(false);
       }
@@ -121,7 +151,14 @@ export function PaymentSettingsPanel() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {isLoading ? (
+          {!tenantId ? (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Erro ao carregar sua conta. Por favor, faça login novamente.
+              </AlertDescription>
+            </Alert>
+          ) : isLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
             </div>
