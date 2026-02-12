@@ -5,17 +5,25 @@ import { useLoyaltyStore } from '@/store/useLoyaltyStore';
 /**
  * Hook que sincroniza dados de loyalty do cliente em tempo real
  * Escuta mudanças na tabela de customers, transactions e coupons
+ * Com fallback de polling a cada 5 segundos
  */
 export const useLoyaltyRealtimeSync = () => {
   const currentCustomer = useLoyaltyStore((s) => s.currentCustomer);
   const getTransactionHistory = useLoyaltyStore((s) => s.getTransactionHistory);
   const getCoupons = useLoyaltyStore((s) => s.getCoupons);
+  const refreshCurrentCustomer = useLoyaltyStore((s) => s.refreshCurrentCustomer);
 
   useEffect(() => {
-    if (!currentCustomer?.id) return;
+    if (!currentCustomer?.id) {
+      console.log('❌ Nenhum cliente logado para sincronizar');
+      return;
+    }
 
     let isMounted = true;
+    let pollingInterval: NodeJS.Timeout | null = null;
     const customerId = currentCustomer.id;
+
+    console.log('🔄 Iniciando realtime sync para cliente:', customerId);
 
     try {
       // Subscribe to customer changes
@@ -30,7 +38,11 @@ export const useLoyaltyRealtimeSync = () => {
           },
           async (payload: any) => {
             if (!isMounted) return;
-            console.log('👤 Customer updated:', payload.new);
+            console.log('👤 Customer atualizado via REALTIME:', {
+              totalPoints: payload.new.total_points,
+              totalSpent: payload.new.total_spent,
+              totalPurchases: payload.new.total_purchases
+            });
             
             const mapCustomerFromDB = (dbData: any) => ({
               id: dbData.id,
@@ -55,7 +67,7 @@ export const useLoyaltyRealtimeSync = () => {
           }
         )
         .subscribe((status) => {
-          console.log('Customer subscription status:', status);
+          console.log('👤 Subscription status (customers):', status);
         });
 
       // Subscribe to transactions changes
@@ -70,7 +82,7 @@ export const useLoyaltyRealtimeSync = () => {
           },
           async (payload: any) => {
             if (!isMounted) return;
-            console.log('📊 Transaction updated:', payload.new);
+            console.log('📊 Transaction atualizada via REALTIME:', payload.new);
             
             const transactions = await getTransactionHistory(customerId);
             useLoyaltyStore.setState(state => ({
@@ -80,7 +92,7 @@ export const useLoyaltyRealtimeSync = () => {
           }
         )
         .subscribe((status) => {
-          console.log('Transactions subscription status:', status);
+          console.log('📊 Subscription status (transactions):', status);
         });
 
       // Subscribe to coupons changes
@@ -95,7 +107,7 @@ export const useLoyaltyRealtimeSync = () => {
           },
           async (payload: any) => {
             if (!isMounted) return;
-            console.log('🎁 Coupon updated:', payload.new);
+            console.log('🎁 Coupon atualizado via REALTIME:', payload.new);
             
             const coupons = await getCoupons(customerId);
             useLoyaltyStore.setState(state => ({
@@ -105,18 +117,30 @@ export const useLoyaltyRealtimeSync = () => {
           }
         )
         .subscribe((status) => {
-          console.log('Coupons subscription status:', status);
+          console.log('🎁 Subscription status (coupons):', status);
         });
+
+      // FALLBACK: Polling a cada 5 segundos como garantia
+      // Se o realtime falhar, isso garante sincronização
+      pollingInterval = setInterval(async () => {
+        if (!isMounted) return;
+        console.log('⏱️ Polling de sincronização...');
+        await refreshCurrentCustomer();
+      }, 5000);
+
+      console.log('✅ Realtime sync iniciado com polling fallback');
 
       return () => {
         isMounted = false;
+        if (pollingInterval) clearInterval(pollingInterval);
         supabase.removeChannel(customerChannel);
         supabase.removeChannel(transactionsChannel);
         supabase.removeChannel(couponsChannel);
+        console.log('🛑 Realtime sync finalizado');
       };
     } catch (error) {
-      console.error('Erro ao iniciar realtime sync:', error);
+      console.error('❌ Erro ao iniciar realtime sync:', error);
       return () => {};
     }
-  }, [currentCustomer?.id, getTransactionHistory, getCoupons]);
+  }, [currentCustomer?.id, getTransactionHistory, getCoupons, refreshCurrentCustomer]);
 };
