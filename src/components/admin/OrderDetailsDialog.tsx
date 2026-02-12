@@ -17,6 +17,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Order } from '@/data/products';
 import { useOrdersStore } from '@/store/useOrdersStore';
+import { useLoyaltyStore } from '@/store/useLoyaltyStore';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -51,6 +52,7 @@ interface OrderDetailsDialogProps {
 
 export function OrderDetailsDialog({ open, onOpenChange, order }: OrderDetailsDialogProps) {
   const updateOrderStatus = useOrdersStore((s) => s.updateOrderStatus);
+  const refreshCurrentCustomer = useLoyaltyStore((s) => s.refreshCurrentCustomer);
   const [isConfirmingPayment, setIsConfirmingPayment] = useState(false);
 
   if (!order) return null;
@@ -98,6 +100,9 @@ export function OrderDetailsDialog({ open, onOpenChange, order }: OrderDetailsDi
 
       // Atualizar status do pedido no store (a função já atualizou no BD)
       await updateOrderStatus(order.id, 'confirmed');
+      
+      // Refrescar dados do cliente em tempo real (pontos, totais, etc)
+      await refreshCurrentCustomer();
       
       // Disparar um pequeno delay para garantir sincronização
       await new Promise(r => setTimeout(r, 500));
