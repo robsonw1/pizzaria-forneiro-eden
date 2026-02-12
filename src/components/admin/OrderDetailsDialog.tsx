@@ -101,17 +101,27 @@ export function OrderDetailsDialog({ open, onOpenChange, order }: OrderDetailsDi
       // Atualizar status do pedido no store (a função já atualizou no BD)
       await updateOrderStatus(order.id, 'confirmed');
       
-      // Refrescar dados do cliente em tempo real (pontos, totais, etc)
+      // Refrescar dados do cliente IMEDIATAMENTE
+      console.log('🔄 Iniciando refresh de dados do cliente...');
       await refreshCurrentCustomer();
+      console.log('✅ Refresh concluído');
       
-      // Disparar um pequeno delay para garantir sincronização
-      await new Promise(r => setTimeout(r, 500));
+      // Aguardar um segundo para garantir propagação de realtime
+      await new Promise(r => setTimeout(r, 1000));
+      
+      // Fazer um segundo refresh como fallback (garante sincronização)
+      console.log('🔄 Fazendo segundo refresh como fallback...');
+      await refreshCurrentCustomer();
+      console.log('✅ Segundo refresh concluído');
       
       toast.success(data?.message || '✅ Pagamento confirmado e pontos adicionados!');
-      onOpenChange(false); // Fechar dialog após sucesso
+      
+      // Fechar dialog após sucesso
+      await new Promise(r => setTimeout(r, 500));
+      onOpenChange(false);
       
     } catch (error) {
-      console.error('Erro ao confirmar pagamento:', error);
+      console.error('❌ Erro crítico ao confirmar pagamento:', error);
       toast.error('Erro ao confirmar pagamento. Tente novamente.');
     } finally {
       setIsConfirmingPayment(false);
