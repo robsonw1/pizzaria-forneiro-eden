@@ -51,6 +51,29 @@ Deno.serve(async (req) => {
 
     console.log('🔄 Confirmando pagamento e adicionando pontos...', { orderId, customerId, amount });
 
+    // 0️⃣ Buscar a ordem para obter customer_id se não foi fornecido
+    const { data: orderData, error: orderFetchError } = await supabase
+      .from('orders')
+      .select('customer_id, customer_email, customer_name, customer_phone')
+      .eq('id', orderId)
+      .single();
+
+    if (orderFetchError || !orderData) {
+      console.error('❌ Pedido não encontrado:', orderFetchError);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Pedido não encontrado' 
+        }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Usar customer_id do pedido se não foi fornecido
+    const finalCustomerId = customerId || orderData.customer_id;
+
+    console.log('📋 Pedido encontrado:', { orderId, finalCustomerId, customerName: orderData.customer_name });
+
     // 1️⃣ Atualizar status do pedido para 'confirmado'
     const { error: updateError } = await supabase
       .from('orders')
@@ -71,7 +94,7 @@ Deno.serve(async (req) => {
     console.log('✅ Status do pedido atualizado para confirmado');
 
     // 2️⃣ Adicionar pontos se cliente existe
-    if (customerId && amount > 0) {
+    if (finalCustomerId && amount > 0) {
       try {
         // Buscar configurações de pontos
         const { data: settingsData } = await supabase
@@ -100,13 +123,18 @@ Deno.serve(async (req) => {
         const { data: customerData, error: fetchError } = await supabase
           .from('customers')
           .select('total_points, total_spent, total_purchases, last_purchase_at')
-          .eq('id', customerId)
+          .eq('id', finalCustomerId)
           .single();
 
         if (fetchError) {
-          console.warn('⚠️ Cliente não encontrado em loyalty_transactions. Criando nova entrada...');
-          // Se cliente não existe ainda, será criado pela primeira vez
-          // Isso pode acontecer se cliente não estava logado
+          console.warn('⚠️ Cliente não encontrado. Pulando adição de pontos...', fetchError);
+          return new Response(
+            JSON.stringify({ 
+              success: true, 
+              message: 'Pagamento confirmado. Cliente não encontrado no sistema de lealdade.' 
+            }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
         }
 
         const newTotalPoints = (customerData?.total_points || 0) + pointsEarned;
@@ -128,11 +156,11 @@ Deno.serve(async (req) => {
             total_purchases: newTotalPurchases,
             last_purchase_at: localISO,
           })
-          .eq('id', customerId);
+          .eq('id', finalCustomerId);
 
         // Registrar transação de pontos
         await supabase.from('loyalty_transactions').insert([{
-          customer_id: customerId,
+          customer_id: finalCustomerId,
           order_id: orderId,
           points_earned: pointsEarned,
           transaction_type: 'purchase',
@@ -141,7 +169,7 @@ Deno.serve(async (req) => {
           expires_at: expiresAtISO,
         }]);
 
-        console.log(`✅ ${pointsEarned} pontos adicionados ao cliente ${customerId}`);
+        console.log(`✅ ${pointsEarned} pontos adicionados ao cliente ${finalCustomerId}`);
         console.log(`   Total de pontos: ${newTotalPoints}`);
 
         return new Response(
