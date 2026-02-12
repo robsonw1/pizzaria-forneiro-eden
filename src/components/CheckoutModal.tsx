@@ -697,42 +697,23 @@ export function CheckoutModal() {
         }
       } else {
         // For card and cash, just process order directly
-        await processOrder(orderPayload, pointsDiscount, validPointsToRedeem);
-        
-        // Redeem points if any were selected and meet minimum
-        const minPoints = useLoyaltySettingsStore.getState().settings?.minPointsToRedeem ?? 50;
-        if (validPointsToRedeem > 0 && validPointsToRedeem >= minPoints && loyaltyCustomer) {
-          await redeemPoints(loyaltyCustomer.id, validPointsToRedeem);
-        }
-        
-        // Add points from purchase (but only if NO points were redeemed for discount)
-        if (loyaltyCustomer) {
-          const pointsEarned = Math.floor(finalTotal * 1); // 1 ponto por real
-          setLastPointsEarned(pointsEarned);
-          await addPointsFromPurchase(loyaltyCustomer.id, finalTotal, orderId, validPointsToRedeem);
-          // Refrescar dados do cliente se estiver logado
-          if (isRemembered) {
-            await new Promise(resolve => setTimeout(resolve, 500));
-            await refreshCurrentCustomer();
-          }
-        }
+        // ⚠️ NÃO adicionar pontos aqui! Apenas quando admin confirmar pagamento
+        await processOrder(orderPayload, 0, 0); // Pass 0 for points since not confirmed yet
         
         if (pointsDiscount > 0) {
-          toast.success(`Pedido enviado! Descontos de ${formatPrice(pointsDiscount)} aplicados.`);
+          toast.success(`Pedido enviado! Desconto de ${formatPrice(pointsDiscount)} será aplicado após confirmação.`);
         } else {
-          toast.success('Pedido enviado com sucesso!');
+          toast.success('Pedido enviado com sucesso! Aguarde confirmação do pagamento.');
         }
         
-        // 🔒 Cupom já foi marcado como usado em processOrder (não duplicar aqui)
-        // Mark coupon as used if applied
-        // [REMOVIDO - já feito em processOrder de forma atômica]
-        
-        // Store discount info for confirmation display
+        // Store discount info for confirmation display (admin will apply later)
         setLastPointsDiscount(pointsDiscount);
         setLastPointsRedeemed(validPointsToRedeem);
         setLastCouponDiscount(couponDiscountAmount);
         setLastAppliedCoupon(appliedCoupon);
         setLastFinalTotal(finalTotal);
+        setLastLoyaltyCustomer(loyaltyCustomer);
+        setLastOrderPayload(orderPayload);
         
         setStep('confirmation');
         // Show loyalty modal for non-logged customers
