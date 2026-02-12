@@ -529,7 +529,7 @@ const AdminDashboard = () => {
       delivered: { label: 'Entregue', variant: 'default' as const },
       cancelled: { label: 'Cancelado', variant: 'destructive' as const },
     };
-    const config = statusConfig[status];
+    const config = statusConfig[status] || { label: String(status || 'Desconhecido'), variant: 'outline' as const };
     return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
