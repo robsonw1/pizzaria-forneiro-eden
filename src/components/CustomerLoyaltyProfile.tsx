@@ -111,7 +111,7 @@ export function CustomerLoyaltyProfile({
                     <Gift className="w-5 h-5 text-primary" />
                     Seus Pontos
                   </CardTitle>
-                  <Badge className="text-lg px-3 py-1">
+                  <Badge variant="default" className="text-lg px-3 py-1">
                     {currentCustomer.totalPoints}
                   </Badge>
                 </div>
@@ -174,7 +174,9 @@ export function CustomerLoyaltyProfile({
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
-                    {transactions.slice(0, 5).map((transaction) => (
+                    {(transactions ?? []).slice(0, 5).map((transaction) => {
+                      if (!transaction?.id) return null;
+                      return (
                       <div
                         key={transaction.id}
                         className="flex items-start justify-between p-3 border-l-4"
@@ -208,7 +210,8 @@ export function CustomerLoyaltyProfile({
                           </Badge>
                         )}
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </CardContent>
               </Card>
