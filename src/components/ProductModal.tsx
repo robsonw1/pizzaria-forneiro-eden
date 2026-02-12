@@ -294,25 +294,25 @@ export function ProductModal() {
                 <div className="flex-1">
                   <div className="flex items-center gap-2 flex-wrap mb-2">
                     {selectedProduct.isPopular && (
-                      <Badge className="badge-popular flex items-center gap-1">
+                      <Badge variant="default" className="badge-popular flex items-center gap-1">
                         <Star className="w-3 h-3" />
                         Popular
                       </Badge>
                     )}
                     {selectedProduct.isNew && (
-                      <Badge className="bg-accent text-accent-foreground flex items-center gap-1">
+                      <Badge variant="default" className="bg-accent text-accent-foreground flex items-center gap-1">
                         <Sparkles className="w-3 h-3" />
                         Novo
                       </Badge>
                     )}
                     {selectedProduct.isVegetarian && (
-                      <Badge className="badge-promo flex items-center gap-1">
+                      <Badge variant="default" className="badge-promo flex items-center gap-1">
                         <Leaf className="w-3 h-3" />
                         Vegetariano
                       </Badge>
                     )}
                     {isCustomizable && (
-                      <Badge className="bg-primary text-primary-foreground flex items-center gap-1">
+                      <Badge variant="default" className="bg-primary text-primary-foreground flex items-center gap-1">
                         <ChefHat className="w-3 h-3" />
                         Personalizável
                       </Badge>
