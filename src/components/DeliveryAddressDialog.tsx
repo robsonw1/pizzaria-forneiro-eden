@@ -155,12 +155,14 @@ export function DeliveryAddressDialog({
                 <SelectValue placeholder="Selecione um bairro" />
               </SelectTrigger>
               <SelectContent>
-                {activeNeighborhoods.length > 0 ? (
-                  activeNeighborhoods.map((nb) => (
-                    <SelectItem key={nb.id} value={nb.name}>
-                      {nb.name} - {formatPrice(nb.deliveryFee)}
-                    </SelectItem>
-                  ))
+                {activeNeighborhoods && activeNeighborhoods.length > 0 ? (
+                  activeNeighborhoods.map((nb) => 
+                    !nb?.id ? null : (
+                      <SelectItem key={nb.id} value={nb.name}>
+                        {nb.name} - {formatPrice(nb.deliveryFee)}
+                      </SelectItem>
+                    )
+                  )
                 ) : (
                   <SelectItem value="" disabled>
                     Nenhum bairro disponível
