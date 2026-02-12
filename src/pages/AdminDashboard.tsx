@@ -520,16 +520,19 @@ const AdminDashboard = () => {
     setIsOrderDialogOpen(true);
   };
 
-  const getStatusBadge = (status: Order['status']) => {
-    const statusConfig = {
-      pending: { label: 'Pendente', variant: 'destructive' as const },
-      confirmed: { label: 'Confirmado', variant: 'outline' as const },
-      preparing: { label: 'Preparando', variant: 'outline' as const },
-      delivering: { label: 'Em Entrega', variant: 'secondary' as const },
-      delivered: { label: 'Entregue', variant: 'default' as const },
-      cancelled: { label: 'Cancelado', variant: 'destructive' as const },
+  const getStatusBadge = (status: Order['status'] | undefined) => {
+    if (!status) return <Badge variant="outline">Desconhecido</Badge>;
+    
+    const statusConfig: Record<string, { label: string; variant: any }> = {
+      pending: { label: 'Pendente', variant: 'destructive' },
+      confirmed: { label: 'Confirmado', variant: 'outline' },
+      preparing: { label: 'Preparando', variant: 'outline' },
+      delivering: { label: 'Em Entrega', variant: 'secondary' },
+      delivered: { label: 'Entregue', variant: 'default' },
+      cancelled: { label: 'Cancelado', variant: 'destructive' },
     };
-    const config = statusConfig[status] || { label: String(status || 'Desconhecido'), variant: 'outline' as const };
+    const config = statusConfig[status] || { label: String(status), variant: 'outline' };
+    // @ts-ignore - Ensure variant is valid
     return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
@@ -923,14 +926,16 @@ const AdminDashboard = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredOrders.map((order) => (
+                      {(filteredOrders || []).filter(Boolean).map((order) => {
+                        if (!order || !order.id) return null;
+                        return (
                         <TableRow key={order.id}>
-                          <TableCell className="font-medium">{order.id}</TableCell>
-                          <TableCell>{order.customer.name}</TableCell>
-                          <TableCell>{order.items.length} itens</TableCell>
+                          <TableCell className="font-medium">{order.id || 'N/A'}</TableCell>
+                          <TableCell>{order.customer?.name || 'Desconhecido'}</TableCell>
+                          <TableCell>{order.items?.length || 0} itens</TableCell>
                           <TableCell>
                             <div className="flex flex-col gap-1">
-                              <span className="font-semibold">{formatPrice(order.total)}</span>
+                              <span className="font-semibold">{formatPrice(order.total || 0)}</span>
                               {order.pointsDiscount && order.pointsDiscount > 0 && (
                                 <span className="text-xs text-green-600 font-medium">
                                   -{formatPrice(order.pointsDiscount)} (pontos)
@@ -953,7 +958,7 @@ const AdminDashboard = () => {
                             {getPrintStatusDisplay(order)}
                           </TableCell>
                           <TableCell>
-                            {format(new Date(order.createdAt), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                            {order.createdAt ? format(new Date(order.createdAt), "dd/MM/yyyy HH:mm", { locale: ptBR }) : 'N/A'}
                           </TableCell>
                           <TableCell>
                             <div className="flex gap-2">
@@ -980,7 +985,8 @@ const AdminDashboard = () => {
                             </div>
                           </TableCell>
                         </TableRow>
-                      ))}
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 )}
