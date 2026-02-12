@@ -89,15 +89,21 @@ export function OrderDetailsDialog({ open, onOpenChange, order }: OrderDetailsDi
 
       if (error) {
         console.error('❌ Erro ao confirmar pagamento:', error);
-        toast.error('Erro ao confirmar pagamento');
+        toast.error('Erro ao confirmar pagamento. Tente novamente.');
+        setIsConfirmingPayment(false);
         return;
       }
 
       console.log('✅ Pagamento confirmado:', data);
 
-      // Atualizar status do pedido para confirmado
+      // Atualizar status do pedido no store (a função já atualizou no BD)
       await updateOrderStatus(order.id, 'confirmed');
+      
+      // Disparar um pequeno delay para garantir sincronização
+      await new Promise(r => setTimeout(r, 500));
+      
       toast.success(data?.message || '✅ Pagamento confirmado e pontos adicionados!');
+      onOpenChange(false); // Fechar dialog após sucesso
       
     } catch (error) {
       console.error('Erro ao confirmar pagamento:', error);
