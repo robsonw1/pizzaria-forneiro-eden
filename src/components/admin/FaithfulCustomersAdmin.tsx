@@ -213,7 +213,8 @@ export function FaithfulCustomersAdmin() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {customers.map((customer) => {
+                  {(customers ?? []).map((customer) => {
+                    if (!customer?.id) return null;
                     const tier = getTierBadge(customer.totalSpent);
                     return (
                       <TableRow key={customer.id}>
@@ -227,7 +228,7 @@ export function FaithfulCustomersAdmin() {
                           <Badge variant="secondary">{customer.totalPoints}</Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          <Badge className={tier.color}>{tier.label}</Badge>
+                          <Badge variant="outline" className={tier.color}>{tier.label}</Badge>
                         </TableCell>
                       </TableRow>
                     );
