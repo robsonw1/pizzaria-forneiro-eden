@@ -114,7 +114,7 @@ export function Header({ onLoginClick }: HeaderProps) {
                     exit={{ scale: 0 }}
                     className="absolute -top-1 -right-1"
                   >
-                    <Badge className="h-5 min-w-5 flex items-center justify-center p-0 text-xs bg-primary">
+                    <Badge variant="default" className="h-5 min-w-5 flex items-center justify-center p-0 text-xs bg-primary">
                       {itemCount}
                     </Badge>
                   </motion.div>
