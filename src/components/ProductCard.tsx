@@ -55,19 +55,19 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
           <Badge variant="secondary">Indisponível</Badge>
         )}
         {product.isPopular && (
-          <Badge className="badge-popular flex items-center gap-1">
+          <Badge variant="default" className="badge-popular flex items-center gap-1">
             <Star className="w-3 h-3" />
             Popular
           </Badge>
         )}
         {product.isNew && (
-          <Badge className="bg-accent text-accent-foreground flex items-center gap-1">
+          <Badge variant="default" className="bg-accent text-accent-foreground flex items-center gap-1">
             <Sparkles className="w-3 h-3" />
             Novo
           </Badge>
         )}
         {product.isVegetarian && (
-          <Badge className="badge-promo flex items-center gap-1">
+          <Badge variant="default" className="badge-promo flex items-center gap-1">
             <Leaf className="w-3 h-3" />
             Vegetariano
           </Badge>
