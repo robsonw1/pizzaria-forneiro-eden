@@ -132,7 +132,70 @@ serve(async (req) => {
       console.log(`📋 Order ${orderId} payment status: ${status} → ${mappedStatus}`);
 
       // ============================================================
-      // 🔄 UPDATE ORDER STATUS NO BANCO
+      // ✅ SE PAGAMENTO APROVADO: Tentar criar pedido completo
+      // ============================================================
+      if (status === 'approved' && orderId) {
+        try {
+          // 1️⃣ Verificar se pedido já existe
+          const { data: existingOrder } = await supabase
+            .from('orders')
+            .select('id')
+            .eq('id', orderId)
+            .single();
+
+          if (!existingOrder) {
+            // 2️⃣ Tentar recuperar dados do pending_pix_order
+            console.log(`🔍 Procurando dados do pedido em pending_pix_orders...`);
+            const { data: pendingOrder } = await supabase
+              .from('pending_pix_orders')
+              .select('order_payload, customer_name, customer_phone, customer_email, customer_id')
+              .eq('id', orderId)
+              .single();
+
+            if (pendingOrder?.order_payload) {
+              // 3️⃣ Criar ordem completa com dados do pending
+              console.log(`✅ Dados encontrados! Criando pedido completo...`);
+              
+              const { error: createError } = await supabase
+                .from('orders')
+                .insert([{
+                  ...pendingOrder.order_payload,
+                  id: orderId,
+                  status: 'confirmado',
+                  payment_status: 'approved',
+                  payment_confirmed_at: new Date().toISOString(),
+                  mercado_pago_id: paymentId.toString(),
+                }]);
+
+              if (createError) {
+                console.error(`❌ Erro ao criar pedido ${orderId}:`, createError);
+              } else {
+                console.log(`✅ Pedido ${orderId} criado com sucesso pelo webhook!`);
+                
+                // 4️⃣ Limpar pending_pix_order
+                try {
+                  await supabase
+                    .from('pending_pix_orders')
+                    .delete()
+                    .eq('id', orderId);
+                  console.log(`✅ Pedido removido de pending_pix_orders`);
+                } catch (error) {
+                  console.warn(`⚠️ Falha ao limpar pending_pix_order:`, error);
+                }
+              }
+            } else {
+              console.warn(`⚠️ Pedido pendente não encontrado para ${orderId}. Será criado apenas registro de pagamento.`);
+            }
+          } else {
+            console.log(`✅ Pedido ${orderId} já existe. Apenas atualizando status de pagamento...`);
+          }
+        } catch (error) {
+          console.error(`❌ Erro ao processar pedido aprovado ${orderId}:`, error);
+        }
+      }
+
+      // ============================================================
+      // 🔄 UPDATE ORDER STATUS NO BANCO (se existir)
       // ============================================================
       if (orderId) {
         try {
