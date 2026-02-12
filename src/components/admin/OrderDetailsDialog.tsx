@@ -113,7 +113,7 @@ export function OrderDetailsDialog({ open, onOpenChange, order }: OrderDetailsDi
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
             Pedido {order.id}
-            <Badge className={`${statusColors[order.status]} text-white`}>
+            <Badge variant="default" className={`${statusColors[order.status]} text-white`}>
               {statusLabels[order.status]}
             </Badge>
           </DialogTitle>
@@ -208,24 +208,26 @@ export function OrderDetailsDialog({ open, onOpenChange, order }: OrderDetailsDi
           <div>
             <h4 className="font-semibold mb-2">Itens do Pedido</h4>
             <div className="space-y-2">
-              {order.items.map((item, index) => (
+              {(order.items ?? []).map((item, index) => {
+                if (!item || !item.product) return null;
+                return (
                 <div
                   key={index}
                   className="flex justify-between items-start p-2 bg-secondary/50 rounded-lg text-sm"
                 >
                   <div>
                     <p className="font-medium">
-                      {item.quantity}x {item.product.name}
+                      {item.quantity}x {item.product?.name}
                       {item.size && ` (${item.size === 'broto' ? 'Broto' : 'Grande'})`}
                     </p>
                     {item.isHalfHalf && item.secondHalf && (
                       <p className="text-muted-foreground">
-                        Meia: {item.secondHalf.name}
+                        Meia: {item.secondHalf?.name}
                       </p>
                     )}
                     {item.border && (
                       <p className="text-muted-foreground">
-                        Borda: {item.border.name}
+                        Borda: {item.border?.name}
                       </p>
                     )}
                     {item.notes && (
@@ -236,7 +238,8 @@ export function OrderDetailsDialog({ open, onOpenChange, order }: OrderDetailsDi
                   </div>
                   <span className="font-medium">{formatPrice(item.totalPrice)}</span>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
