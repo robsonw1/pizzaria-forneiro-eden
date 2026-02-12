@@ -59,7 +59,7 @@ export function CustomerDashboard({ onLogout }: CustomerDashboardProps) {
 
         <div className="flex items-center gap-2">
           <span className="text-3xl">{tier.icon}</span>
-          <Badge className="text-lg px-3 py-1" variant="secondary">
+          <Badge variant="secondary" className="text-lg px-3 py-1">
             {tier.name}
           </Badge>
         </div>
@@ -116,7 +116,9 @@ export function CustomerDashboard({ onLogout }: CustomerDashboardProps) {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {coupons.map((coupon) => (
+              {(coupons ?? []).map((coupon) => {
+                if (!coupon?.id) return null;
+                return (
                 <div
                   key={coupon.id}
                   className={`p-4 rounded-lg border-2 border-dashed ${
@@ -147,7 +149,8 @@ export function CustomerDashboard({ onLogout }: CustomerDashboardProps) {
                     </p>
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>
@@ -167,7 +170,9 @@ export function CustomerDashboard({ onLogout }: CustomerDashboardProps) {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {transactions.slice(0, 5).map((transaction) => (
+              {(transactions ?? []).slice(0, 5).map((transaction) => {
+                if (!transaction?.id) return null;
+                return (
                 <div
                   key={transaction.id}
                   className="flex items-center justify-between pb-2 border-b last:border-0"
@@ -199,7 +204,8 @@ export function CustomerDashboard({ onLogout }: CustomerDashboardProps) {
                     </p>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>
