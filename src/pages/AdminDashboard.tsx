@@ -702,13 +702,15 @@ const AdminDashboard = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {recentOrders.map((order) => (
+                        {(recentOrders ?? []).filter(Boolean).map((order: any) => {
+                          if (!order?.id) return null;
+                          return (
                           <TableRow key={order.id}>
                             <TableCell className="font-medium">{order.id}</TableCell>
-                            <TableCell>{order.customer.name}</TableCell>
+                            <TableCell>{order.customer?.name || 'N/A'}</TableCell>
                             <TableCell>
                               <div className="flex flex-col gap-1">
-                                <span className="font-semibold">{formatPrice(order.total)}</span>
+                                <span className="font-semibold">{formatPrice(order.total || 0)}</span>
                                 {order.pointsDiscount && order.pointsDiscount > 0 && (
                                   <span className="text-xs text-green-600 font-medium">
                                     -{formatPrice(order.pointsDiscount)} (pontos)
@@ -718,10 +720,11 @@ const AdminDashboard = () => {
                             </TableCell>
                             <TableCell>{getStatusBadge(order.status)}</TableCell>
                             <TableCell>
-                              {format(new Date(order.createdAt), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                              {order.createdAt ? format(new Date(order.createdAt), "dd/MM/yyyy HH:mm", { locale: ptBR }) : 'N/A'}
                             </TableCell>
                           </TableRow>
-                        ))}
+                          );
+                        })}
                       </TableBody>
                     </Table>
                   )}
@@ -762,11 +765,14 @@ const AdminDashboard = () => {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">Todas as categorias</SelectItem>
-                        {Object.entries(categoryLabels).map(([key, label]) => (
+                        {Object.entries(categoryLabels ?? {}).filter(Boolean).map(([key, label]: any) => {
+                          if (!key) return null;
+                          return (
                           <SelectItem key={key} value={key}>
                             {label}
                           </SelectItem>
-                        ))}
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                   </div>
@@ -797,8 +803,10 @@ const AdminDashboard = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredProducts.map((product) => (
-                        <TableRow key={product.id} className={!product.isActive ? 'opacity-50' : ''}>
+                      {(filteredProducts ?? []).filter(Boolean).map((product: any) => {
+                        if (!product?.id) return null;
+                        return (
+                        <TableRow key={product.id} className={!product?.isActive ? 'opacity-50' : ''}>
                           <TableCell className="font-medium">{product.name}</TableCell>
                           <TableCell>
                             <Badge variant="outline" className="capitalize">
@@ -846,7 +854,8 @@ const AdminDashboard = () => {
                             </div>
                           </TableCell>
                         </TableRow>
-                      ))}
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </ScrollArea>
@@ -1027,8 +1036,10 @@ const AdminDashboard = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {neighborhoods.map((nb) => (
-                      <TableRow key={nb.id} className={!nb.isActive ? 'opacity-50' : ''}>
+                    {(neighborhoods ?? []).filter(Boolean).map((nb: any) => {
+                      if (!nb?.id) return null;
+                      return (
+                      <TableRow key={nb.id} className={!nb?.isActive ? 'opacity-50' : ''}>
                         <TableCell className="font-medium">{nb.name}</TableCell>
                         <TableCell>
                           <Input 
@@ -1078,7 +1089,8 @@ const AdminDashboard = () => {
                           </div>
                         </TableCell>
                       </TableRow>
-                    ))}
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </CardContent>
