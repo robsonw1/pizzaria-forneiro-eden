@@ -59,7 +59,9 @@ export function CartDrawer() {
             <ScrollArea className="flex-1 -mx-6 px-6">
               <div className="space-y-4 py-4">
                 <AnimatePresence>
-                  {items.map((item) => (
+                  {(items ?? []).map((item) => {
+                    if (!item?.id || !item?.product) return null;
+                    return (
                     <motion.div
                       key={item.id}
                       initial={{ opacity: 0, x: 20 }}
@@ -178,7 +180,8 @@ export function CartDrawer() {
                         </div>
                       </div>
                     </motion.div>
-                  ))}
+                    );
+                  })}
                 </AnimatePresence>
               </div>
             </ScrollArea>
