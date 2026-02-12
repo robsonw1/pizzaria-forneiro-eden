@@ -228,7 +228,8 @@ export function CouponManagementPanel() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {coupons.map((coupon) => {
+                  {(coupons ?? []).filter(Boolean).map((coupon) => {
+                    if (!coupon?.id) return null;
                     const expired = isExpired(coupon.expiresAt);
                     const daysLeft = getDaysUntilExpiration(coupon.expiresAt);
 
@@ -264,7 +265,7 @@ export function CouponManagementPanel() {
                                 Expirado
                               </Badge>
                             ) : coupon.isActive ? (
-                              <Badge className="gap-1 bg-green-600 hover:bg-green-700">
+                              <Badge variant="default" className="gap-1 bg-green-600 hover:bg-green-700">
                                 <CheckCircle className="w-3 h-3" />
                                 Ativo
                               </Badge>
