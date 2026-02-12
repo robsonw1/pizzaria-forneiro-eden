@@ -66,7 +66,8 @@ export function CustomerHistoryDrawer({
               </p>
             </div>
           ) : (
-            transactions.map((transaction) => (
+            (transactions ?? []).map((transaction) => 
+              !transaction?.id ? null : (
               <div
                 key={transaction.id}
                 className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-secondary/50 transition-colors"
@@ -104,7 +105,8 @@ export function CustomerHistoryDrawer({
                   {transaction.pointsEarned || transaction.pointsSpent}
                 </div>
               </div>
-            ))
+            )
+            )
           )}
         </div>
       </SheetContent>
