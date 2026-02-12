@@ -17,9 +17,11 @@ import {
 import { Label } from '@/components/ui/label';
 import { Order } from '@/data/products';
 import { useOrdersStore } from '@/store/useOrdersStore';
+import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
+import { useState } from 'react';
 
 type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'delivering' | 'delivered' | 'cancelled';
 
@@ -49,6 +51,7 @@ interface OrderDetailsDialogProps {
 
 export function OrderDetailsDialog({ open, onOpenChange, order }: OrderDetailsDialogProps) {
   const updateOrderStatus = useOrdersStore((s) => s.updateOrderStatus);
+  const [isConfirmingPayment, setIsConfirmingPayment] = useState(false);
 
   if (!order) return null;
 
@@ -62,6 +65,46 @@ export function OrderDetailsDialog({ open, onOpenChange, order }: OrderDetailsDi
   const handleStatusChange = (newStatus: OrderStatus) => {
     updateOrderStatus(order.id, newStatus);
     toast.success(`Status alterado para "${statusLabels[newStatus]}"`);
+  };
+
+  const handleConfirmPayment = async () => {
+    if (!order) return;
+
+    setIsConfirmingPayment(true);
+    try {
+      console.log('💳 Confirmando pagamento e adicionando pontos...', {
+        orderId: order.id,
+        amount: order.total,
+        paymentMethod: order.paymentMethod,
+      });
+
+      const { data, error } = await supabase.functions.invoke('confirm-payment-and-add-points', {
+        body: {
+          orderId: order.id,
+          customerId: order.customer?.id || undefined,
+          amount: order.total,
+          pointsRedeemed: order.pointsRedeemed || 0,
+        },
+      });
+
+      if (error) {
+        console.error('❌ Erro ao confirmar pagamento:', error);
+        toast.error('Erro ao confirmar pagamento');
+        return;
+      }
+
+      console.log('✅ Pagamento confirmado:', data);
+
+      // Atualizar status do pedido para confirmado
+      await updateOrderStatus(order.id, 'confirmed');
+      toast.success(data?.message || '✅ Pagamento confirmado e pontos adicionados!');
+      
+    } catch (error) {
+      console.error('Erro ao confirmar pagamento:', error);
+      toast.error('Erro ao confirmar pagamento. Tente novamente.');
+    } finally {
+      setIsConfirmingPayment(false);
+    }
   };
 
   return (
@@ -93,6 +136,25 @@ export function OrderDetailsDialog({ open, onOpenChange, order }: OrderDetailsDi
               </SelectContent>
             </Select>
           </div>
+
+          {/* Confirm Payment Button - For Cash and Card payments that are still pending */}
+          {order.status === 'pending' && order.paymentMethod !== 'pix' && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 space-y-3">
+              <div className="text-sm">
+                <p className="font-semibold text-yellow-900">⏳ Pagamento Pendente</p>
+                <p className="text-yellow-800 text-xs mt-1">
+                  Clique abaixo para confirmar que o pagamento foi recebido.
+                </p>
+              </div>
+              <Button
+                onClick={handleConfirmPayment}
+                disabled={isConfirmingPayment}
+                className="w-full bg-green-600 hover:bg-green-700"
+              >
+                {isConfirmingPayment ? '⏳ Confirmando...' : '✅ Confirmar Pagamento'}
+              </Button>
+            </div>
+          )}
 
           <Separator />
 
