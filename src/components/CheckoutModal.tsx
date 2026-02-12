@@ -101,6 +101,8 @@ export function CheckoutModal() {
   const [isLoyaltyModalOpen, setIsLoyaltyModalOpen] = useState(false);
   const [lastOrderId, setLastOrderId] = useState<string>('');
   const [lastOrderEmail, setLastOrderEmail] = useState<string>('');
+  const [lastOrderPayload, setLastOrderPayload] = useState<any>(null);
+  const [lastLoyaltyCustomer, setLastLoyaltyCustomer] = useState<any>(null);
   const [lastPointsEarned, setLastPointsEarned] = useState<number>(0);
   const [lastPointsDiscount, setLastPointsDiscount] = useState<number>(0);
   const [lastPointsRedeemed, setLastPointsRedeemed] = useState<number>(0);
@@ -170,16 +172,65 @@ export function CheckoutModal() {
     }
   }, [isCheckoutOpen]);
 
+  // � Calcular valores (ANTES dos useEffects que os usam)
+  const subtotal = getSubtotal();
+  const deliveryFee = getDeliveryFee();
+  const total = subtotal + deliveryFee;
+
+  // �🔄 REALTIME: Escutar confirmação automática do pagamento PIX
+  useEffect(() => {
+    if (step !== 'pix' || !lastOrderId) return;
+
+    console.log('🔄 Listening for PIX confirmation via Realtime:', lastOrderId);
+    const currentTotal = subtotal + deliveryFee;
+
+    // Subscrever para mudanças na ordem
+    const subscription = supabase
+      .from('orders')
+      // @ts-ignore - Supabase Realtime type compatibility
+      .on('*', (payload: any) => {
+        console.log('📡 Realtime update received:', payload);
+
+        if (payload.new?.id === lastOrderId && payload.new?.status === 'confirmado') {
+          console.log('✅ Payment confirmed automatically via webhook!');
+          
+          // Atualizar state com informações do pedido criado
+          setLastFinalTotal(payload.new?.totals?.total || currentTotal);
+          if (payload.new?.totals?.pointsDiscount) {
+            setLastPointsDiscount(payload.new.totals.pointsDiscount);
+          }
+          if (payload.new?.totals?.pointsRedeemed) {
+            setLastPointsRedeemed(payload.new.totals.pointsRedeemed);
+          }
+          if (payload.new?.totals?.couponDiscount) {
+            setLastCouponDiscount(payload.new.totals.couponDiscount);
+          }
+          if (payload.new?.totals?.appliedCoupon) {
+            setLastAppliedCoupon(payload.new.totals.appliedCoupon);
+          }
+
+          // Mostrar confirmação automaticamente
+          toast.success('✅ Pedido confirmado com sucesso!');
+          setStep('confirmation');
+          setTimeout(() => setIsLoyaltyModalOpen(true), 500);
+
+          // Unsubscribe
+          subscription.unsubscribe();
+        }
+      })
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [step, lastOrderId, subtotal, deliveryFee]);
+
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL',
     }).format(price);
   };
-
-  const subtotal = getSubtotal();
-  const deliveryFee = getDeliveryFee();
-  const total = subtotal + deliveryFee;
 
   const handleApplyCoupon = async () => {
     if (!couponCode.trim()) {
@@ -555,6 +606,9 @@ export function CheckoutModal() {
       }
       
       if (paymentMethod === 'pix') {
+        // 🔒 NOVO FLUXO: Não cria pedido aqui, apenas gera QR code
+        // Pedido será criado APÓS validar pagamento
+        
         // Create PIX payment with final total (including points discount)
         const { data: mpData, error: mpError } = await supabase.functions.invoke('mercadopago-payment', {
           body: {
@@ -577,6 +631,35 @@ export function CheckoutModal() {
         console.log('PIX criado:', mpData);
 
         if (mpData?.qrCode) {
+          // 💾 Armazenar dados do pedido para webhook recuperar depois
+          try {
+            console.log('💾 Armazenando pedido pendente para confirmação automática...');
+            // @ts-ignore - Tabela criada via migration SQL, não está em types automático
+            await supabase.from('pending_pix_orders').insert({
+              id: orderId,
+              payment_id: mpData.paymentId,
+              order_payload: {
+                ...orderPayload,
+                totals: {
+                  ...orderPayload.totals,
+                  pointsDiscount,
+                  pointsRedeemed: validPointsToRedeem,
+                  couponDiscount: couponDiscountAmount,
+                  appliedCoupon
+                }
+              },
+              customer_name: customer.name,
+              customer_phone: customer.phone,
+              customer_email: currentCustomer?.email || undefined,
+              customer_id: currentCustomer?.id || undefined,
+              status: 'pending'
+            });
+            console.log('✅ Pedido pendente armazenado. Webhook fará a confirmação automática!');
+          } catch (error) {
+            console.warn('⚠️ Falha ao armazenar pedido pendente (não crítico):', error);
+            // Continua mesmo se falhar, o cliente pode clicar no botão manualmente
+          }
+
           setPixData({
             qrCode: mpData.qrCode,
             qrCodeBase64: mpData.qrCodeBase64,
@@ -584,14 +667,29 @@ export function CheckoutModal() {
             expirationDate: mpData.expirationDate
           });
           
-          // Redeem points if any were selected and meet minimum
-          const minPoints = useLoyaltySettingsStore.getState().settings?.minPointsToRedeem ?? 50;
-          if (validPointsToRedeem > 0 && validPointsToRedeem >= minPoints && loyaltyCustomer) {
-            await redeemPoints(loyaltyCustomer.id, validPointsToRedeem);
-          }
+          // Armazenar dados do pedido para criar DEPOIS da validação
+          setLastOrderPayload({
+            ...orderPayload,
+            totals: {
+              ...orderPayload.totals,
+              pointsDiscount,
+              pointsRedeemed: validPointsToRedeem,
+              couponDiscount: couponDiscountAmount,
+              appliedCoupon
+            }
+          });
           
-          // Process order (handles Supabase insert + auto-print logic)
-          await processOrder(orderPayload, pointsDiscount, validPointsToRedeem);
+          // Armazenar valores para usar em handlePixConfirmed
+          setLastPointsDiscount(pointsDiscount);
+          setLastPointsRedeemed(validPointsToRedeem);
+          setLastCouponDiscount(couponDiscountAmount);
+          setLastAppliedCoupon(appliedCoupon);
+          setLastFinalTotal(finalTotal);
+          setLastLoyaltyCustomer(loyaltyCustomer);
+          
+          // ❌ NÃO cria pedido aqui!
+          // ❌ NÃO resgate pontos aqui!
+          // Tudo isso vai acontecer em handlePixConfirmed() APÓS validar pagamento
           
           setStep('pix');
         } else {
@@ -650,31 +748,31 @@ export function CheckoutModal() {
   };
 
   const handlePixConfirmed = async () => {
-    // 🔒 VALIDAÇÃO CRÍTICA: Verificar status do pagamento no Mercado Pago ANTES de adicionar pontos
+    // 🔒 VALIDAÇÃO CRÍTICA: Validar PAGAMENTO + CRIAR PEDIDO (tudo junto na Edge Function)
     if (!pixData?.paymentId) {
       toast.error('ID de pagamento não identificado');
       return;
     }
 
-    if (!lastOrderId) {
-      toast.error('ID do pedido não encontrado');
+    if (!lastOrderId || !lastOrderPayload) {
+      toast.error('Dados do pedido não encontrados');
       return;
     }
 
     setIsProcessing(true);
     try {
-      // 1️⃣ VALIDAR PAGAMENTO NA EDGE FUNCTION
-      console.log('🔄 Validando pagamento no Mercado Pago...', {
+      // 1️⃣ VALIDAR PAGAMENTO + CRIAR PEDIDO NA EDGE FUNCTION
+      console.log('🔄 Validando pagamento e criando pedido...', {
         paymentId: pixData.paymentId,
         orderId: lastOrderId
       });
 
       const { data: validationData, error: validationError } = await supabase.functions.invoke(
-        'validate-pix-payment',
+        'validate-and-create-pix-order',
         {
           body: {
             paymentId: pixData.paymentId,
-            orderId: lastOrderId
+            orderPayload: lastOrderPayload
           }
         }
       );
@@ -686,47 +784,49 @@ export function CheckoutModal() {
         return;
       }
 
-      console.log('✅ Pagamento validado e aprovado:', validationData);
+      console.log('✅ Pagamento validado e pedido criado:', validationData);
 
-      // 2️⃣ AGORA SIM: Calcular desconto e ADICIONAR PONTOS
-      const pointsDiscount = calculatePointsDiscount();
-      const couponDiscountAmount = (total * couponDiscount) / 100; // Cupom é percentual
-      const finalTotal = total - pointsDiscount - couponDiscountAmount;
+      // 2️⃣ PEDIDO CRIADO COM SUCESSO - Agora processar pontos e loyalidade
       
-      // Calculate validPointsToRedeem (same validation as in handleSubmitOrder)
-      const minPointsRequired = useLoyaltySettingsStore.getState().settings?.minPointsToRedeem ?? 50;
-      const validPointsToRedeem = pointsToRedeem >= minPointsRequired ? pointsToRedeem : 0;
-      
-      // Only add loyalty points if customer is logged in
-      if (isRemembered && currentCustomer?.email) {
-        try {
-          const loyaltyCustomer = await findOrCreateCustomer(currentCustomer.email);
-          setLastOrderEmail(currentCustomer.email);
-          
-          if (loyaltyCustomer) {
-            // Add points from purchase (but only if NO points were redeemed for discount)
-            // Note: Points redemption already happened in handleSubmitOrder before PIX generation
-            const pointsEarned = Math.floor(finalTotal * 1); // 1 ponto por real
-            setLastPointsEarned(pointsEarned);
-            await addPointsFromPurchase(loyaltyCustomer.id, finalTotal, lastOrderEmail, validPointsToRedeem);
-            // Atualizar dados do cliente
-            await new Promise(resolve => setTimeout(resolve, 500));
-            await refreshCurrentCustomer();
+      // Resgate de pontos se o cliente tiver usado
+      if (lastLoyaltyCustomer && lastPointsRedeemed > 0) {
+        const minPoints = useLoyaltySettingsStore.getState().settings?.minPointsToRedeem ?? 50;
+        if (lastPointsRedeemed >= minPoints) {
+          try {
+            await redeemPoints(lastLoyaltyCustomer.id, lastPointsRedeemed);
+            console.log(`✅ ${lastPointsRedeemed} pontos resgatados`);
+          } catch (error) {
+            console.error('Erro ao resgatar pontos:', error);
           }
+        }
+      }
+      
+      // Adicionar pontos da compra
+      if (lastLoyaltyCustomer) {
+        try {
+          const pointsEarned = Math.floor(lastFinalTotal * 1); // 1 ponto por real
+          setLastPointsEarned(pointsEarned);
+          await addPointsFromPurchase(lastLoyaltyCustomer.id, lastFinalTotal, lastOrderEmail, lastPointsRedeemed);
+          await new Promise(resolve => setTimeout(resolve, 500));
+          await refreshCurrentCustomer();
+          console.log(`✅ ${pointsEarned} pontos adicionados`);
         } catch (error) {
           console.error('Erro ao adicionar pontos:', error);
           toast.error('Erro ao processar pontos de fidelização');
         }
       }
       
-      toast.success('✅ Pedido confirmado com sucesso!');
+      // Marcar cupom como usado (se foi aplicado)
+      if (lastAppliedCoupon) {
+        try {
+          await markCouponAsUsed(lastAppliedCoupon, currentCustomer?.id);
+          console.log(`✅ Cupom ${lastAppliedCoupon} marcado como usado`);
+        } catch (error) {
+          console.warn('⚠️ Falha ao marcar cupom:', error);
+        }
+      }
       
-      // Store discount info for confirmation display
-      setLastPointsDiscount(pointsDiscount);
-      setLastPointsRedeemed(validPointsToRedeem);
-      setLastCouponDiscount(couponDiscountAmount);
-      setLastAppliedCoupon(appliedCoupon);
-      setLastFinalTotal(finalTotal);
+      toast.success('✅ Pedido confirmado com sucesso!');
       
       setStep('confirmation');
       setTimeout(() => setIsLoyaltyModalOpen(true), 500);
