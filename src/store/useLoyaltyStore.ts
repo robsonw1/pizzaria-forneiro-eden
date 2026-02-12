@@ -416,9 +416,11 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
     try {
       const state = get();
       if (!state.currentCustomer?.id) {
-        console.log('Nenhum cliente logado para refrescar');
+        console.log('❌ Nenhum cliente logado para refrescar');
         return;
       }
+
+      console.log('🔄 Buscando dados atualizados do cliente:', state.currentCustomer.id);
 
       const { data, error } = await (supabase as any)
         .from('customers')
@@ -426,16 +428,35 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
         .eq('id', state.currentCustomer.id)
         .single();
 
-      if (!error && data) {
-        const customer = mapCustomerFromDB(data);
-        set({
-          currentCustomer: customer,
-          points: customer.totalPoints,
-        });
-        console.log('✅ Dados do cliente atualizados:', customer.totalPoints, 'pontos');
+      if (error) {
+        console.error('❌ Erro ao buscar cliente:', error);
+        return;
       }
+
+      if (!data) {
+        console.warn('⚠️ Cliente não encontrado no BD');
+        return;
+      }
+
+      const customer = mapCustomerFromDB(data);
+      console.log('📊 Dados obtidos do BD:', {
+        totalPoints: customer.totalPoints,
+        totalSpent: customer.totalSpent,
+        totalPurchases: customer.totalPurchases,
+        timestamp: new Date().toLocaleTimeString(),
+      });
+
+      set({
+        currentCustomer: customer,
+        points: customer.totalPoints,
+      });
+
+      console.log('✅ Store atualizado com sucesso!', {
+        newPoints: customer.totalPoints,
+        newSpent: customer.totalSpent,
+      });
     } catch (error) {
-      console.error('Erro ao refrescar cliente:', error);
+      console.error('❌ Erro crítico ao refrescar cliente:', error);
     }
   },
 
