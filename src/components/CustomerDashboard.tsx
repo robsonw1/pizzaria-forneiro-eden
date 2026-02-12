@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Gift, LogOut, Sparkles, TrendingUp } from 'lucide-react';
+import { useEffect } from 'react';
 
 interface CustomerDashboardProps {
   onLogout?: () => void;
@@ -13,6 +14,18 @@ export function CustomerDashboard({ onLogout }: CustomerDashboardProps) {
   const coupons = useLoyaltyStore((s) => s.coupons);
   const transactions = useLoyaltyStore((s) => s.transactions);
   const logout = useLoyaltyStore((s) => s.logoutCustomer);
+
+  // Debug: Log quando os dados do cliente mudarem
+  useEffect(() => {
+    if (currentCustomer) {
+      console.log('📊 [CustomerDashboard] Dados atualizados:', {
+        totalPoints: currentCustomer.totalPoints,
+        totalSpent: currentCustomer.totalSpent,
+        totalPurchases: currentCustomer.totalPurchases,
+        timestamp: new Date().toLocaleTimeString(),
+      });
+    }
+  }, [currentCustomer?.totalPoints, currentCustomer?.totalSpent, currentCustomer?.totalPurchases]);
 
   if (!currentCustomer) {
     return (
