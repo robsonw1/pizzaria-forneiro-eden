@@ -81,7 +81,7 @@ export function OrderDetailsDialog({ open, onOpenChange, order }: OrderDetailsDi
       const { data, error } = await supabase.functions.invoke('confirm-payment-and-add-points', {
         body: {
           orderId: order.id,
-          customerId: order.customer?.id || undefined,
+          customerId: undefined, // Customer ID será buscado pela order no backend
           amount: order.total,
           pointsRedeemed: order.pointsRedeemed || 0,
         },
