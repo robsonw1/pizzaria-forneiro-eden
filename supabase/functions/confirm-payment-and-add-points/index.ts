@@ -30,11 +30,15 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { orderId, customerId, amount, pointsRedeemed = 0 } = (await req.json()) as RequestBody;
+    console.log('[CONFIRM-PAYMENT] Iniciando processamento...');
+    const body = await req.json() as RequestBody;
+    const { orderId, customerId, amount, pointsRedeemed = 0 } = body;
 
-    if (!orderId) {
+    console.log('[CONFIRM-PAYMENT] Body recebido:', { orderId, customerId, amount, pointsRedeemed });
+
+    if (!orderId || !amount) {
       return new Response(
-        JSON.stringify({ error: 'Order ID is required' }),
+        JSON.stringify({ error: 'orderId and amount são obrigatórios' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -48,55 +52,62 @@ Deno.serve(async (req) => {
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    console.log('[CONFIRM-PAYMENT] Cliente Supabase criado');
 
-    console.log('🔄 Confirmando pagamento e adicionando pontos...', { orderId, customerId, amount });
-
-    // 0️⃣ Buscar a ordem para obter customer_id se não foi fornecido
+    // 0️⃣ Buscar a ordem
+    console.log(`[CONFIRM-PAYMENT] Buscando ordem ${orderId}...`);
     const { data: orderData, error: orderFetchError } = await supabase
       .from('orders')
-      .select('customer_id, customer_email, customer_name, customer_phone')
+      .select('*')
       .eq('id', orderId)
       .single();
 
     if (orderFetchError || !orderData) {
-      console.error('❌ Pedido não encontrado:', orderFetchError);
+      console.error('[CONFIRM-PAYMENT] Erro ao buscar ordem:', orderFetchError);
       return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'Pedido não encontrado' 
-        }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'Pedido não encontrado' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Usar customer_id do pedido se não foi fornecido
+    console.log('[CONFIRM-PAYMENT] Ordem encontrada:', { id: orderData.id, status: orderData.status });
+
+    // Se pedido já foi confirmado, retornar sucesso
+    if (orderData.status === 'confirmed') {
+      console.log('[CONFIRM-PAYMENT] Pedido já estava confirmado - retornando sucesso');
+      return new Response(
+        JSON.stringify({ success: true, message: 'Pedido já estava confirmado.' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Usar customer_id do pedido
     const finalCustomerId = customerId || orderData.customer_id;
+    console.log('[CONFIRM-PAYMENT] Customer ID final:', finalCustomerId);
 
-    console.log('📋 Pedido encontrado:', { orderId, finalCustomerId, customerName: orderData.customer_name });
-
-    // 1️⃣ Atualizar status do pedido para 'confirmado'
+    // 1️⃣ Atualizar status do pedido
+    console.log('[CONFIRM-PAYMENT] Atualizando status para confirmed...');
     const { error: updateError } = await supabase
       .from('orders')
-      .update({ status: 'confirmado' })
+      .update({ status: 'confirmed' })
       .eq('id', orderId);
 
     if (updateError) {
-      console.error('❌ Erro ao atualizar status do pedido:', updateError);
+      console.error('[CONFIRM-PAYMENT] Erro ao atualizar status:', updateError);
       return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'Erro ao confirmar pedido' 
-        }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'Erro ao confirmar pedido' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('✅ Status do pedido atualizado para confirmado');
+    console.log('[CONFIRM-PAYMENT] Status atualizado para confirmed ✅');
 
     // 2️⃣ Adicionar pontos se cliente existe
-    if (finalCustomerId && amount > 0) {
+    if (finalCustomerId && amount > 0 && pointsRedeemed === 0) {
+      console.log('[CONFIRM-PAYMENT] Iniciar adição de pontos para cliente:', finalCustomerId);
+      
       try {
-        // Buscar configurações de pontos
+        // Buscar configurações
         const { data: settingsData } = await supabase
           .from('loyalty_settings')
           .select('points_per_real, points_expiration_days')
@@ -104,50 +115,44 @@ Deno.serve(async (req) => {
 
         const pointsPerReal = settingsData?.points_per_real ?? 1;
         const expirationDays = settingsData?.points_expiration_days ?? 365;
-
-        // Se cliente redimiu pontos nesta compra, não ganha pontos
-        if (pointsRedeemed > 0) {
-          console.log('⏭️ Pontos não adicionados (cliente usou desconto de pontos)');
-          return new Response(
-            JSON.stringify({ 
-              success: true, 
-              message: 'Pagamento confirmado. Pontos não adicionados (desconto utilizado).' 
-            }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
         const pointsEarned = Math.floor(amount * pointsPerReal);
 
-        // Buscar dados atuais do cliente
-        const { data: customerData, error: fetchError } = await supabase
+        console.log('[CONFIRM-PAYMENT] Configurações de pontos:', { pointsPerReal, expirationDays, pointsEarned });
+
+        // Buscar dados do cliente
+        const { data: customerData } = await supabase
           .from('customers')
-          .select('total_points, total_spent, total_purchases, last_purchase_at')
+          .select('total_points, total_spent, total_purchases')
           .eq('id', finalCustomerId)
           .single();
 
-        if (fetchError) {
-          console.warn('⚠️ Cliente não encontrado. Pulando adição de pontos...', fetchError);
+        if (!customerData) {
+          console.warn('[CONFIRM-PAYMENT] Cliente não encontrado no sistema de lealdade');
           return new Response(
             JSON.stringify({ 
               success: true, 
-              message: 'Pagamento confirmado. Cliente não encontrado no sistema de lealdade.' 
+              message: 'Pagamento confirmado. Cliente não encontrado para adicionar pontos.' 
             }),
             { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
 
-        const newTotalPoints = (customerData?.total_points || 0) + pointsEarned;
-        const newTotalSpent = (customerData?.total_spent || 0) + amount;
-        const newTotalPurchases = (customerData?.total_purchases || 0) + 1;
+        const newTotalPoints = (customerData.total_points || 0) + pointsEarned;
+        const newTotalSpent = (customerData.total_spent || 0) + amount;
+        const newTotalPurchases = (customerData.total_purchases || 0) + 1;
         const localISO = getLocalISOString();
-
-        // Calcular data de expiração
+        
         const expiresAtDate = new Date();
         expiresAtDate.setDate(expiresAtDate.getDate() + expirationDays);
         const expiresAtISO = expiresAtDate.toISOString();
 
-        // Atualizar totais do cliente
+        console.log('[CONFIRM-PAYMENT] Atualizando cliente com novos totais...', {
+          totalPoints: newTotalPoints,
+          totalSpent: newTotalSpent,
+          totalPurchases: newTotalPurchases
+        });
+
+        // Atualizar cliente
         await supabase
           .from('customers')
           .update({
@@ -158,19 +163,21 @@ Deno.serve(async (req) => {
           })
           .eq('id', finalCustomerId);
 
-        // Registrar transação de pontos
+        // Registrar transação
         await supabase.from('loyalty_transactions').insert([{
           customer_id: finalCustomerId,
           order_id: orderId,
           points_earned: pointsEarned,
           transaction_type: 'purchase',
-          description: `Compra no valor de R$ ${amount.toFixed(2)} - ${pointsEarned} pontos`,
+          description: `Compra no valor de R$ ${amount.toFixed(2)}`,
           created_at: localISO,
           expires_at: expiresAtISO,
         }]);
 
-        console.log(`✅ ${pointsEarned} pontos adicionados ao cliente ${finalCustomerId}`);
-        console.log(`   Total de pontos: ${newTotalPoints}`);
+        console.log('[CONFIRM-PAYMENT] Pontos adicionados com sucesso! ✅', {
+          pointsEarned,
+          totalPoints: newTotalPoints
+        });
 
         return new Response(
           JSON.stringify({ 
@@ -182,19 +189,19 @@ Deno.serve(async (req) => {
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       } catch (pointsError) {
-        console.error('⚠️ Erro ao adicionar pontos (não bloqueante):', pointsError);
-        // Não falhar se pontos não forem adicionados - pedido já foi confirmado
+        console.error('[CONFIRM-PAYMENT] Erro ao adicionar pontos:', pointsError);
+        // Não falhar - pedido já foi confirmado
         return new Response(
           JSON.stringify({ 
             success: true, 
-            message: 'Pagamento confirmado. Erro ao adicionar pontos (tente recarregar).',
-            error: 'points_error'
+            message: 'Pagamento confirmado. Erro ao adicionar pontos.' 
           }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
     }
 
+    console.log('[CONFIRM-PAYMENT] Processamento concluído com sucesso ✅');
     return new Response(
       JSON.stringify({ 
         success: true, 
@@ -203,7 +210,7 @@ Deno.serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('❌ Erro crítico:', error);
+    console.error('[CONFIRM-PAYMENT] Erro crítico:', error);
     return new Response(
       JSON.stringify({ 
         success: false, 
