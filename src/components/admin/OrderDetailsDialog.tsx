@@ -116,17 +116,32 @@ export function OrderDetailsDialog({ open, onOpenChange, order }: OrderDetailsDi
           fullError: error
         });
         
-        // Mensagem de erro mais específica
+        // Try to extract detailed error from response
+        let errorDetail = error.message || 'Erro desconhecido';
         if (error.message?.includes('orderId')) {
-          toast.error('Erro: ID do pedido não encontrado');
+          errorDetail = 'ID do pedido não encontrado';
         } else if (error.message?.includes('amount')) {
-          toast.error('Erro: Valor do pedido não foi especificado');
+          errorDetail = 'Valor do pedido não foi especificado';
         } else if (error.message?.includes('cliente')) {
-          toast.error('Erro: Cliente não encontrado. Verifique se o email foi salvo.');
-        } else {
-          toast.error(`Erro ao confirmar: ${error.message || 'Tente novamente'}`);
+          errorDetail = 'Cliente não encontrado. Verifique se o email foi salvo.';
         }
         
+        toast.error(`Erro ao confirmar: ${errorDetail}`);
+        
+        setIsConfirmingPayment(false);
+        return;
+      }
+
+      if (!data) {
+        console.error('[ADMIN] ❌ Nenhuma resposta da Edge Function');
+        toast.error('Erro: Nenhuma resposta do servidor');
+        setIsConfirmingPayment(false);
+        return;
+      }
+
+      if (!data.success) {
+        console.error('[ADMIN] ❌ Edge Function retornou success: false', data);
+        toast.error(`Erro ao confirmar: ${data.error || 'Tente novamente'}`);
         setIsConfirmingPayment(false);
         return;
       }
