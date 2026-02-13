@@ -72,25 +72,66 @@ export function OrderDetailsDialog({ open, onOpenChange, order }: OrderDetailsDi
 
     setIsConfirmingPayment(true);
     try {
-      console.log('[ADMIN] Confirmando pagamento do pedido:', order.id);
+      // 🔍 VALIDAÇÕES DE SEGURANÇA
+      console.log('[ADMIN] INICIANDO CONFIRMAÇÃO DE PAGAMENTO', {
+        orderId: order.id,
+        total: order.total,
+        pointsRedeemed: order.pointsRedeemed,
+        paymentMethod: order.paymentMethod,
+        status: order.status
+      });
+
+      // Validar que o pedido tem ID e valor
+      if (!order.id || typeof order.id !== 'string') {
+        console.error('[ADMIN] ❌ Order ID inválido:', order.id);
+        toast.error('Erro: ID do pedido inválido');
+        setIsConfirmingPayment(false);
+        return;
+      }
+
+      // Validar que tem um valor
+      const totalAmount = parseFloat(String(order.total));
+      if (isNaN(totalAmount) || totalAmount <= 0) {
+        console.error('[ADMIN] ❌ Valor inválido:', order.total);
+        toast.error('Erro: Valor do pedido inválido');
+        setIsConfirmingPayment(false);
+        return;
+      }
+
+      console.log('[ADMIN] ✅ Validações passaram, chamando Edge Function...');
 
       const { data, error } = await supabase.functions.invoke('confirm-payment-and-add-points', {
         body: {
           orderId: order.id,
           customerId: undefined,
-          amount: order.total,
+          amount: totalAmount,
           pointsRedeemed: order.pointsRedeemed || 0,
         },
       });
 
       if (error) {
-        console.error('[ADMIN] Erro ao confirmar:', error);
-        toast.error('Erro ao confirmar pagamento. Tente novamente.');
+        console.error('[ADMIN] ❌ Erro da Edge Function:', {
+          message: error.message,
+          status: error.status,
+          fullError: error
+        });
+        
+        // Mensagem de erro mais específica
+        if (error.message?.includes('orderId')) {
+          toast.error('Erro: ID do pedido não encontrado');
+        } else if (error.message?.includes('amount')) {
+          toast.error('Erro: Valor do pedido não foi especificado');
+        } else if (error.message?.includes('cliente')) {
+          toast.error('Erro: Cliente não encontrado. Verifique se o email foi salvo.');
+        } else {
+          toast.error(`Erro ao confirmar: ${error.message || 'Tente novamente'}`);
+        }
+        
         setIsConfirmingPayment(false);
         return;
       }
 
-      console.log('[ADMIN] Pagamento confirmado com sucesso:', data);
+      console.log('[ADMIN] ✅ Pagamento confirmado com sucesso:', data);
 
       // Atualizar status do pedido no store
       await updateOrderStatus(order.id, 'confirmed');
@@ -98,12 +139,15 @@ export function OrderDetailsDialog({ open, onOpenChange, order }: OrderDetailsDi
       // Aguardar para realtime disparar no cliente
       await new Promise(r => setTimeout(r, 1000));
       
-      toast.success(data?.message || 'Pagamento confirmado!');
+      toast.success(data?.message || 'Pagamento confirmado e pontos adicionados!');
       onOpenChange(false);
       
     } catch (error) {
-      console.error('[ADMIN] Erro ao confirmar pagamento:', error);
-      toast.error('Erro ao confirmar pagamento. Tente novamente.');
+      console.error('[ADMIN] ❌ Erro ao confirmar pagamento:', {
+        message: error instanceof Error ? error.message : String(error),
+        error: error
+      });
+      toast.error(`Erro ao confirmar pagamento: ${error instanceof Error ? error.message : 'Tente novamente'}`);
     } finally {
       setIsConfirmingPayment(false);
     }
