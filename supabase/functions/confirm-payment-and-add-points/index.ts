@@ -117,14 +117,17 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log('[CONFIRM-PAYMENT] Ordem encontrada:', { 
+    console.log('[CONFIRM-PAYMENT] ✅ Ordem encontrada - DADOS COMPLETOS:', { 
       id: orderData.id, 
       status: orderData.status,
       customer_id: orderData.customer_id,
       email: orderData.email,
+      customer_name: orderData.customer_name,
+      customer_phone: orderData.customer_phone,
       pending_points: orderData.pending_points,
       points_redeemed: orderData.points_redeemed,
-      total: orderData.total
+      total: orderData.total,
+      created_at: orderData.created_at
     });
 
     // Se pedido já foi confirmado, retornar sucesso
@@ -158,10 +161,18 @@ Deno.serve(async (req) => {
 
     // Usar customer_id do pedido
     const finalCustomerId = customerId || orderData.customer_id;
-    console.log('[CONFIRM-PAYMENT] Customer ID final:', finalCustomerId);
+    console.log('[CONFIRM-PAYMENT] 🔎 Resolvendo customer_id:', {
+      customerId_fromRequest: customerId,
+      customer_id_fromOrder: orderData.customer_id,
+      finalCustomerId: finalCustomerId,
+      email_fromOrder: orderData.email
+    });
     
     if (!finalCustomerId && !orderData.email) {
-      console.error('[CONFIRM-PAYMENT] ❌ Não há customer_id nem email para identificar cliente!');
+      console.error('[CONFIRM-PAYMENT] ❌ ERRO CRÍTICO: Não há customer_id nem email para identificar cliente!', {
+        finalCustomerId,
+        email: orderData.email
+      });
       return new Response(
         JSON.stringify({ 
           error: 'Não foi possível identificar o cliente (sem customer_id ou email)' 
@@ -190,19 +201,27 @@ Deno.serve(async (req) => {
     // 2️⃣ Resolver customer_id se necessário (via email)
     let resolvedCustomerId = finalCustomerId;
     if (!resolvedCustomerId && orderData.email) {
-      console.log('[CONFIRM-PAYMENT] Buscando customer por email:', orderData.email);
-      const { data: customerByEmail } = await supabase
+      console.log('[CONFIRM-PAYMENT] 🔎 Buscando customer por email:', orderData.email);
+      const { data: customerByEmail, error: emailSearchError } = await supabase
         .from('customers')
         .select('id')
         .eq('email', orderData.email)
         .single();
       
-      if (customerByEmail?.id) {
+      if (emailSearchError) {
+        console.warn('[CONFIRM-PAYMENT] ⚠️ Erro ao buscar customer por email:', {
+          email: orderData.email,
+          error: emailSearchError.code,
+          message: emailSearchError.message
+        });
+      } else if (customerByEmail?.id) {
         resolvedCustomerId = customerByEmail.id;
-        console.log('[CONFIRM-PAYMENT] Customer encontrado via email:', resolvedCustomerId);
+        console.log('[CONFIRM-PAYMENT] ✅ Customer encontrado via email:', resolvedCustomerId);
       } else {
-        console.warn('[CONFIRM-PAYMENT] ⚠️ Customer não encontrado via email:', orderData.email);
+        console.warn('[CONFIRM-PAYMENT] ⚠️ Customer não encontrado na tabela (pode ser novo cliente):', orderData.email);
       }
+    } else if (resolvedCustomerId) {
+      console.log('[CONFIRM-PAYMENT] ✅ Usando customer_id do pedido:', resolvedCustomerId);
     }
 
     // 3️⃣ Mover pending_points para o saldo total do cliente
