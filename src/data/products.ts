@@ -47,6 +47,7 @@ export interface Order {
   customer: {
     name: string;
     phone: string;
+    email?: string;
     cpf?: string; // Only for PIX at payment step
   };
   address: {
