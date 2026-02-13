@@ -70,7 +70,15 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log('[CONFIRM-PAYMENT] Ordem encontrada:', { id: orderData.id, status: orderData.status });
+    console.log('[CONFIRM-PAYMENT] Ordem encontrada:', { 
+      id: orderData.id, 
+      status: orderData.status,
+      customer_id: orderData.customer_id,
+      email: orderData.email,
+      pending_points: orderData.pending_points,
+      points_redeemed: orderData.points_redeemed,
+      total: orderData.total
+    });
 
     // Se pedido já foi confirmado, retornar sucesso
     if (orderData.status === 'confirmed') {
@@ -81,9 +89,39 @@ Deno.serve(async (req) => {
       );
     }
 
+    // 🔒 VALIDAÇÃO DE SEGURANÇA: Verificar se points_redeemed foi alterado fraudulentamente
+    const reportedPointsRedeemed = pointsRedeemed ?? 0;
+    const actualPointsRedeemed = orderData.points_redeemed ?? 0;
+    
+    if (reportedPointsRedeemed !== actualPointsRedeemed) {
+      console.error('[CONFIRM-PAYMENT] ⚠️ FRAUDE DETECTADA: points_redeemed alterado!', {
+        reportado: reportedPointsRedeemed,
+        actual: actualPointsRedeemed,
+        orderId: orderId
+      });
+      
+      return new Response(
+        JSON.stringify({ 
+          error: 'Tentativa de fraude detectada: pontos alterados após criação do pedido',
+          security: true 
+        }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Usar customer_id do pedido
     const finalCustomerId = customerId || orderData.customer_id;
     console.log('[CONFIRM-PAYMENT] Customer ID final:', finalCustomerId);
+    
+    if (!finalCustomerId && !orderData.email) {
+      console.error('[CONFIRM-PAYMENT] ❌ Não há customer_id nem email para identificar cliente!');
+      return new Response(
+        JSON.stringify({ 
+          error: 'Não foi possível identificar o cliente (sem customer_id ou email)' 
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // 1️⃣ Atualizar status do pedido
     console.log('[CONFIRM-PAYMENT] Atualizando status para confirmed...');
@@ -102,8 +140,26 @@ Deno.serve(async (req) => {
 
     console.log('[CONFIRM-PAYMENT] Status atualizado para confirmed ✅');
 
-    // 2️⃣ Mover pending_points para o saldo total do cliente
-    if (finalCustomerId && orderData.pending_points > 0) {
+    // 2️⃣ Resolver customer_id se necessário (via email)
+    let resolvedCustomerId = finalCustomerId;
+    if (!resolvedCustomerId && orderData.email) {
+      console.log('[CONFIRM-PAYMENT] Buscando customer por email:', orderData.email);
+      const { data: customerByEmail } = await supabase
+        .from('customers')
+        .select('id')
+        .eq('email', orderData.email)
+        .single();
+      
+      if (customerByEmail?.id) {
+        resolvedCustomerId = customerByEmail.id;
+        console.log('[CONFIRM-PAYMENT] Customer encontrado via email:', resolvedCustomerId);
+      } else {
+        console.warn('[CONFIRM-PAYMENT] ⚠️ Customer não encontrado via email:', orderData.email);
+      }
+    }
+
+    // 3️⃣ Mover pending_points para o saldo total do cliente
+    if (resolvedCustomerId && orderData.pending_points > 0) {
       console.log('[CONFIRM-PAYMENT] ✅ Movendo pending_points para total_points...');
       
       try {
@@ -122,7 +178,7 @@ Deno.serve(async (req) => {
           const { data: customerData } = await supabase
             .from('customers')
             .select('total_points, total_spent, total_purchases')
-            .eq('id', finalCustomerId)
+            .eq('id', resolvedCustomerId)
             .single();
 
           if (!customerData) {
@@ -135,6 +191,12 @@ Deno.serve(async (req) => {
               { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             );
           }
+
+          console.log('[CONFIRM-PAYMENT] Cliente encontrado:', {
+            customerId: resolvedCustomerId,
+            totalPoints: customerData.total_points,
+            totalSpent: customerData.total_spent
+          });
 
           // Mover pending_points para total_points
           const newTotalPoints = (customerData.total_points || 0) + pendingPoints;
@@ -162,7 +224,7 @@ Deno.serve(async (req) => {
               total_purchases: newTotalPurchases,
               last_purchase_at: localISO,
             })
-            .eq('id', finalCustomerId);
+            .eq('id', resolvedCustomerId);
 
           if (updateError) {
             console.error('[CONFIRM-PAYMENT] ❌ Erro ao atualizar cliente:', updateError);
@@ -173,7 +235,7 @@ Deno.serve(async (req) => {
 
           // Registrar transação com os pending_points
           const { error: transactionError, data: transactionData } = await supabase.from('loyalty_transactions').insert([{
-            customer_id: finalCustomerId,
+            customer_id: resolvedCustomerId,
             order_id: orderId,
             points_earned: pendingPoints,
             transaction_type: 'purchase',
