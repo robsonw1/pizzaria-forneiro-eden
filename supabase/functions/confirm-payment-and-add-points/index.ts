@@ -30,42 +30,72 @@ Deno.serve(async (req) => {
   }
 
   try {
-    console.log('[CONFIRM-PAYMENT] Iniciando processamento...');
+    console.log('[CONFIRM-PAYMENT] ===== INICIANDO PROCESSAMENTO =====');
     const body = await req.json() as RequestBody;
     const { orderId, customerId, amount, pointsRedeemed = 0 } = body;
 
-    console.log('[CONFIRM-PAYMENT] Body recebido:', { orderId, customerId, amount, pointsRedeemed });
+    console.log('[CONFIRM-PAYMENT] 📨 Body recebido:', JSON.stringify({ orderId, customerId, amount, pointsRedeemed }));
 
-    if (!orderId || !amount) {
+    // VALIDAÇÃO 1: Verificar parâmetros obrigatórios
+    if (!orderId) {
+      console.error('[CONFIRM-PAYMENT] ❌ ERRO: orderId ausente ou vazio');
       return new Response(
-        JSON.stringify({ error: 'orderId and amount são obrigatórios' }),
+        JSON.stringify({ error: 'orderId é obrigatório' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    if (amount === undefined || amount === null || amount === 0) {
+      console.error('[CONFIRM-PAYMENT] ❌ ERRO: amount ausente, null ou 0', { amount });
+      return new Response(
+        JSON.stringify({ error: 'amount é obrigatório e deve ser > 0' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('[CONFIRM-PAYMENT] ✅ Validação de parâmetros passou');
 
     // Create Supabase admin client
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
     if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('[CONFIRM-PAYMENT] ❌ ERRO: Variáveis de ambiente não configuradas');
       throw new Error('Missing Supabase environment variables');
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    console.log('[CONFIRM-PAYMENT] Cliente Supabase criado');
+    console.log('[CONFIRM-PAYMENT] ✅ Cliente Supabase criado');
 
     // 0️⃣ Buscar a ordem
-    console.log(`[CONFIRM-PAYMENT] Buscando ordem ${orderId}...`);
+    console.log(`[CONFIRM-PAYMENT] 🔍 Buscando ordem: ${orderId}`);
     const { data: orderData, error: orderFetchError } = await supabase
       .from('orders')
       .select('*')
       .eq('id', orderId)
       .single();
 
-    if (orderFetchError || !orderData) {
-      console.error('[CONFIRM-PAYMENT] Erro ao buscar ordem:', orderFetchError);
+    if (orderFetchError) {
+      console.error('[CONFIRM-PAYMENT] ❌ ERRO ao buscar ordem:', {
+        code: orderFetchError.code,
+        message: orderFetchError.message,
+        details: orderFetchError.details,
+        hint: (orderFetchError as any).hint,
+      });
+      
       return new Response(
-        JSON.stringify({ error: 'Pedido não encontrado' }),
+        JSON.stringify({ 
+          error: `Pedido não encontrado: ${orderFetchError.message}`,
+          details: orderFetchError.details 
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!orderData) {
+      console.error('[CONFIRM-PAYMENT] ❌ Ordem retornou null mesmo sem erro');
+      return new Response(
+        JSON.stringify({ error: 'Pedido não encontrado na base de dados' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -290,11 +320,20 @@ Deno.serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('[CONFIRM-PAYMENT] Erro crítico:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : '';
+    
+    console.error('[CONFIRM-PAYMENT] ❌ ERRO CRÍTICO:', {
+      message: errorMessage,
+      stack: errorStack,
+      error: error
+    });
+    
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error instanceof Error ? error.message : 'Erro desconhecido' 
+        error: errorMessage,
+        stack: errorStack
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
