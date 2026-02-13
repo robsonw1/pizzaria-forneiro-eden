@@ -58,6 +58,9 @@ export const useOrdersStore = create<OrdersStore>()(
             paymentMethod: newOrder.paymentMethod, // Store internally for later retrieval
           };
           
+          // Calculate pending points earned from this purchase (1 real = 1 point)
+          const pendingPoints = Math.round(newOrder.total);
+          
           const { error } = await supabase.from('orders').insert([
             {
               id: newOrder.id,
@@ -69,6 +72,7 @@ export const useOrdersStore = create<OrdersStore>()(
               total: newOrder.total,
               points_discount: newOrder.pointsDiscount || 0,
               points_redeemed: newOrder.pointsRedeemed || 0,
+              pending_points: pendingPoints,
               payment_method: newOrder.paymentMethod,
               created_at: localISO,
               address: addressWithMetadata,
