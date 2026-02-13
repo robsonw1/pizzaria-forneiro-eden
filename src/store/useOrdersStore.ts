@@ -23,6 +23,7 @@ interface OrdersStore {
   addOrderToStoreOnly: (orderData: Order) => Order;
   updateOrderStatus: (id: string, status: OrderStatus) => Promise<void>;
   updateOrderPrintedAt: (id: string, printedAt: string) => Promise<void>;
+  updateOrderPointsRedeemed: (id: string, pointsRedeemed: number) => Promise<void>;
   removeOrder: (id: string) => Promise<void>;
   getOrderById: (id: string) => Order | undefined;
   getOrdersByDateRange: (startDate: Date, endDate: Date) => Order[];
@@ -222,6 +223,41 @@ export const useOrdersStore = create<OrdersStore>()(
         set((state) => ({
           orders: state.orders.map((order) =>
             order.id === id ? { ...order, printedAt } : order
+          ),
+        }));
+      },
+
+      updateOrderPointsRedeemed: async (id, pointsRedeemed) => {
+        try {
+          // 🔒 CRÍTICO: Atualizar points_redeemed no Supabase IMEDIATAMENTE
+          // Isso registra que esses pontos foram "reservados" para esta compra
+          const { error } = await (supabase as any).from('orders')
+            .update({ 
+              points_redeemed: pointsRedeemed,
+              points_discount: pointsRedeemed // Atualizar desconto também
+            })
+            .eq('id', id);
+
+          if (error) {
+            console.error('❌ Erro ao atualizar points_redeemed:', error);
+            throw error;
+          }
+
+          console.log(`✅ Points redeemed registrados: ${pointsRedeemed} pontos para ordem ${id}`);
+        } catch (error) {
+          console.error('Erro ao atualizar points_redeemed no Supabase:', error);
+        }
+
+        // Atualizar store localmente
+        set((state) => ({
+          orders: state.orders.map((order) =>
+            order.id === id 
+              ? { 
+                  ...order, 
+                  pointsRedeemed,
+                  pointsDiscount: pointsRedeemed 
+                } 
+              : order
           ),
         }));
       },
