@@ -246,26 +246,34 @@ export function CheckoutModal() {
     const subscription = supabase
       .from('orders')
       // @ts-ignore - Supabase Realtime type compatibility
-      .on('*', (payload: any) => {
+      .on('*', async (payload: any) => {
         console.log('📡 Realtime update received:', payload);
 
         if (payload.new?.id === lastOrderId && payload.new?.status === 'confirmado') {
           console.log('✅ Payment confirmed automatically via webhook!');
           
           // Atualizar state com informações do pedido criado
-          setLastFinalTotal(payload.new?.totals?.total || currentTotal);
+          const finalTotal = payload.new?.totals?.total || currentTotal;
+          const pointsRedeemed = payload.new?.totals?.pointsRedeemed || 0;
+          const appliedCoupon = payload.new?.totals?.appliedCoupon || null;
+          
+          setLastFinalTotal(finalTotal);
           if (payload.new?.totals?.pointsDiscount) {
             setLastPointsDiscount(payload.new.totals.pointsDiscount);
           }
-          if (payload.new?.totals?.pointsRedeemed) {
-            setLastPointsRedeemed(payload.new.totals.pointsRedeemed);
+          if (pointsRedeemed) {
+            setLastPointsRedeemed(pointsRedeemed);
           }
           if (payload.new?.totals?.couponDiscount) {
             setLastCouponDiscount(payload.new.totals.couponDiscount);
           }
-          if (payload.new?.totals?.appliedCoupon) {
-            setLastAppliedCoupon(payload.new.totals.appliedCoupon);
+          if (appliedCoupon) {
+            setLastAppliedCoupon(appliedCoupon);
           }
+
+          // 💰 Processar pontos IMEDIATAMENTE após confirmação automática
+          console.log('🔄 Disparando processamento de pontos no fluxo automático...');
+          await processPointsAndCoupons(pointsRedeemed, finalTotal, appliedCoupon);
 
           // Mostrar confirmação automaticamente
           toast.success('✅ Pedido confirmado com sucesso!');
@@ -818,6 +826,67 @@ export function CheckoutModal() {
     }
   };
 
+  // 💰 Processar pontos e cupons após confirmação de pagamento
+  const processPointsAndCoupons = async (pointsRedeemed: number, finalTotal: number, appliedCoupon: string | null) => {
+    try {
+      // 🔑 REGRA: Se cliente usou pontos na compra, NÃO adiciona novos pontos
+      const shouldEarnNewPoints = pointsRedeemed === 0;
+      
+      console.log('💰 [POINTS] Processando pontos após pagamento confirmado:', {
+        pointsRedeemed,
+        shouldEarnNewPoints,
+        rule: shouldEarnNewPoints 
+          ? 'Cliente NÃO usou pontos - GANHA novos pontos' 
+          : 'Cliente USOU pontos - NÃO ganha novos pontos'
+      });
+      
+      // Resgate de pontos se o cliente tiver usado
+      if (lastLoyaltyCustomer && pointsRedeemed > 0) {
+        const minPoints = useLoyaltySettingsStore.getState().settings?.minPointsToRedeem ?? 50;
+        if (pointsRedeemed >= minPoints) {
+          try {
+            await redeemPoints(lastLoyaltyCustomer.id, pointsRedeemed);
+            console.log(`✅ ${pointsRedeemed} pontos resgatados com sucesso`);
+          } catch (error) {
+            console.error('Erro ao resgatar pontos:', error);
+          }
+        }
+      }
+      
+      // 🔑 Adicionar pontos da compra APENAS se cliente NÃO usou pontos
+      if (shouldEarnNewPoints && lastLoyaltyCustomer) {
+        try {
+          const pointsEarned = Math.floor(finalTotal * 1); // 1 ponto por real
+          setLastPointsEarned(pointsEarned);
+          console.log(`💰 Adicionando ${pointsEarned} novos pontos ao cliente (não usou pontos no resgate)`);
+          await addPointsFromPurchase(lastLoyaltyCustomer.id, finalTotal, lastOrderEmail, pointsRedeemed);
+          await new Promise(resolve => setTimeout(resolve, 500));
+          await refreshCurrentCustomer();
+          console.log(`✅ ${pointsEarned} pontos adicionados com sucesso`);
+        } catch (error) {
+          console.error('Erro ao adicionar pontos:', error);
+          toast.error('Erro ao processar pontos de fidelização');
+        }
+      } else if (!shouldEarnNewPoints && lastLoyaltyCustomer) {
+        console.log('⏭️ NÃO adicionar pontos: cliente usou pontos no resgate');
+        // Apenas atualizar o cliente para refletir a mudança de pontos após resgate
+        await refreshCurrentCustomer();
+      }
+      
+      // Marcar cupom como usado (se foi aplicado)
+      if (appliedCoupon) {
+        try {
+          await markCouponAsUsed(appliedCoupon, currentCustomer?.id);
+          console.log(`✅ Cupom ${appliedCoupon} marcado como usado`);
+        } catch (error) {
+          console.warn('⚠️ Falha ao marcar cupom:', error);
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao processar pontos e cupons:', error);
+    }
+  };
+
   const handlePixConfirmed = async () => {
     // 🔒 VALIDAÇÃO CRÍTICA: Validar PAGAMENTO + CRIAR PEDIDO (tudo junto na Edge Function)
     if (!pixData?.paymentId) {
@@ -835,7 +904,8 @@ export function CheckoutModal() {
       // 1️⃣ VALIDAR PAGAMENTO + CRIAR PEDIDO NA EDGE FUNCTION
       console.log('🔄 Validando pagamento e criando pedido...', {
         paymentId: pixData.paymentId,
-        orderId: lastOrderId
+        orderId: lastOrderId,
+        pointsRedeemed: lastPointsRedeemed
       });
 
       const { data: validationData, error: validationError } = await supabase.functions.invoke(
@@ -857,45 +927,8 @@ export function CheckoutModal() {
 
       console.log('✅ Pagamento validado e pedido criado:', validationData);
 
-      // 2️⃣ PEDIDO CRIADO COM SUCESSO - Agora processar pontos e loyalidade
-      
-      // Resgate de pontos se o cliente tiver usado
-      if (lastLoyaltyCustomer && lastPointsRedeemed > 0) {
-        const minPoints = useLoyaltySettingsStore.getState().settings?.minPointsToRedeem ?? 50;
-        if (lastPointsRedeemed >= minPoints) {
-          try {
-            await redeemPoints(lastLoyaltyCustomer.id, lastPointsRedeemed);
-            console.log(`✅ ${lastPointsRedeemed} pontos resgatados`);
-          } catch (error) {
-            console.error('Erro ao resgatar pontos:', error);
-          }
-        }
-      }
-      
-      // Adicionar pontos da compra
-      if (lastLoyaltyCustomer) {
-        try {
-          const pointsEarned = Math.floor(lastFinalTotal * 1); // 1 ponto por real
-          setLastPointsEarned(pointsEarned);
-          await addPointsFromPurchase(lastLoyaltyCustomer.id, lastFinalTotal, lastOrderEmail, lastPointsRedeemed);
-          await new Promise(resolve => setTimeout(resolve, 500));
-          await refreshCurrentCustomer();
-          console.log(`✅ ${pointsEarned} pontos adicionados`);
-        } catch (error) {
-          console.error('Erro ao adicionar pontos:', error);
-          toast.error('Erro ao processar pontos de fidelização');
-        }
-      }
-      
-      // Marcar cupom como usado (se foi aplicado)
-      if (lastAppliedCoupon) {
-        try {
-          await markCouponAsUsed(lastAppliedCoupon, currentCustomer?.id);
-          console.log(`✅ Cupom ${lastAppliedCoupon} marcado como usado`);
-        } catch (error) {
-          console.warn('⚠️ Falha ao marcar cupom:', error);
-        }
-      }
+      // 2️⃣ PEDIDO CRIADO COM SUCESSO - Processar pontos baseado em se foi usado
+      await processPointsAndCoupons(lastPointsRedeemed, lastFinalTotal, lastAppliedCoupon);
       
       toast.success('✅ Pedido confirmado com sucesso!');
       
