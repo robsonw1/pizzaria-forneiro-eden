@@ -227,6 +227,7 @@ Deno.serve(async (req) => {
     // 3️⃣ Mover pending_points para o saldo total do cliente
     if (resolvedCustomerId && orderData.pending_points > 0) {
       console.log('[CONFIRM-PAYMENT] ✅ Movendo pending_points para total_points...');
+      console.log('[CONFIRM-PAYMENT] 💰 REGRA: Cliente NÃO usou pontos no resgate - pode ganhar novos pontos');
       
       try {
         // Buscar configurações de expiração
@@ -344,6 +345,11 @@ Deno.serve(async (req) => {
       }
     } else {
       console.log('[CONFIRM-PAYMENT] ⏹️ Nenhum pending_points para mover');
+      console.log('[CONFIRM-PAYMENT] 💰 REGRA: Cliente USOU pontos no resgate - NÃO ganha novos pontos', {
+        pointsRedeemed: orderData.points_redeemed,
+        pendingPoints: orderData.pending_points,
+        rule: 'Se o cliente usou pontos do desconto, não pode ganhar novos pontos nesta compra'
+      });
     }
 
 
