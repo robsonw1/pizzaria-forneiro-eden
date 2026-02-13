@@ -133,8 +133,13 @@ export function CheckoutModal() {
       if (currentCustomer.phone && !customer.phone) {
         setCustomer({ phone: currentCustomer.phone });
       }
+      // 🔑 CRÍTICO: Pré-preencher email do cliente autenticado
+      if (currentCustomer.email && !customer.email) {
+        setCustomer({ email: currentCustomer.email });
+        console.log('📧 Email preenchido automaticamente:', currentCustomer.email);
+      }
     }
-  }, [isCheckoutOpen, currentCustomer?.name, currentCustomer?.phone, isRemembered]);
+  }, [isCheckoutOpen, currentCustomer?.name, currentCustomer?.phone, currentCustomer?.email, isRemembered]);
 
   // Pré-preencher endereço salvo quando checkout abre
   useEffect(() => {
@@ -171,6 +176,59 @@ export function CheckoutModal() {
       setPointsToRedeem(0);
     }
   }, [isCheckoutOpen]);
+
+  // 🔴 REALTIME: Sincronizar pontos do cliente em tempo real
+  // Detecta quando outro navegador/aba usa os mesmos pontos (previne fraude)
+  useEffect(() => {
+    if (!isCheckoutOpen || !currentCustomer?.id) return;
+
+    console.log('🔴 Setting up Realtime points sync for customer:', currentCustomer.id);
+
+    const channel = supabase.channel(`customer-points-${currentCustomer.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'customers',
+          filter: `id=eq.${currentCustomer.id}`
+        },
+        (payload: any) => {
+          const updatedCustomer = payload.new;
+          console.log('🔄 Pontos sincronizados em tempo real:', {
+            totalPoints: updatedCustomer.total_points,
+            timestamp: new Date().toISOString()
+          });
+
+          // Refrescar dados do cliente na store de lealdade
+          refreshCurrentCustomer();
+
+          // Se cliente tinha selecionado usar pontos e eles foram reduzidos, alertar
+          if (pointsToRedeem > 0 && updatedCustomer.total_points < currentCustomer.totalPoints) {
+            toast.warning(
+              `⚠️ Seus pontos foram atualizados! Disponíveis agora: ${updatedCustomer.total_points}`,
+              { duration: 5000 }
+            );
+            
+            // Se o cliente usou todos os pontos em outra aba, resetar
+            if (updatedCustomer.total_points < pointsToRedeem) {
+              setPointsToRedeem(0);
+              toast.info('Pontos resgastados foram zerados devido à atualização');
+            }
+          }
+        }
+      )
+      .subscribe((status: any) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Realtime subscription ativo para pontos do cliente');
+        }
+      });
+
+    return () => {
+      console.log('🔴 Unsubscribing from realtime points sync');
+      supabase.removeChannel(channel);
+    };
+  }, [isCheckoutOpen, currentCustomer?.id, pointsToRedeem, currentCustomer?.totalPoints]);
 
   // � Calcular valores (ANTES dos useEffects que os usam)
   const subtotal = getSubtotal();
@@ -548,6 +606,18 @@ export function CheckoutModal() {
     }, shouldAutoPrint);
     
     console.log('Pedido criado com ID:', createdOrder.id);
+
+    // 🔒 CRÍTICO: Se cliente usou pontos, sincronizar IMEDIATAMENTE com BD
+    // Isso evita fraude onde cliente abre outra aba e usa os mesmos pontos
+    if (pointsRedeemed > 0) {
+      try {
+        await useOrdersStore.getState().updateOrderPointsRedeemed(createdOrder.id, pointsRedeemed);
+        console.log(`✅ Pontos resgastados sincronizados: ${pointsRedeemed} para ordem ${createdOrder.id}`);
+      } catch (error) {
+        console.error('⚠️ Falha ao sincronizar points_redeemed (não crítico):', error);
+        // Se falhar, continua anyway pois o pedido já foi criado
+      }
+    }
   };
 
   const handleSubmitOrder = async () => {
