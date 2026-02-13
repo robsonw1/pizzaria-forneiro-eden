@@ -589,6 +589,14 @@ export function CheckoutModal() {
     
     // Add order to local store for admin panel
     // (addOrder function handles auto-print with retry logic based on shouldAutoPrint parameter)
+    console.log('[CHECKOUT] 🚀 Criando pedido com dados do cliente:', {
+      name: customer.name,
+      phone: customer.phone,
+      email: customer.email,
+      total: orderPayload.totals.total,
+      pointsRedeemed: pointsRedeemed
+    });
+
     const createdOrder = await addOrder({
       customer: {
         name: customer.name,
