@@ -53,6 +53,23 @@ export const useOrdersStore = create<OrdersStore>()(
           // Salvar no Supabase com hora local correta
           const localISO = getLocalISOString();
           
+          // 🔍 LOG: Verificar dados do cliente
+          console.log('📦 [ADDORDER] Criando pedido com dados:', {
+            id: newOrder.id,
+            customerName: newOrder.customer.name,
+            customerPhone: newOrder.customer.phone,
+            customerEmail: newOrder.customer.email,
+            total: newOrder.total,
+            status: newOrder.status
+          });
+
+          // Validar que email não é vazio
+          const customerEmail = (newOrder.customer.email || '').trim();
+          if (!customerEmail) {
+            console.error('❌ [ADDORDER] ERRO: Email do cliente é obrigatório!');
+            throw new Error('Email do cliente é obrigatório para criar pedido');
+          }
+          
           // Store payment_method as metadata in address JSONB
           const addressWithMetadata = {
             ...newOrder.address,
@@ -67,7 +84,7 @@ export const useOrdersStore = create<OrdersStore>()(
               id: newOrder.id,
               customer_name: newOrder.customer.name,
               customer_phone: newOrder.customer.phone,
-              email: newOrder.customer.email,
+              email: customerEmail, // ✅ Use trimmed email
               delivery_fee: newOrder.deliveryFee,
               status: newOrder.status,
               total: newOrder.total,
@@ -84,7 +101,7 @@ export const useOrdersStore = create<OrdersStore>()(
             console.error('❌ Erro ao inserir order:', error);
             throw error;
           }
-          console.log('✅ Order inserida com sucesso:', newOrder.id, 'em', localISO);
+          console.log('✅ Order inserida com sucesso:', newOrder.id, 'em', localISO, 'com email:', customerEmail);
 
           // Salvar itens do pedido - APENAS os campos que existem na tabela order_items
           const orderItems = newOrder.items.map((item) => ({
