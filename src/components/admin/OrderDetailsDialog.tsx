@@ -101,6 +101,16 @@ export function OrderDetailsDialog({ open, onOpenChange, order }: OrderDetailsDi
         return;
       }
 
+      // 🔑 LOG: Informar a regra de pontos
+      const rule = (order.pointsRedeemed || 0) > 0 
+        ? 'Cliente USOU pontos - NÃO ganhará novos pontos'
+        : 'Cliente NÃO usou pontos - GANHARÁ novos pontos';
+      
+      console.log('[ADMIN] 💰 REGRA DE PONTOS:', rule, {
+        pointsRedeemed: order.pointsRedeemed,
+        total: order.total
+      });
+
       console.log('[ADMIN] ✅ Validações passaram, chamando Edge Function com email:', order.customer?.email);
 
       const { data, error } = await supabase.functions.invoke('confirm-payment-and-add-points', {
