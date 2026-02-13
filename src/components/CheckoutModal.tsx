@@ -347,6 +347,17 @@ export function CheckoutModal() {
           toast.error('Por favor, informe um telefone válido');
           return false;
         }
+        // ✅ Validar email - obrigatório para confirmar pagamento e atualizar pontos
+        if (!customer.email || !customer.email.trim()) {
+          toast.error('Por favor, informe seu email');
+          return false;
+        }
+        // Validar formato do email
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(customer.email)) {
+          toast.error('Por favor, informe um email válido');
+          return false;
+        }
         return true;
       case 'delivery':
         // Always valid - customer just needs to choose
@@ -582,6 +593,7 @@ export function CheckoutModal() {
       customer: {
         name: customer.name,
         phone: customer.phone,
+        email: customer.email, // ✅ CRÍTICO: Incluir email do cliente
       },
       address: {
         city: address.city || 'São Paulo',
@@ -1027,6 +1039,18 @@ export function CheckoutModal() {
                       </div>
                     </div>
 
+                    <div>
+                      <Label htmlFor="email">Email *</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="seu@email.com"
+                        value={customer.email || ''}
+                        onChange={(e) => setCustomer({ email: e.target.value })}
+                        className="mt-1"
+                        required
+                      />
+                    </div>
 
                   </div>
                 </motion.div>
