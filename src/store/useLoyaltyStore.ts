@@ -280,14 +280,26 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
 
   addPointsFromPurchase: async (customerId: string, amount: number, orderId: string, pointsRedeemed: number = 0) => {
     try {
-      // Se cliente usou pontos para desconto, não ganha pontos nesta compra
+      // 🔑 REGRA: Se cliente usou pontos para desconto, não ganha pontos nesta compra
       if (pointsRedeemed > 0) {
-        console.log('⏭️ Pontos para compra NÃO adicionados (cliente usou desconto de pontos nesta compra)');
+        console.log('⏭️ [POINTS] Pontos para compra NÃO adicionados', {
+          reason: 'Cliente usou desconto de pontos nesta compra',
+          pointsRedeemed,
+          rule: 'Se pontos foram resgatados, não é possível ganhar novos pontos'
+        });
         return;
       }
 
       const pointsPerReal = getPointsPerReal();
       const pointsEarned = Math.floor(amount * pointsPerReal);
+
+      console.log('💰 [POINTS] Adicionando novos pontos da compra', {
+        customerId,
+        amount,
+        pointsPerReal,
+        pointsEarned,
+        rule: 'Cliente NÃO usou desconto de pontos - pode ganhar novos pontos'
+      });
 
       // Buscar pontos atuais do cliente
       const { data: customerData, error: fetchError } = await (supabase as any)
@@ -340,7 +352,12 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
 
       // Nota: Cupons agora são gerados manualmente pelo admin via painel de controle
 
-      console.log('✅ Pontos adicionados:', pointsEarned, '| Total:', newTotalPoints);
+      console.log('✅ [POINTS] Pontos adicionados com sucesso', {
+        pointsEarned,
+        totalPoints: newTotalPoints,
+        totalSpent: newTotalSpent,
+        message: `${pointsEarned} pontos ganhos | Total agora: ${newTotalPoints}`
+      });
     } catch (error) {
       console.error('Erro em addPointsFromPurchase:', error);
     }
