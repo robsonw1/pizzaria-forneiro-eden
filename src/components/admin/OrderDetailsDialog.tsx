@@ -73,8 +73,11 @@ export function OrderDetailsDialog({ open, onOpenChange, order }: OrderDetailsDi
     setIsConfirmingPayment(true);
     try {
       // 🔍 VALIDAÇÕES DE SEGURANÇA
-      console.log('[ADMIN] INICIANDO CONFIRMAÇÃO DE PAGAMENTO', {
+      console.log('[ADMIN] ===== INICIANDO CONFIRMAÇÃO DE PAGAMENTO =====');
+      console.log('[ADMIN] Dados do pedido:', {
         orderId: order.id,
+        customerName: order.customer?.name,
+        customerEmail: order.customer?.email,
         total: order.total,
         pointsRedeemed: order.pointsRedeemed,
         paymentMethod: order.paymentMethod,
@@ -98,7 +101,7 @@ export function OrderDetailsDialog({ open, onOpenChange, order }: OrderDetailsDi
         return;
       }
 
-      console.log('[ADMIN] ✅ Validações passaram, chamando Edge Function...');
+      console.log('[ADMIN] ✅ Validações passaram, chamando Edge Function com email:', order.customer?.email);
 
       const { data, error } = await supabase.functions.invoke('confirm-payment-and-add-points', {
         body: {
