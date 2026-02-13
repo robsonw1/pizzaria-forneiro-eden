@@ -60,6 +60,7 @@ export const useOrdersStore = create<OrdersStore>()(
             customerPhone: newOrder.customer.phone,
             customerEmail: newOrder.customer.email,
             total: newOrder.total,
+            pointsRedeemed: newOrder.pointsRedeemed,
             status: newOrder.status
           });
 
@@ -76,8 +77,18 @@ export const useOrdersStore = create<OrdersStore>()(
             paymentMethod: newOrder.paymentMethod, // Store internally for later retrieval
           };
           
-          // Calculate pending points earned from this purchase (1 real = 1 point)
-          const pendingPoints = Math.round(newOrder.total);
+          // 🔑 CRÍTICO: Calcular pending_points baseado em se cliente usou pontos
+          // Se cliente resgatou pontos: NÃO ganhou novos pontos nesta compra
+          // Se cliente NÃO resgatou pontos: Ganha pontos normalmente (1 real = 1 ponto)
+          const pointsRedeemed = newOrder.pointsRedeemed || 0;
+          const pendingPoints = pointsRedeemed > 0 ? 0 : Math.round(newOrder.total);
+          
+          console.log('💰 [ADDORDER] Cálculo de pontos:', {
+            pointsRedeemed,
+            total: newOrder.total,
+            pendingPoints,
+            rule: pointsRedeemed > 0 ? 'Cliente usou pontos - NÃO ganha novos' : 'Cliente não usou pontos - Ganha novos'
+          });
           
           const { error } = await supabase.from('orders').insert([
             {
@@ -89,8 +100,8 @@ export const useOrdersStore = create<OrdersStore>()(
               status: newOrder.status,
               total: newOrder.total,
               points_discount: newOrder.pointsDiscount || 0,
-              points_redeemed: newOrder.pointsRedeemed || 0,
-              pending_points: pendingPoints,
+              points_redeemed: pointsRedeemed,
+              pending_points: pendingPoints, // ✅ Usar pending_points calculado
               payment_method: newOrder.paymentMethod,
               created_at: localISO,
               address: addressWithMetadata,
@@ -101,7 +112,7 @@ export const useOrdersStore = create<OrdersStore>()(
             console.error('❌ Erro ao inserir order:', error);
             throw error;
           }
-          console.log('✅ Order inserida com sucesso:', newOrder.id, 'em', localISO, 'com email:', customerEmail);
+          console.log('✅ Order inserida com sucesso:', newOrder.id, 'em', localISO, 'com email:', customerEmail, 'pending_points:', pendingPoints);
 
           // Salvar itens do pedido - APENAS os campos que existem na tabela order_items
           const orderItems = newOrder.items.map((item) => ({
