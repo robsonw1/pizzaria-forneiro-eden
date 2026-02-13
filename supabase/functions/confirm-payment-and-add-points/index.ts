@@ -102,26 +102,21 @@ Deno.serve(async (req) => {
 
     console.log('[CONFIRM-PAYMENT] Status atualizado para confirmed ✅');
 
-    // 2️⃣ Adicionar pontos - SEMPRE, a menos que pointsRedeemed > 0
-    if (finalCustomerId && amount > 0) {
-      // Se cliente NÃO usou desconto de pontos, adiciona novos pontos
-      const shouldAddPoints = !pointsRedeemed || pointsRedeemed === 0;
+    // 2️⃣ Mover pending_points para o saldo total do cliente
+    if (finalCustomerId && orderData.pending_points > 0) {
+      console.log('[CONFIRM-PAYMENT] ✅ Movendo pending_points para total_points...');
       
-      if (shouldAddPoints) {
-        console.log('[CONFIRM-PAYMENT] ✅ Cliente NÃO usou desconto - adicionando pontos...');
-        
-        try {
-          // Buscar configurações
-          const { data: settingsData } = await supabase
-            .from('loyalty_settings')
-            .select('points_per_real, points_expiration_days')
-            .single();
+      try {
+        // Buscar configurações de expiração
+        const { data: settingsData } = await supabase
+          .from('loyalty_settings')
+          .select('points_expiration_days')
+          .single();
 
-          const pointsPerReal = settingsData?.points_per_real ?? 1;
-          const expirationDays = settingsData?.points_expiration_days ?? 365;
-          const pointsEarned = Math.floor(amount * pointsPerReal);
+        const expirationDays = settingsData?.points_expiration_days ?? 365;
+        const pendingPoints = orderData.pending_points;
 
-          console.log('[CONFIRM-PAYMENT] Configurações de pontos:', { pointsPerReal, expirationDays, pointsEarned });
+        console.log('[CONFIRM-PAYMENT] Pending points a mover:', { pendingPoints, expirationDays });
 
           // Buscar dados do cliente
           const { data: customerData } = await supabase
@@ -141,7 +136,8 @@ Deno.serve(async (req) => {
             );
           }
 
-          const newTotalPoints = (customerData.total_points || 0) + pointsEarned;
+          // Mover pending_points para total_points
+          const newTotalPoints = (customerData.total_points || 0) + pendingPoints;
           const newTotalSpent = (customerData.total_spent || 0) + amount;
           const newTotalPurchases = (customerData.total_purchases || 0) + 1;
           const localISO = getLocalISOString();
@@ -151,12 +147,13 @@ Deno.serve(async (req) => {
           const expiresAtISO = expiresAtDate.toISOString();
 
           console.log('[CONFIRM-PAYMENT] Atualizando cliente com novos totais...', {
+            pendingPointsMovidos: pendingPoints,
             totalPoints: newTotalPoints,
             totalSpent: newTotalSpent,
             totalPurchases: newTotalPurchases
           });
 
-          // Atualizar cliente
+          // Atualizar cliente COM os pending_points
           const { error: updateError, data: updateData } = await supabase
             .from('customers')
             .update({
@@ -174,13 +171,13 @@ Deno.serve(async (req) => {
 
           console.log('[CONFIRM-PAYMENT] ✅ Cliente atualizado com sucesso', updateData);
 
-          // Registrar transação
+          // Registrar transação com os pending_points
           const { error: transactionError, data: transactionData } = await supabase.from('loyalty_transactions').insert([{
             customer_id: finalCustomerId,
             order_id: orderId,
-            points_earned: pointsEarned,
+            points_earned: pendingPoints,
             transaction_type: 'purchase',
-            description: `Compra no valor de R$ ${amount.toFixed(2)}`,
+            description: `Compra no valor de R$ ${amount.toFixed(2)} (${pendingPoints} pontos)`,
             created_at: localISO,
             expires_at: expiresAtISO,
           }]);
@@ -192,35 +189,35 @@ Deno.serve(async (req) => {
             console.log('[CONFIRM-PAYMENT] ✅ Transação registrada com sucesso', transactionData);
           }
 
-          console.log('[CONFIRM-PAYMENT] Pontos adicionados com sucesso! ✅', {
-            pointsEarned,
+          console.log('[CONFIRM-PAYMENT] Pontos movidos com sucesso! ✅', {
+            pendingPointsMovidos: pendingPoints,
             totalPoints: newTotalPoints
           });
 
           return new Response(
             JSON.stringify({ 
               success: true, 
-              message: `Pagamento confirmado! ${pointsEarned} pontos adicionados.`,
-              pointsEarned,
+              message: `Pagamento confirmado! ${pendingPoints} pontos adicionados ao saldo.`,
+              pointsEarned: pendingPoints,
               totalPoints: newTotalPoints
             }),
             { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
-        } catch (pointsError) {
-          console.error('[CONFIRM-PAYMENT] Erro ao adicionar pontos:', pointsError);
-          // Não falhar - pedido já foi confirmado
-          return new Response(
-            JSON.stringify({ 
-              success: true, 
-              message: 'Pagamento confirmado. Erro ao adicionar pontos.' 
-            }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-      } else {
-        console.log('[CONFIRM-PAYMENT] ⏹️ Cliente usou desconto - NÃO adicionando pontos');
+      } catch (pointsError) {
+        console.error('[CONFIRM-PAYMENT] Erro ao mover pontos:', pointsError);
+        // Não falhar - pedido já foi confirmado
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            message: 'Pagamento confirmado. Erro ao mover pontos.' 
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
+    } else {
+      console.log('[CONFIRM-PAYMENT] ⏹️ Nenhum pending_points para mover');
     }
+
 
     console.log('[CONFIRM-PAYMENT] Processamento concluído com sucesso ✅');
     return new Response(
