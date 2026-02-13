@@ -31,10 +31,27 @@ Deno.serve(async (req) => {
 
   try {
     console.log('[CONFIRM-PAYMENT] ===== INICIANDO PROCESSAMENTO =====');
-    const body = await req.json() as RequestBody;
+    
+    // 🔍 Parse body carefully with detailed error handling
+    let body: RequestBody;
+    try {
+      const rawBody = await req.json();
+      body = rawBody as RequestBody;
+      console.log('[CONFIRM-PAYMENT] ✅ Body parseado com sucesso:', JSON.stringify(body));
+    } catch (parseError) {
+      console.error('[CONFIRM-PAYMENT] ❌ ERRO ao fazer parse do body:', {
+        error: parseError instanceof Error ? parseError.message : String(parseError),
+        body: await req.text(),
+      });
+      return new Response(
+        JSON.stringify({ error: 'Erro ao processar dados da requisição' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const { orderId, customerId, amount, pointsRedeemed = 0 } = body;
 
-    console.log('[CONFIRM-PAYMENT] 📨 Body recebido:', JSON.stringify({ orderId, customerId, amount, pointsRedeemed }));
+    console.log('[CONFIRM-PAYMENT] 📨 Parâmetros extraídos:', JSON.stringify({ orderId, customerId, amount, pointsRedeemed }));
 
     // VALIDAÇÃO 1: Verificar parâmetros obrigatórios
     if (!orderId) {
@@ -322,9 +339,11 @@ Deno.serve(async (req) => {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     const errorStack = error instanceof Error ? error.stack : '';
+    const errorName = error instanceof Error ? error.name : 'UnknownError';
     
     console.error('[CONFIRM-PAYMENT] ❌ ERRO CRÍTICO:', {
       message: errorMessage,
+      name: errorName,
       stack: errorStack,
       error: error
     });
@@ -333,6 +352,7 @@ Deno.serve(async (req) => {
       JSON.stringify({ 
         success: false, 
         error: errorMessage,
+        errorType: errorName,
         stack: errorStack
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
