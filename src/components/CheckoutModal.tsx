@@ -887,13 +887,22 @@ export function CheckoutModal() {
         if (pointsRedeemed >= minPoints) {
           try {
             console.log(`🔄 [POINTS] Iniciando resgate de ${pointsRedeemed} pontos para cliente ${loyaltyCustomer.id}`);
-            await redeemPoints(loyaltyCustomer.id, pointsRedeemed);
-            console.log(`✅ [POINTS] ${pointsRedeemed} pontos resgatados com sucesso`);
+            const result = await redeemPoints(loyaltyCustomer.id, pointsRedeemed);
+            if (!result.success) {
+              console.error(`❌ [POINTS] Falha ao resgatar pontos para cliente ${loyaltyCustomer.id}`);
+              toast.error('Erro ao resgatar pontos. Tente novamente.');
+              return;
+            }
+            console.log(`✅ [POINTS] ${pointsRedeemed} pontos resgatados com sucesso! Desconto: R$ ${result.discountAmount.toFixed(2)}`);
             
-            // 💰 IMEDIATAMENTE sincronizar pontos descontados (SEM DELAY)
-            console.log('🔄 [POINTS] Sincronizando pontos com refreshCurrentCustomer()...');
-            await refreshCurrentCustomer();
-            console.log('✅ [POINTS] Pontos descontados sincronizados na conta do cliente');
+            // ✅ Sincronizar pontos apenas se cliente está logado
+            if (isRemembered && currentCustomer?.id === loyaltyCustomer.id) {
+              console.log(`🔄 [POINTS] Sincronizando ${pointsRedeemed} pontos descontados para cliente logado ${loyaltyCustomer.id}...`);
+              await refreshCurrentCustomer();
+              console.log(`✅ [POINTS] Pontos descontados sincronizados com sucesso`);
+            } else {
+              console.log(`✅ [POINTS] Cliente anônimo - pontos já descontados no BD`);
+            }
           } catch (error) {
             console.error('❌ [POINTS] Erro ao resgatar pontos:', error);
             toast.error('Erro ao resgatar pontos. Tente novamente.');
@@ -911,16 +920,24 @@ export function CheckoutModal() {
           console.log(`💰 [POINTS] Adicionando ${pointsEarned} novos pontos ao cliente ${loyaltyCustomer.id} (não usou pontos no resgate)`);
           await addPointsFromPurchase(loyaltyCustomer.id, finalTotal, lastOrderEmail, pointsRedeemed);
           await new Promise(resolve => setTimeout(resolve, 500));
-          await refreshCurrentCustomer();
-          console.log(`✅ [POINTS] ${pointsEarned} pontos adicionados com sucesso`);
+          
+          // ✅ Sincronizar apenas se cliente está logado
+          if (isRemembered && currentCustomer?.id === loyaltyCustomer.id) {
+            await refreshCurrentCustomer();
+            console.log(`✅ [POINTS] ${pointsEarned} pontos adicionados com sucesso`);
+          } else {
+            console.log(`✅ [POINTS] ${pointsEarned} pontos adicionados ao cliente anônimo`);
+          }
         } catch (error) {
           console.error('❌ [POINTS] Erro ao adicionar pontos:', error);
           toast.error('Erro ao processar pontos de fidelização');
         }
       } else {
         console.log('⏭️ [POINTS] NÃO adicionar pontos: cliente usou pontos no resgate');
-        // Apenas atualizar o cliente para refletir a mudança de pontos após resgate
-        await refreshCurrentCustomer();
+        // Apenas atualizar o cliente para refletir a mudança de pontos após resgate (se logado)
+        if (isRemembered && currentCustomer?.id === loyaltyCustomer.id) {
+          await refreshCurrentCustomer();
+        }
       }
       
       // Marcar cupom como usado (se foi aplicado)
