@@ -847,6 +847,11 @@ export function CheckoutModal() {
           try {
             await redeemPoints(lastLoyaltyCustomer.id, pointsRedeemed);
             console.log(`✅ ${pointsRedeemed} pontos resgatados com sucesso`);
+            
+            // 💰 IMEDIATAMENTE sincronizar pontos descontados
+            await new Promise(resolve => setTimeout(resolve, 300));
+            await refreshCurrentCustomer();
+            console.log('✅ Pontos descontados sincronizados na conta do cliente');
           } catch (error) {
             console.error('Erro ao resgatar pontos:', error);
           }
