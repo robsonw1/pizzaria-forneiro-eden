@@ -224,6 +224,93 @@ Deno.serve(async (req) => {
       console.log('[CONFIRM-PAYMENT] ✅ Usando customer_id do pedido:', resolvedCustomerId);
     }
 
+    // 🔴 CRÍTICO: Buscar dados do cliente ANTES de fazer qualquer atualização
+    let customerData = null;
+    if (resolvedCustomerId) {
+      console.log('[CONFIRM-PAYMENT] 🔎 Buscando dados do cliente:', resolvedCustomerId);
+      const { data: fetchedCustomer } = await supabase
+        .from('customers')
+        .select('total_points, total_spent, total_purchases')
+        .eq('id', resolvedCustomerId)
+        .single();
+      
+      if (fetchedCustomer) {
+        customerData = fetchedCustomer;
+        console.log('[CONFIRM-PAYMENT] ✅ Dados do cliente obtidos:', {
+          totalPoints: customerData.total_points,
+          totalSpent: customerData.total_spent
+        });
+      }
+    }
+
+    // 2.5️⃣ DÉBITO IMEDIATO: Se cliente usou pontos, subtrair de total_points PRIMEIRO
+    const pointsRedeemedInOrder = orderData.points_redeemed || 0;
+    if (resolvedCustomerId && customerData && pointsRedeemedInOrder > 0) {
+      console.log('[CONFIRM-PAYMENT] 💰 DEBITANDO PONTOS RESGASTADOS...');
+      console.log('[CONFIRM-PAYMENT] Cliente USOU ' + pointsRedeemedInOrder + ' pontos - NÃO pode ganhar novos pontos nesta compra');
+      
+      const newTotalPointsAfterDebit = Math.max(0, (customerData.total_points || 0) - pointsRedeemedInOrder);
+      const newTotalSpent = (customerData.total_spent || 0) + amount;
+      const newTotalPurchases = (customerData.total_purchases || 0) + 1;
+      const localISO = getLocalISOString();
+
+      console.log('[CONFIRM-PAYMENT] ✅ Calculando novo saldo após débito...', {
+        pointsAntesDeDebito: customerData.total_points,
+        pontosDeBitados: pointsRedeemedInOrder,
+        novoSaldo: newTotalPointsAfterDebit,
+        totalGasto: newTotalSpent
+      });
+
+      // Atualizar cliente com o débito dos pontos
+      const { error: debitError } = await supabase
+        .from('customers')
+        .update({
+          total_points: newTotalPointsAfterDebit,
+          total_spent: newTotalSpent,
+          total_purchases: newTotalPurchases,
+          last_purchase_at: localISO,
+        })
+        .eq('id', resolvedCustomerId);
+
+      if (debitError) {
+        console.error('[CONFIRM-PAYMENT] ❌ ERRO ao debitar pontos:', debitError);
+        throw new Error(`Erro ao debitar pontos do cliente: ${debitError.message}`);
+      }
+
+      console.log('[CONFIRM-PAYMENT] ✅ Pontos debitados com sucesso!', {
+        cliente: resolvedCustomerId,
+        pontosDeBitados: pointsRedeemedInOrder,
+        novoSaldo: newTotalPointsAfterDebit
+      });
+
+      // Registrar transação de débito
+      const { error: debitTransError } = await supabase.from('loyalty_transactions').insert([{
+        customer_id: resolvedCustomerId,
+        order_id: orderId,
+        points_spent: pointsRedeemedInOrder,
+        transaction_type: 'redemption',
+        description: `Resgate de ${pointsRedeemedInOrder} pontos - Desconto na compra de R$ ${amount.toFixed(2)}`,
+        created_at: localISO,
+      }]);
+
+      if (debitTransError) {
+        console.warn('[CONFIRM-PAYMENT] ⚠️ Erro ao registrar transação de débito:', debitTransError);
+      } else {
+        console.log('[CONFIRM-PAYMENT] ✅ Transação de débito registrada com sucesso');
+      }
+
+      // Após debitar, retornar sucesso
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: `Pagamento confirmado! ${pointsRedeemedInOrder} pontos debitados da conta.`,
+          pointsDeducted: pointsRedeemedInOrder,
+          newBalance: newTotalPointsAfterDebit
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // 3️⃣ Mover pending_points para o saldo total do cliente
     if (resolvedCustomerId && orderData.pending_points > 0) {
       console.log('[CONFIRM-PAYMENT] ✅ Movendo pending_points para total_points...');
@@ -241,12 +328,16 @@ Deno.serve(async (req) => {
 
         console.log('[CONFIRM-PAYMENT] Pending points a mover:', { pendingPoints, expirationDays });
 
-          // Buscar dados do cliente
-          const { data: customerData } = await supabase
+        // Buscar dados do cliente se ainda não temos
+        if (!customerData && resolvedCustomerId) {
+          const { data: fetchedCustomer } = await supabase
             .from('customers')
             .select('total_points, total_spent, total_purchases')
             .eq('id', resolvedCustomerId)
             .single();
+
+          customerData = fetchedCustomer;
+        }
 
           if (!customerData) {
             console.warn('[CONFIRM-PAYMENT] Cliente não encontrado no sistema de lealdade');
@@ -345,10 +436,10 @@ Deno.serve(async (req) => {
       }
     } else {
       console.log('[CONFIRM-PAYMENT] ⏹️ Nenhum pending_points para mover');
-      console.log('[CONFIRM-PAYMENT] 💰 REGRA: Cliente USOU pontos no resgate - NÃO ganha novos pontos', {
+      console.log('[CONFIRM-PAYMENT] REGRA: Cliente USOU pontos no resgate - NÃO ganha novos pontos', {
         pointsRedeemed: orderData.points_redeemed,
         pendingPoints: orderData.pending_points,
-        rule: 'Se o cliente usou pontos do desconto, não pode ganhar novos pontos nesta compra'
+        rule: 'Cliente usou pontos do desconto, não pode ganhar novos pontos nesta compra'
       });
     }
 
