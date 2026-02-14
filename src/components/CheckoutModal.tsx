@@ -687,11 +687,29 @@ export function CheckoutModal() {
     }
 
     try {
-      // Only create/find customer if they're logged in
+      // 🔒 CRÍTICO: SEMPRE tentar encontrar/criar cliente com email fornecido no checkout
+      // Seja logado ou anônimo, se tem email, processa pontos
       let loyaltyCustomer = null;
-      if (isRemembered && currentCustomer?.email) {
-        loyaltyCustomer = await findOrCreateCustomer(currentCustomer.email);
-        setLastOrderEmail(currentCustomer.email);
+      const emailForLoyalty = isRemembered && currentCustomer?.email 
+        ? currentCustomer.email 
+        : customer.email; // Usar email do formulário se não logado
+      
+      if (emailForLoyalty) {
+        console.log('🔍 [LOYALTY] Buscando/criando cliente com email:', emailForLoyalty);
+        loyaltyCustomer = await findOrCreateCustomer(emailForLoyalty);
+        setLastOrderEmail(emailForLoyalty);
+        
+        if (loyaltyCustomer) {
+          console.log('✅ [LOYALTY] Cliente encontrado/criado:', {
+            id: loyaltyCustomer.id,
+            email: loyaltyCustomer.email,
+            totalPoints: loyaltyCustomer.totalPoints
+          });
+        } else {
+          console.warn('⚠️ [LOYALTY] Falha ao encontrar/criar cliente com email:', emailForLoyalty);
+        }
+      } else {
+        console.warn('⚠️ [LOYALTY] Nenhum email encontrado para processar pontos');
       }
       
       // Save address as default if requested and customer exists
@@ -837,10 +855,25 @@ export function CheckoutModal() {
   // 💰 Processar pontos e cupons após confirmação de pagamento
   const processPointsAndCoupons = async (pointsRedeemed: number, finalTotal: number, appliedCoupon: string | null) => {
     try {
+      // 🔑 USAR CURRENTCUSTOMER COMO FALLBACK se lastLoyaltyCustomer não estiver disponível
+      const loyaltyCustomer = lastLoyaltyCustomer || currentCustomer;
+      
+      if (!loyaltyCustomer || !loyaltyCustomer.id) {
+        console.error('❌ [POINTS] Cliente de lealdade não encontrado! Dados:', {
+          lastLoyaltyCustomer,
+          currentCustomer,
+          pointsRedeemed
+        });
+        toast.error('Erro: Cliente não encontrado. Pedido criado, mas pontos não foram processados.');
+        return;
+      }
+
       // 🔑 REGRA: Se cliente usou pontos na compra, NÃO adiciona novos pontos
       const shouldEarnNewPoints = pointsRedeemed === 0;
       
       console.log('💰 [POINTS] Processando pontos após pagamento confirmado:', {
+        customerId: loyaltyCustomer.id,
+        customerEmail: loyaltyCustomer.email,
         pointsRedeemed,
         shouldEarnNewPoints,
         rule: shouldEarnNewPoints 
@@ -849,38 +882,43 @@ export function CheckoutModal() {
       });
       
       // Resgate de pontos se o cliente tiver usado
-      if (lastLoyaltyCustomer && pointsRedeemed > 0) {
+      if (pointsRedeemed > 0) {
         const minPoints = useLoyaltySettingsStore.getState().settings?.minPointsToRedeem ?? 50;
         if (pointsRedeemed >= minPoints) {
           try {
-            await redeemPoints(lastLoyaltyCustomer.id, pointsRedeemed);
-            console.log(`✅ ${pointsRedeemed} pontos resgatados com sucesso`);
+            console.log(`🔄 [POINTS] Iniciando resgate de ${pointsRedeemed} pontos para cliente ${loyaltyCustomer.id}`);
+            await redeemPoints(loyaltyCustomer.id, pointsRedeemed);
+            console.log(`✅ [POINTS] ${pointsRedeemed} pontos resgatados com sucesso`);
             
             // 💰 IMEDIATAMENTE sincronizar pontos descontados (SEM DELAY)
+            console.log('🔄 [POINTS] Sincronizando pontos com refreshCurrentCustomer()...');
             await refreshCurrentCustomer();
-            console.log('✅ Pontos descontados sincronizados na conta do cliente');
+            console.log('✅ [POINTS] Pontos descontados sincronizados na conta do cliente');
           } catch (error) {
-            console.error('Erro ao resgatar pontos:', error);
+            console.error('❌ [POINTS] Erro ao resgatar pontos:', error);
+            toast.error('Erro ao resgatar pontos. Tente novamente.');
           }
+        } else {
+          console.warn(`⚠️ [POINTS] Pontos resgastados (${pointsRedeemed}) abaixo do mínimo (${minPoints})`);
         }
       }
       
       // 🔑 Adicionar pontos da compra APENAS se cliente NÃO usou pontos
-      if (shouldEarnNewPoints && lastLoyaltyCustomer) {
+      if (shouldEarnNewPoints) {
         try {
           const pointsEarned = Math.floor(finalTotal * 1); // 1 ponto por real
           setLastPointsEarned(pointsEarned);
-          console.log(`💰 Adicionando ${pointsEarned} novos pontos ao cliente (não usou pontos no resgate)`);
-          await addPointsFromPurchase(lastLoyaltyCustomer.id, finalTotal, lastOrderEmail, pointsRedeemed);
+          console.log(`💰 [POINTS] Adicionando ${pointsEarned} novos pontos ao cliente ${loyaltyCustomer.id} (não usou pontos no resgate)`);
+          await addPointsFromPurchase(loyaltyCustomer.id, finalTotal, lastOrderEmail, pointsRedeemed);
           await new Promise(resolve => setTimeout(resolve, 500));
           await refreshCurrentCustomer();
-          console.log(`✅ ${pointsEarned} pontos adicionados com sucesso`);
+          console.log(`✅ [POINTS] ${pointsEarned} pontos adicionados com sucesso`);
         } catch (error) {
-          console.error('Erro ao adicionar pontos:', error);
+          console.error('❌ [POINTS] Erro ao adicionar pontos:', error);
           toast.error('Erro ao processar pontos de fidelização');
         }
-      } else if (!shouldEarnNewPoints && lastLoyaltyCustomer) {
-        console.log('⏭️ NÃO adicionar pontos: cliente usou pontos no resgate');
+      } else {
+        console.log('⏭️ [POINTS] NÃO adicionar pontos: cliente usou pontos no resgate');
         // Apenas atualizar o cliente para refletir a mudança de pontos após resgate
         await refreshCurrentCustomer();
       }
@@ -888,14 +926,14 @@ export function CheckoutModal() {
       // Marcar cupom como usado (se foi aplicado)
       if (appliedCoupon) {
         try {
-          await markCouponAsUsed(appliedCoupon, currentCustomer?.id);
-          console.log(`✅ Cupom ${appliedCoupon} marcado como usado`);
+          await markCouponAsUsed(appliedCoupon, loyaltyCustomer.id);
+          console.log(`✅ [POINTS] Cupom ${appliedCoupon} marcado como usado`);
         } catch (error) {
-          console.warn('⚠️ Falha ao marcar cupom:', error);
+          console.warn('⚠️ [POINTS] Falha ao marcar cupom:', error);
         }
       }
     } catch (error) {
-      console.error('Erro ao processar pontos e cupons:', error);
+      console.error('❌ [POINTS] Erro ao processar pontos e cupons:', error);
     }
   };
 
