@@ -23,6 +23,7 @@ import { useSettingsStore } from '@/store/useSettingsStore';
 import { useLoyaltyStore } from '@/store/useLoyaltyStore';
 import { useLoyaltySettingsStore } from '@/store/useLoyaltySettingsStore';
 import { useCouponManagementStore } from '@/store/useCouponManagementStore';
+import { useOrderCancellationSync } from '@/hooks/use-order-cancellation-sync';
 import { supabase } from '@/integrations/supabase/client';
 import { PostCheckoutLoyaltyModal } from './PostCheckoutLoyaltyModal';
 import { 
@@ -123,6 +124,13 @@ export function CheckoutModal() {
   const redeemPoints = useLoyaltyStore((s) => s.redeemPoints);
   const currentCustomer = useLoyaltyStore((s) => s.currentCustomer);
   const isRemembered = useLoyaltyStore((s) => s.isRemembered);
+
+  // 🔴 REALTIME: Cancelamentos de pedidos
+  useOrderCancellationSync(
+    isCheckoutOpen,
+    customer?.email,
+    refreshCurrentCustomer
+  );
 
   // Pré-preencher dados de contato quando cliente logado abre checkout
   useEffect(() => {
@@ -848,8 +856,7 @@ export function CheckoutModal() {
             await redeemPoints(lastLoyaltyCustomer.id, pointsRedeemed);
             console.log(`✅ ${pointsRedeemed} pontos resgatados com sucesso`);
             
-            // 💰 IMEDIATAMENTE sincronizar pontos descontados
-            await new Promise(resolve => setTimeout(resolve, 300));
+            // 💰 IMEDIATAMENTE sincronizar pontos descontados (SEM DELAY)
             await refreshCurrentCustomer();
             console.log('✅ Pontos descontados sincronizados na conta do cliente');
           } catch (error) {
