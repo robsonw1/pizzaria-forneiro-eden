@@ -21,7 +21,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'delivering' | 'delivered' | 'cancelled';
 
@@ -52,6 +52,53 @@ interface OrderDetailsDialogProps {
 export function OrderDetailsDialog({ open, onOpenChange, order }: OrderDetailsDialogProps) {
   const updateOrderStatus = useOrdersStore((s) => s.updateOrderStatus);
   const [isConfirmingPayment, setIsConfirmingPayment] = useState(false);
+
+  // 🔴 REALTIME: Monitorar mudanças no status da ordem para refrescar UI
+  useEffect(() => {
+    if (!open || !order?.id) return;
+
+    console.log('🔴 [ADMIN] Setting up Realtime order status sync for order:', order.id);
+
+    const channel = supabase.channel(`order-status-${order.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'orders',
+          filter: `id=eq.${order.id}`
+        },
+        (payload: any) => {
+          const updatedOrder = payload.new;
+          console.log('🔴 [ADMIN] Ordem atualizada em tempo real:', {
+            orderId: updatedOrder.id,
+            status: updatedOrder.status,
+            pointsRedeemed: updatedOrder.points_redeemed,
+            pendingPoints: updatedOrder.pending_points,
+            timestamp: new Date().toISOString()
+          });
+
+          // Se cancelado, mostrar notificação
+          if (updatedOrder.status === 'cancelled') {
+            toast.info('⏮️ Pedido foi cancelado. Pontos de fidelidade foram revertidos.', {
+              duration: 4000
+            });
+            // Fechar o diálogo após 2 segundos
+            setTimeout(() => onOpenChange(false), 2000);
+          }
+        }
+      )
+      .subscribe((status: any) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ [ADMIN] Realtime subscription ativo para status de pedidos');
+        }
+      });
+
+    return () => {
+      console.log('🔴 [ADMIN] Unsubscribing from realtime order status sync');
+      supabase.removeChannel(channel);
+    };
+  }, [open, order?.id, onOpenChange]);
 
   if (!order) return null;
 
