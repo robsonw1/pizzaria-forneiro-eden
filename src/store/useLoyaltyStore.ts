@@ -368,6 +368,7 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
       // Validar pontos suficientes
       const customer = get().currentCustomer;
       if (!customer || customer.totalPoints < pointsToSpend) {
+        console.error('❌ Pontos insuficientes. Disponível:', customer?.totalPoints, 'Tentando gastar:', pointsToSpend);
         return { success: false, discountAmount: 0 };
       }
 
@@ -375,16 +376,37 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
       const pointsValue = getPointsValue();
       const discountAmount = (pointsToSpend / 100) * pointsValue;
 
-      // Atualizar pontos
-      await (supabase as any)
+      console.log('🔄 [REDEEM] Iniciando resgate de pontos:', {
+        customerId,
+        pointsToSpend,
+        currentPoints: customer.totalPoints,
+        newPoints: customer.totalPoints - pointsToSpend,
+        discountAmount
+      });
+
+      // Atualizar pontos NO BD
+      const { data: updateData, error: updateError } = await (supabase as any)
         .from('customers')
         .update({
           total_points: customer.totalPoints - pointsToSpend,
         })
-        .eq('id', customerId);
+        .eq('id', customerId)
+        .select();  // Retorna dados atualizados
+
+      if (updateError) {
+        console.error('❌ [REDEEM] Erro ao atualizar pontos no BD:', updateError);
+        return { success: false, discountAmount: 0 };
+      }
+
+      if (!updateData || updateData.length === 0) {
+        console.error('❌ [REDEEM] Nenhum cliente atualizado');
+        return { success: false, discountAmount: 0 };
+      }
+
+      console.log('✅ [REDEEM] Pontos atualizados no BD:', updateData[0]);
 
       // Registrar transação com hora local
-      await (supabase as any)
+      const { data: transData, error: transError } = await (supabase as any)
         .from('loyalty_transactions')
         .insert([{
           customer_id: customerId,
@@ -392,12 +414,35 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
           transaction_type: 'redemption',
           description: `Resgate de ${pointsToSpend} pontos - Desconto de R$ ${discountAmount.toFixed(2)}`,
           created_at: getLocalISOString(),
-        }]);
+        }])
+        .select();
 
-      console.log('✅ Pontos resgatados:', pointsToSpend, 'pontos = R$', discountAmount);
+      if (transError) {
+        console.warn('⚠️ [REDEEM] Erro ao registrar transação (não crítico):', transError);
+      } else {
+        console.log('✅ [REDEEM] Transação registrada:', transData);
+      }
+
+      // ATUALIZAR ESTADO LOCAL IMEDIATAMENTE
+      const newCustomer = {
+        ...customer,
+        totalPoints: customer.totalPoints - pointsToSpend,
+      };
+      
+      set({
+        currentCustomer: newCustomer,
+        points: newCustomer.totalPoints,
+      });
+
+      console.log('✅ [REDEEM] Pontos resgatados com sucesso:', {
+        pointsToSpend,
+        novoSaldo: newCustomer.totalPoints,
+        desconto: `R$ ${discountAmount.toFixed(2)}`
+      });
+
       return { success: true, discountAmount };
     } catch (error) {
-      console.error('Erro em redeemPoints:', error);
+      console.error('❌ [REDEEM] Erro crítico em redeemPoints:', error);
       return { success: false, discountAmount: 0 };
     }
   },
