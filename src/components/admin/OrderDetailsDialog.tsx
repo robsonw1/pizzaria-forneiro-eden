@@ -164,6 +164,69 @@ export function OrderDetailsDialog({ open, onOpenChange, order }: OrderDetailsDi
       // Atualizar status do pedido no store
       await updateOrderStatus(order.id, 'confirmed');
       
+      // 💰 Para Cartão e Dinheiro: Processar pontos AGORA (PIX faz via Realtime)
+      if (order.paymentMethod === 'card' || order.paymentMethod === 'cash') {
+        console.log('[ADMIN] 💰 Processando pontos para', order.paymentMethod, 'após confirmação...');
+        
+        try {
+          const redeemPoints = useLoyaltyStore.getState().redeemPoints;
+          const addPointsFromPurchase = useLoyaltyStore.getState().addPointsFromPurchase;
+          const refreshCurrentCustomer = useLoyaltyStore.getState().refreshCurrentCustomer;
+          
+          const pointsRedeemed = order.pointsRedeemed || 0;
+          const shouldEarnNewPoints = pointsRedeemed === 0;
+          
+          console.log('[ADMIN] 💰 Analisando regra de pontos:', {
+            pointsRedeemed,
+            shouldEarnNewPoints,
+            rule: shouldEarnNewPoints 
+              ? 'Cliente NÃO usou pontos - GANHA novos'
+              : 'Cliente USOU pontos - NÃO ganha novos'
+          });
+          
+          // Resgate de pontos se o cliente tiver usado
+          if (order.customer?.id && pointsRedeemed > 0) {
+            const minPoints = useLoyaltySettingsStore.getState().settings?.minPointsToRedeem ?? 50;
+            if (pointsRedeemed >= minPoints) {
+              try {
+                await redeemPoints(order.customer.id, pointsRedeemed);
+                console.log(`✅ [ADMIN] ${pointsRedeemed} pontos resgatados com sucesso`);
+                
+                // Sincronizar imediatamente
+                await new Promise(resolve => setTimeout(resolve, 300));
+                await refreshCurrentCustomer();
+              } catch (error) {
+                console.error('[ADMIN] Erro ao resgatar pontos:', error);
+              }
+            }
+          }
+          
+          // Adicionar pontos da compra APENAS se cliente NÃO usou pontos
+          if (shouldEarnNewPoints && order.customer?.id) {
+            try {
+              const pointsEarned = Math.floor(order.total * 1);
+              console.log(`💰 [ADMIN] Adicionando ${pointsEarned} novos pontos ao cliente`);
+              await addPointsFromPurchase(
+                order.customer.id,
+                order.total,
+                order.customer.email || '',
+                pointsRedeemed
+              );
+              await new Promise(resolve => setTimeout(resolve, 300));
+              await refreshCurrentCustomer();
+              console.log(`✅ [ADMIN] ${pointsEarned} pontos adicionados com sucesso`);
+            } catch (error) {
+              console.error('[ADMIN] Erro ao adicionar pontos:', error);
+            }
+          } else if (!shouldEarnNewPoints && order.customer?.id) {
+            console.log('⏭️ [ADMIN] NÃO adicionar pontos: cliente usou pontos no resgate');
+            await refreshCurrentCustomer();
+          }
+        } catch (error) {
+          console.error('[ADMIN] ❌ Erro ao processar pontos:', error);
+        }
+      }
+      
       // Aguardar para realtime disparar no cliente
       await new Promise(r => setTimeout(r, 1000));
       
