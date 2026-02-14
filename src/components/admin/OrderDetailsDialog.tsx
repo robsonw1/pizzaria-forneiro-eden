@@ -17,6 +17,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Order } from '@/data/products';
 import { useOrdersStore } from '@/store/useOrdersStore';
+import { useLoyaltyStore } from '@/store/useLoyaltyStore';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -78,10 +79,21 @@ export function OrderDetailsDialog({ open, onOpenChange, order }: OrderDetailsDi
             timestamp: new Date().toISOString()
           });
 
-          // Se cancelado, mostrar notificação
+          // Se cancelado, mostrar notificação com detalhes dos pontos
           if (updatedOrder.status === 'cancelled') {
-            toast.info('⏮️ Pedido foi cancelado. Pontos de fidelidade foram revertidos.', {
-              duration: 4000
+            const pointsReverted = updatedOrder.points_redeemed || 0;
+            const pointsLost = updatedOrder.pending_points || 0;
+            
+            let message = '⏮️ Pedido foi cancelado. ';
+            if (pointsReverted > 0) {
+              message += `+${pointsReverted} pontos restaurados. `;
+            }
+            if (pointsLost > 0) {
+              message += `${pointsLost} pontos pendentes removidos.`;
+            }
+            
+            toast.info(message || 'Pedido foi cancelado.', {
+              duration: 5000
             });
             // Fechar o diálogo após 2 segundos
             setTimeout(() => onOpenChange(false), 2000);
@@ -111,7 +123,29 @@ export function OrderDetailsDialog({ open, onOpenChange, order }: OrderDetailsDi
 
   const handleStatusChange = (newStatus: OrderStatus) => {
     updateOrderStatus(order.id, newStatus);
-    toast.success(`Status alterado para "${statusLabels[newStatus]}"`);
+    
+    // 🔴 SE CANCELADO: Fazer refresh dos pontos do cliente após reversão automática
+    if (newStatus === 'cancelled' && order.customer?.email) {
+      console.log('[ADMIN] 🔄 Pedido cancelado! Sincronizando pontos do cliente...', order.customer.email);
+      
+      // Buscar ID do cliente e fazer refresh
+      const findOrCreateCustomer = useLoyaltyStore.getState().findOrCreateCustomer;
+      const refreshCurrentCustomer = useLoyaltyStore.getState().refreshCurrentCustomer;
+      
+      findOrCreateCustomer(order.customer.email).then((customer) => {
+        if (customer?.id) {
+          refreshCurrentCustomer(customer.id).then(() => {
+            console.log('[ADMIN] ✅ Pontos sincronizados após cancelamento');
+          }).catch((error) => {
+            console.error('[ADMIN] ⚠️ Erro ao sincronizar pontos:', error);
+          });
+        }
+      });
+      
+      toast.success(`Pedido cancelado! Pontos foram revertidos automaticamente.`);
+    } else {
+      toast.success(`Status alterado para "${statusLabels[newStatus]}"`);
+    }
   };
 
   const handleConfirmPayment = async () => {
