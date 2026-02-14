@@ -795,8 +795,8 @@ export function CheckoutModal() {
         }
       } else {
         // For card and cash, just process order directly
-        // ⚠️ NÃO adicionar pontos aqui! Apenas quando admin confirmar pagamento
-        await processOrder(orderPayload, 0, 0); // Pass 0 for points since not confirmed yet
+        // ⚠️ Salvar pontos na ordem para depois o admin confirmar
+        await processOrder(orderPayload, pointsDiscount, validPointsToRedeem);
         
         if (pointsDiscount > 0) {
           toast.success(`Pedido enviado! Desconto de ${formatPrice(pointsDiscount)} será aplicado após confirmação.`);
