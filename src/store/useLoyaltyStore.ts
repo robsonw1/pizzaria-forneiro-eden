@@ -68,7 +68,7 @@ interface LoyaltyStore {
   setCurrentCustomer: (customer: Customer | null) => void;
   setPointsToRedeem: (points: number) => void;
   getTransactionHistory: (customerId: string) => Promise<LoyaltyTransaction[]>;
-  refreshCurrentCustomer: () => Promise<void>;
+  refreshCurrentCustomer: (customerId?: string) => Promise<void>;
   
   // Login/Logout
   loginCustomer: (email: string, cpf: string, rememberMe?: boolean) => Promise<boolean>;
@@ -365,10 +365,28 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
 
   redeemPoints: async (customerId: string, pointsToSpend: number) => {
     try {
+      console.log('🔄 [REDEEM] Iniciando resgate de pontos:', {
+        customerId,
+        pointsToSpend,
+      });
+
+      // ✅ CRÍTICO: Buscar customer do BD usando customerId (funciona para logado e anônimo)
+      const { data: customerData, error: fetchError } = await (supabase as any)
+        .from('customers')
+        .select('*')
+        .eq('id', customerId)
+        .single();
+
+      if (fetchError || !customerData) {
+        console.error('❌ [REDEEM] Erro ao buscar cliente no BD:', fetchError);
+        return { success: false, discountAmount: 0 };
+      }
+
+      const customer = mapCustomerFromDB(customerData);
+      
       // Validar pontos suficientes
-      const customer = get().currentCustomer;
       if (!customer || customer.totalPoints < pointsToSpend) {
-        console.error('❌ Pontos insuficientes. Disponível:', customer?.totalPoints, 'Tentando gastar:', pointsToSpend);
+        console.error('❌ [REDEEM] Pontos insuficientes. Disponível:', customer?.totalPoints, 'Tentando gastar:', pointsToSpend);
         return { success: false, discountAmount: 0 };
       }
 
@@ -376,7 +394,7 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
       const pointsValue = getPointsValue();
       const discountAmount = (pointsToSpend / 100) * pointsValue;
 
-      console.log('🔄 [REDEEM] Iniciando resgate de pontos:', {
+      console.log('🔄 [REDEEM] Dados do cliente:', {
         customerId,
         pointsToSpend,
         currentPoints: customer.totalPoints,
@@ -399,11 +417,14 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
       }
 
       if (!updateData || updateData.length === 0) {
-        console.error('❌ [REDEEM] Nenhum cliente atualizado');
+        console.error('❌ [REDEEM] Nenhum cliente atualizado no BD');
         return { success: false, discountAmount: 0 };
       }
 
-      console.log('✅ [REDEEM] Pontos atualizados no BD:', updateData[0]);
+      console.log('✅ [REDEEM] Pontos atualizados no BD:', {
+        id: updateData[0].id,
+        totalPoints: updateData[0].total_points
+      });
 
       // Registrar transação com hora local
       const { data: transData, error: transError } = await (supabase as any)
@@ -423,22 +444,32 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
         console.log('✅ [REDEEM] Transação registrada:', transData);
       }
 
-      // ATUALIZAR ESTADO LOCAL IMEDIATAMENTE
-      const newCustomer = {
-        ...customer,
-        totalPoints: customer.totalPoints - pointsToSpend,
-      };
-      
-      set({
-        currentCustomer: newCustomer,
-        points: newCustomer.totalPoints,
-      });
-
-      console.log('✅ [REDEEM] Pontos resgatados com sucesso:', {
-        pointsToSpend,
-        novoSaldo: newCustomer.totalPoints,
-        desconto: `R$ ${discountAmount.toFixed(2)}`
-      });
+      // ✅ ATUALIZAR ESTADO LOCAL SE É O CLIENTE LOGADO
+      const state = get();
+      if (state.currentCustomer?.id === customerId) {
+        const newCustomer = {
+          ...state.currentCustomer,
+          totalPoints: state.currentCustomer.totalPoints - pointsToSpend,
+        };
+        
+        set({
+          currentCustomer: newCustomer,
+          points: newCustomer.totalPoints,
+        });
+        
+        console.log('✅ [REDEEM] Estado local (logado) atualizado com sucesso:', {
+          pointsToSpend,
+          novoSaldo: newCustomer.totalPoints,
+          desconto: `R$ ${discountAmount.toFixed(2)}`
+        });
+      } else {
+        console.log('✅ [REDEEM] Pontos resgatados no BD para cliente anônimo:', {
+          customerId,
+          pointsToSpend,
+          newBalance: customer.totalPoints - pointsToSpend,
+          desconto: `R$ ${discountAmount.toFixed(2)}`
+        });
+      }
 
       return { success: true, discountAmount };
     } catch (error) {
@@ -474,51 +505,64 @@ export const useLoyaltyStore = create<LoyaltyStore>((set, get) => ({
     set({ pointsToRedeem: points });
   },
 
-  refreshCurrentCustomer: async () => {
+  refreshCurrentCustomer: async (customerId?: string) => {
     try {
       const state = get();
-      if (!state.currentCustomer?.id) {
-        console.log('❌ Nenhum cliente logado para refrescar');
+      
+      // ✅ Usar customerId fornecido OU currentCustomer.id (para retrocompatibilidade)
+      const idToRefresh = customerId || state.currentCustomer?.id;
+      
+      if (!idToRefresh) {
+        console.error('❌ [REFRESH] Nenhum cliente para refrescar (sem ID fornecido e sem logado)');
         return;
       }
 
-      console.log('🔄 Buscando dados atualizados do cliente:', state.currentCustomer.id);
+      console.log('🔄 [REFRESH] Buscando dados atualizados do cliente:', idToRefresh);
 
       const { data, error } = await (supabase as any)
         .from('customers')
         .select('*')
-        .eq('id', state.currentCustomer.id)
+        .eq('id', idToRefresh)
         .single();
 
       if (error) {
-        console.error('❌ Erro ao buscar cliente:', error);
+        console.error('❌ [REFRESH] Erro ao buscar cliente:', error);
         return;
       }
 
       if (!data) {
-        console.warn('⚠️ Cliente não encontrado no BD');
+        console.warn('⚠️ [REFRESH] Cliente não encontrado no BD');
         return;
       }
 
       const customer = mapCustomerFromDB(data);
-      console.log('📊 Dados obtidos do BD:', {
+      console.log('📊 [REFRESH] Dados obtidos do BD:', {
         totalPoints: customer.totalPoints,
         totalSpent: customer.totalSpent,
         totalPurchases: customer.totalPurchases,
         timestamp: new Date().toLocaleTimeString(),
       });
 
-      set({
-        currentCustomer: customer,
-        points: customer.totalPoints,
-      });
-
-      console.log('✅ Store atualizado com sucesso!', {
-        newPoints: customer.totalPoints,
-        newSpent: customer.totalSpent,
-      });
+      // ✅ Se é o cliente logado atualmente, atualizar store completo
+      // ✅ Se é outro cliente, apenas retornar os dados (não afeta currentCustomer)
+      if (!customerId || customerId === state.currentCustomer?.id) {
+        set({
+          currentCustomer: customer,
+          points: customer.totalPoints,
+        });
+        console.log('✅ [REFRESH] Store atualizado com sucesso!', {
+          newPoints: customer.totalPoints,
+          newSpent: customer.totalSpent,
+        });
+      } else {
+        console.log('✅ [REFRESH] Dados atualizados para cliente:', {
+          customerId,
+          newPoints: customer.totalPoints,
+          newSpent: customer.totalSpent,
+        });
+      }
     } catch (error) {
-      console.error('❌ Erro crítico ao refrescar cliente:', error);
+      console.error('❌ [REFRESH] Erro crítico ao refrescar cliente:', error);
     }
   },
 
