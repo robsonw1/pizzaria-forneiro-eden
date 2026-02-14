@@ -711,9 +711,9 @@ const AdminDashboard = () => {
                             <TableCell>
                               <div className="flex flex-col gap-1">
                                 <span className="font-semibold">{formatPrice(order.total || 0)}</span>
-                                {order.pointsDiscount && order.pointsDiscount > 0 && (
+                                {order.pointsRedeemed && order.pointsRedeemed > 0 && (
                                   <span className="text-xs text-green-600 font-medium">
-                                    -{formatPrice(order.pointsDiscount)} (pontos)
+                                    -{order.pointsRedeemed} pontos
                                   </span>
                                 )}
                               </div>
@@ -945,9 +945,9 @@ const AdminDashboard = () => {
                           <TableCell>
                             <div className="flex flex-col gap-1">
                               <span className="font-semibold">{formatPrice(order.total || 0)}</span>
-                              {order.pointsDiscount && order.pointsDiscount > 0 && (
+                              {order.pointsRedeemed && order.pointsRedeemed > 0 && (
                                 <span className="text-xs text-green-600 font-medium">
-                                  -{formatPrice(order.pointsDiscount)} (pontos)
+                                  -{order.pointsRedeemed} pontos
                                 </span>
                               )}
                               {order.appliedCoupon && order.couponDiscount && order.couponDiscount > 0 && (
