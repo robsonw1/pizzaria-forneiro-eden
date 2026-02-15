@@ -387,6 +387,8 @@ export const useOrdersStore = create<OrdersStore>()(
                   printedAt: row.printed_at && row.printed_at !== null && row.printed_at !== '' 
                     ? new Date(row.printed_at).toISOString() 
                     : undefined,
+                  // 🤖 Indicador de auto-confirmação via PIX
+                  autoConfirmedByPix: row.auto_confirmed_by_pix === true,
                 };
                 
                 return syncedOrder;
