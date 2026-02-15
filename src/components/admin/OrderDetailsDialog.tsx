@@ -53,6 +53,7 @@ interface OrderDetailsDialogProps {
 export function OrderDetailsDialog({ open, onOpenChange, order }: OrderDetailsDialogProps) {
   const updateOrderStatus = useOrdersStore((s) => s.updateOrderStatus);
   const [isConfirmingPayment, setIsConfirmingPayment] = useState(false);
+  const [localOrder, setLocalOrder] = useState<Order | null>(order);
 
   // 🔴 REALTIME: Monitorar mudanças no status da ordem para refrescar UI
   useEffect(() => {
@@ -77,6 +78,17 @@ export function OrderDetailsDialog({ open, onOpenChange, order }: OrderDetailsDi
             pointsRedeemed: updatedOrder.points_redeemed,
             pendingPoints: updatedOrder.pending_points,
             timestamp: new Date().toISOString()
+          });
+
+          // ✨ ATUALIZAR O ESTADO LOCAL DO ORDER
+          setLocalOrder((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              status: updatedOrder.status,
+              pointsRedeemed: updatedOrder.points_redeemed || 0,
+              pendingPoints: updatedOrder.pending_points || 0,
+            };
           });
 
           // Se cancelado, mostrar notificação com detalhes dos pontos
@@ -112,7 +124,12 @@ export function OrderDetailsDialog({ open, onOpenChange, order }: OrderDetailsDi
     };
   }, [open, order?.id, onOpenChange]);
 
-  if (!order) return null;
+  // Sincronizar quando a prop 'order' muda
+  useEffect(() => {
+    setLocalOrder(order);
+  }, [order]);
+
+  if (!localOrder) return null;
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -122,17 +139,17 @@ export function OrderDetailsDialog({ open, onOpenChange, order }: OrderDetailsDi
   };
 
   const handleStatusChange = (newStatus: OrderStatus) => {
-    updateOrderStatus(order.id, newStatus);
+    updateOrderStatus(localOrder.id, newStatus);
     
     // 🔴 SE CANCELADO: Fazer refresh dos pontos do cliente após reversão automática
-    if (newStatus === 'cancelled' && order.customer?.email) {
-      console.log('[ADMIN] 🔄 Pedido cancelado! Sincronizando pontos do cliente...', order.customer.email);
+    if (newStatus === 'cancelled' && localOrder.customer?.email) {
+      console.log('[ADMIN] 🔄 Pedido cancelado! Sincronizando pontos do cliente...', localOrder.customer.email);
       
       // Buscar ID do cliente e fazer refresh
       const findOrCreateCustomer = useLoyaltyStore.getState().findOrCreateCustomer;
       const refreshCurrentCustomer = useLoyaltyStore.getState().refreshCurrentCustomer;
       
-      findOrCreateCustomer(order.customer.email).then((customer) => {
+      findOrCreateCustomer(localOrder.customer.email).then((customer) => {
         if (customer?.id) {
           refreshCurrentCustomer(customer.id).then(() => {
             console.log('[ADMIN] ✅ Pontos sincronizados após cancelamento');
@@ -149,57 +166,57 @@ export function OrderDetailsDialog({ open, onOpenChange, order }: OrderDetailsDi
   };
 
   const handleConfirmPayment = async () => {
-    if (!order) return;
+    if (!localOrder) return;
 
     setIsConfirmingPayment(true);
     try {
       // 🔍 VALIDAÇÕES DE SEGURANÇA
       console.log('[ADMIN] ===== INICIANDO CONFIRMAÇÃO DE PAGAMENTO =====');
       console.log('[ADMIN] Dados do pedido:', {
-        orderId: order.id,
-        customerName: order.customer?.name,
-        customerEmail: order.customer?.email,
-        total: order.total,
-        pointsRedeemed: order.pointsRedeemed,
-        paymentMethod: order.paymentMethod,
-        status: order.status
+        orderId: localOrder.id,
+        customerName: localOrder.customer?.name,
+        customerEmail: localOrder.customer?.email,
+        total: localOrder.total,
+        pointsRedeemed: localOrder.pointsRedeemed,
+        paymentMethod: localOrder.paymentMethod,
+        status: localOrder.status
       });
 
       // Validar que o pedido tem ID e valor
-      if (!order.id || typeof order.id !== 'string') {
-        console.error('[ADMIN] ❌ Order ID inválido:', order.id);
+      if (!localOrder.id || typeof localOrder.id !== 'string') {
+        console.error('[ADMIN] ❌ Order ID inválido:', localOrder.id);
         toast.error('Erro: ID do pedido inválido');
         setIsConfirmingPayment(false);
         return;
       }
 
       // Validar que tem um valor
-      const totalAmount = parseFloat(String(order.total));
+      const totalAmount = parseFloat(String(localOrder.total));
       if (isNaN(totalAmount) || totalAmount <= 0) {
-        console.error('[ADMIN] ❌ Valor inválido:', order.total);
+        console.error('[ADMIN] ❌ Valor inválido:', localOrder.total);
         toast.error('Erro: Valor do pedido inválido');
         setIsConfirmingPayment(false);
         return;
       }
 
       // 🔑 LOG: Informar a regra de pontos
-      const rule = (order.pointsRedeemed || 0) > 0 
+      const rule = (localOrder.pointsRedeemed || 0) > 0 
         ? 'Cliente USOU pontos - NÃO ganhará novos pontos'
         : 'Cliente NÃO usou pontos - GANHARÁ novos pontos';
       
       console.log('[ADMIN] 💰 REGRA DE PONTOS:', rule, {
-        pointsRedeemed: order.pointsRedeemed,
-        total: order.total
+        pointsRedeemed: localOrder.pointsRedeemed,
+        total: localOrder.total
       });
 
-      console.log('[ADMIN] ✅ Validações passaram, chamando Edge Function com email:', order.customer?.email);
+      console.log('[ADMIN] ✅ Validações passaram, chamando Edge Function com email:', localOrder.customer?.email);
 
       const { data, error } = await supabase.functions.invoke('confirm-payment-and-add-points', {
         body: {
-          orderId: order.id,
+          orderId: localOrder.id,
           customerId: undefined,
           amount: totalAmount,
-          pointsRedeemed: order.pointsRedeemed || 0,
+          pointsRedeemed: localOrder.pointsRedeemed || 0,
         },
       });
 
@@ -273,9 +290,9 @@ export function OrderDetailsDialog({ open, onOpenChange, order }: OrderDetailsDi
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
-            Pedido {order.id}
-            <Badge variant="default" className={`${statusColors[order.status]} text-white`}>
-              {statusLabels[order.status]}
+            Pedido {localOrder.id}
+            <Badge variant="default" className={`${statusColors[localOrder.status]} text-white`}>
+              {statusLabels[localOrder.status]}
             </Badge>
           </DialogTitle>
         </DialogHeader>
@@ -284,7 +301,7 @@ export function OrderDetailsDialog({ open, onOpenChange, order }: OrderDetailsDi
           {/* Status Change */}
           <div className="space-y-2">
             <Label>Alterar Status</Label>
-            <Select value={order.status} onValueChange={(v) => handleStatusChange(v as OrderStatus)}>
+            <Select value={localOrder.status} onValueChange={(v) => handleStatusChange(v as OrderStatus)}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -299,7 +316,7 @@ export function OrderDetailsDialog({ open, onOpenChange, order }: OrderDetailsDi
           </div>
 
           {/* Confirm Payment Button - For Cash and Card payments (except cancelled orders) */}
-          {order.status !== 'cancelled' && order.paymentMethod !== 'pix' && (
+          {localOrder.status !== 'cancelled' && localOrder.paymentMethod !== 'pix' && (
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 space-y-3">
               <div className="text-sm">
                 <p className="font-semibold text-yellow-900">Confirmar Pagamento</p>
@@ -324,10 +341,10 @@ export function OrderDetailsDialog({ open, onOpenChange, order }: OrderDetailsDi
             <h4 className="font-semibold mb-2">Dados do Cliente</h4>
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div>
-                <span className="text-muted-foreground">Nome:</span> {order.customer.name}
+                <span className="text-muted-foreground">Nome:</span> {localOrder.customer.name}
               </div>
               <div>
-                <span className="text-muted-foreground">Telefone:</span> {order.customer.phone}
+                <span className="text-muted-foreground">Telefone:</span> {localOrder.customer.phone}
               </div>
             </div>
           </div>
@@ -337,20 +354,20 @@ export function OrderDetailsDialog({ open, onOpenChange, order }: OrderDetailsDi
           {/* Delivery Info */}
           <div>
             <h4 className="font-semibold mb-2">
-              {order.deliveryType === 'delivery' ? 'Endereco de Entrega' : 'Retirada no Local'}
+              {localOrder.deliveryType === 'delivery' ? 'Endereco de Entrega' : 'Retirada no Local'}
             </h4>
-            {order.deliveryType === 'delivery' ? (
+            {localOrder.deliveryType === 'delivery' ? (
               <div className="text-sm space-y-1">
                 <p>
-                  {order.address.street}, {order.address.number}
-                  {order.address.complement && ` - ${order.address.complement}`}
+                  {localOrder.address.street}, {localOrder.address.number}
+                  {localOrder.address.complement && ` - ${localOrder.address.complement}`}
                 </p>
                 <p>
-                  {order.address.neighborhood} - {order.address.city}
+                  {localOrder.address.neighborhood} - {localOrder.address.city}
                 </p>
-                {order.address.reference && (
+                {localOrder.address.reference && (
                   <p className="text-muted-foreground">
-                    Referencia: {order.address.reference}
+                    Referencia: {localOrder.address.reference}
                   </p>
                 )}
               </div>
@@ -367,7 +384,7 @@ export function OrderDetailsDialog({ open, onOpenChange, order }: OrderDetailsDi
           <div>
             <h4 className="font-semibold mb-2">Itens do Pedido</h4>
             <div className="space-y-2">
-              {(order.items ?? []).map((item, index) => {
+              {(localOrder.items ?? []).map((item, index) => {
                 if (!item || !item.product) return null;
                 return (
                   <div
@@ -408,29 +425,29 @@ export function OrderDetailsDialog({ open, onOpenChange, order }: OrderDetailsDi
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
               <span>Subtotal</span>
-              <span>{formatPrice(order.subtotal)}</span>
+              <span>{formatPrice(localOrder.subtotal)}</span>
             </div>
-            {order.deliveryType === 'delivery' && (
+            {localOrder.deliveryType === 'delivery' && (
               <div className="flex justify-between text-sm">
                 <span>Taxa de Entrega</span>
-                <span>{formatPrice(order.deliveryFee)}</span>
+                <span>{formatPrice(localOrder.deliveryFee)}</span>
               </div>
             )}
-            {order.pointsDiscount && order.pointsDiscount > 0 && (
+            {localOrder.pointsDiscount && localOrder.pointsDiscount > 0 && (
               <div className="flex justify-between text-sm text-green-600 font-medium">
-                <span>Desconto (Pontos Lealdade: {order.pointsRedeemed})</span>
-                <span>-{formatPrice(order.pointsDiscount)}</span>
+                <span>Desconto (Pontos Lealdade: {localOrder.pointsRedeemed})</span>
+                <span>-{formatPrice(localOrder.pointsDiscount)}</span>
               </div>
             )}
-            {order.appliedCoupon && order.couponDiscount && order.couponDiscount > 0 && (
+            {localOrder.appliedCoupon && localOrder.couponDiscount && localOrder.couponDiscount > 0 && (
               <div className="flex justify-between text-sm text-purple-600 font-medium">
-                <span>Desconto (Cupom {order.appliedCoupon})</span>
-                <span>-{formatPrice(order.couponDiscount)}</span>
+                <span>Desconto (Cupom {localOrder.appliedCoupon})</span>
+                <span>-{formatPrice(localOrder.couponDiscount)}</span>
               </div>
             )}
             <div className="flex justify-between font-bold text-lg">
               <span>Total</span>
-              <span className="text-primary">{formatPrice(order.total)}</span>
+              <span className="text-primary">{formatPrice(localOrder.total)}</span>
             </div>
           </div>
 
@@ -441,21 +458,21 @@ export function OrderDetailsDialog({ open, onOpenChange, order }: OrderDetailsDi
             <div>
               <span className="text-muted-foreground">Pagamento:</span>
               <Badge variant="outline">
-                {order.paymentMethod === 'pix' ? 'PIX' : order.paymentMethod === 'card' ? 'Cartao' : 'Dinheiro'}
+                {localOrder.paymentMethod === 'pix' ? 'PIX' : localOrder.paymentMethod === 'card' ? 'Cartao' : 'Dinheiro'}
               </Badge>
             </div>
             <div>
               <span className="text-muted-foreground">Data:</span>
-              {format(new Date(order.createdAt), "dd/MM/yyyy 'as' HH:mm", { locale: ptBR })}
+              {format(new Date(localOrder.createdAt), "dd/MM/yyyy 'as' HH:mm", { locale: ptBR })}
             </div>
           </div>
 
-          {order.observations && (
+          {localOrder.observations && (
             <>
               <Separator />
               <div>
                 <h4 className="font-semibold mb-1">Observacoes</h4>
-                <p className="text-sm text-muted-foreground">{order.observations}</p>
+                <p className="text-sm text-muted-foreground">{localOrder.observations}</p>
               </div>
             </>
           )}
