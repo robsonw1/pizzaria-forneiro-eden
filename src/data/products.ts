@@ -73,6 +73,7 @@ export interface Order {
   createdAt: Date;
   paymentId?: string;
   printedAt?: string;
+  autoConfirmedByPix?: boolean; // Auto-confirmado via PIX
 }
 
 // Available ingredients for "Moda do Cliente" pizza
