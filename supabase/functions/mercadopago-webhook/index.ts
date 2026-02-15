@@ -199,19 +199,31 @@ serve(async (req) => {
       // ============================================================
       if (orderId) {
         try {
+          // Se PIX foi aprovado, muda status para "confirmado" automaticamente
+          const shouldAutoConfirm = status === 'approved';
+          
+          const updateData: any = {
+            payment_status: mpStatus,
+            payment_confirmed_at: status === 'approved' ? new Date().toISOString() : null,
+            mercado_pago_id: paymentId.toString(),
+          };
+
+          // PIX aprovado: mudar para "confirmado" automatically
+          if (shouldAutoConfirm) {
+            updateData.status = 'confirmado';
+            updateData.auto_confirmed_by_pix = true;
+            console.log(`🤖 PIX aprovado! Alterando automaticamente status para "confirmado"...`);
+          }
+
           const { error: updateError } = await supabase
             .from('orders')
-            .update({
-              payment_status: mpStatus,
-              payment_confirmed_at: status === 'approved' ? new Date().toISOString() : null,
-              mercado_pago_id: paymentId.toString(),
-            })
+            .update(updateData)
             .eq('id', orderId);
 
           if (updateError) {
             console.error(`❌ Erro ao atualizar order ${orderId}:`, updateError);
           } else {
-            console.log(`✅ Order ${orderId} atualizado com status: ${mpStatus}`);
+            console.log(`✅ Order ${orderId} atualizado com status: ${mpStatus}${shouldAutoConfirm ? ' + Auto-confirmado' : ''}`);
           }
         } catch (error) {
           console.error(`❌ Exception ao atualizar order ${orderId}:`, error);
