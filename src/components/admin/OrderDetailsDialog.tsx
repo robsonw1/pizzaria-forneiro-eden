@@ -294,6 +294,11 @@ export function OrderDetailsDialog({ open, onOpenChange, order }: OrderDetailsDi
             <Badge variant="default" className={`${statusColors[localOrder.status]} text-white`}>
               {statusLabels[localOrder.status]}
             </Badge>
+            {localOrder.autoConfirmedByPix && (
+              <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300 text-xs">
+                🤖 Auto-confirmado por PIX
+              </Badge>
+            )}
           </DialogTitle>
         </DialogHeader>
 
