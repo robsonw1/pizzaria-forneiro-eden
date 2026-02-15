@@ -298,13 +298,13 @@ export function OrderDetailsDialog({ open, onOpenChange, order }: OrderDetailsDi
             </Select>
           </div>
 
-          {/* Confirm Payment Button - For Cash and Card payments that are still pending */}
-          {order.status === 'pending' && order.paymentMethod !== 'pix' && (
+          {/* Confirm Payment Button - For Cash and Card payments (except cancelled orders) */}
+          {order.status !== 'cancelled' && order.paymentMethod !== 'pix' && (
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 space-y-3">
               <div className="text-sm">
-                <p className="font-semibold text-yellow-900">Pagamento Pendente</p>
+                <p className="font-semibold text-yellow-900">Confirmar Pagamento</p>
                 <p className="text-yellow-800 text-xs mt-1">
-                  Clique abaixo para confirmar que o pagamento foi recebido e adicionar pontos de lealdade ao cliente.
+                  Clique abaixo para confirmar o pagamento e adicionar pontos de lealdade ao cliente.
                 </p>
               </div>
               <Button
