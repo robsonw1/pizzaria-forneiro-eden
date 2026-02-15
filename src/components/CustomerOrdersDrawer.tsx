@@ -86,7 +86,7 @@ export function CustomerOrdersDrawer({
         console.log('[ORDERS] 🔍 Buscando pedidos do cliente:', currentCustomer.email);
         const { data, error } = await (supabase as any)
           .from('orders')
-          .select('id, status, total, created_at, delivery_type, points_redeemed, items:order_items(*)')
+          .select('id, status, total, created_at, customer_name, customer_phone')
           .eq('email', currentCustomer.email)
           .order('created_at', { ascending: false });
 
@@ -104,12 +104,12 @@ export function CustomerOrdersDrawer({
         // Mapear dados do BD para formato esperado
         const mappedOrders = (data as any[]).map((order: any) => ({
           id: order.id,
-          status: order.status || 'pending',
+          status: (order.status || 'pending') as Order['status'],
           total: order.total || 0,
           createdAt: order.created_at,
-          items: order.items || [],
-          deliveryType: order.delivery_type || 'delivery',
-          pointsRedeemed: order.points_redeemed || 0,
+          items: [],
+          deliveryType: 'delivery' as const,
+          pointsRedeemed: 0,
         }));
 
         console.log('[ORDERS] ✅ Pedidos carregados:', mappedOrders.length);
