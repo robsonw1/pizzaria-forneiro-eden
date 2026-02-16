@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Lock, User } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 import logoForneiro from '@/assets/logo-forneiro.jpg';
 
 const AdminLogin = () => {
@@ -18,18 +19,35 @@ const AdminLogin = () => {
     e.preventDefault();
     setIsLoading(true);
 
-    // Simple demo auth - in production, use proper backend
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    try {
+      // Simple demo auth - in production, use proper backend
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
-    if (username === 'admin' && password === 'admin123') {
-      localStorage.setItem('admin-token', 'demo-token');
-      toast.success('Login realizado com sucesso!');
-      navigate('/admin/dashboard');
-    } else {
-      toast.error('Usuário ou senha inválidos');
+      if (username === 'admin' && password === 'admin123') {
+        localStorage.setItem('admin-token', 'demo-token');
+        
+        // Buscar o primeiro tenant para associar ao admin demo
+        const { data: tenants } = await (supabase as any)
+          .from('tenants')
+          .select('id')
+          .limit(1);
+        
+        if (tenants && tenants.length > 0) {
+          localStorage.setItem('admin-tenant-id', tenants[0].id);
+          console.log('✅ Tenant ID armazenado:', tenants[0].id);
+        }
+        
+        toast.success('Login realizado com sucesso!');
+        navigate('/admin/dashboard');
+      } else {
+        toast.error('Usuário ou senha inválidos');
+      }
+    } catch (err) {
+      console.error('Erro no login:', err);
+      toast.error('Erro ao fazer login');
+    } finally {
+      setIsLoading(false);
     }
-
-    setIsLoading(false);
   };
 
   return (
