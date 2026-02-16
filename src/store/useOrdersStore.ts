@@ -218,12 +218,37 @@ export const useOrdersStore = create<OrdersStore>()(
 
       updateOrderStatus: async (id, status) => {
         try {
+          // Buscar order completo para enviar notificação
+          const { data: orderData } = await (supabase as any).from('orders')
+            .select('id, customer_name, email, tenant_id, customer_phone, address')
+            .eq('id', id)
+            .single();
+
           // Atualizar no Supabase
           const { error } = await supabase.from('orders')
             .update({ status })
             .eq('id', id);
 
           if (error) throw error;
+
+          // 📱 Enviar notificação WhatsApp se configurado (assíncrono, não bloqueia)
+          if (orderData?.customer_phone && orderData?.tenant_id) {
+            try {
+              supabase.functions.invoke('send-whatsapp-notification', {
+                body: {
+                  orderId: id,
+                  status: status,
+                  phone: orderData.customer_phone,
+                  customerName: orderData.customer_name || 'Cliente',
+                  tenantId: orderData.tenant_id,
+                },
+              }).catch((err) => {
+                console.warn('⚠️ Aviso: Falha ao enviar notificação WhatsApp:', err);
+              });
+            } catch (notificationError) {
+              console.warn('⚠️ Aviso: Erro ao chamar função de notificação:', notificationError);
+            }
+          }
         } catch (error) {
           console.error('Erro ao atualizar status no Supabase:', error);
         }
