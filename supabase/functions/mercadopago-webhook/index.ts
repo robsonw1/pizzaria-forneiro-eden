@@ -224,6 +224,43 @@ serve(async (req) => {
             console.error(`❌ Erro ao atualizar order ${orderId}:`, updateError);
           } else {
             console.log(`✅ Order ${orderId} atualizado com status: ${mpStatus}${shouldAutoConfirm ? ' + Auto-confirmado' : ''}`);
+            
+            // 📱 Enviar notificação WhatsApp se PIX foi aprovado
+            if (shouldAutoConfirm) {
+              try {
+                // Buscar dados do pedido para notificação
+                const { data: orderData } = await supabase
+                  .from('orders')
+                  .select('id, customer_name, customer_phone, tenant_id')
+                  .eq('id', orderId)
+                  .single();
+
+                if (orderData?.customer_phone && orderData?.tenant_id) {
+                  // Chamar edge function de notificação (assíncrono)
+                  console.log(`📲 Enviando notificação de confirmação para ${orderData.customer_phone}`);
+                  
+                  // Realizar a chamada assincronamente sem aguardar
+                  fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-whatsapp-notification`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+                    },
+                    body: JSON.stringify({
+                      orderId: orderId,
+                      status: 'confirmado',
+                      phone: orderData.customer_phone,
+                      customerName: orderData.customer_name || 'Cliente',
+                      tenantId: orderData.tenant_id,
+                    }),
+                  }).catch((err) => {
+                    console.warn(`⚠️ Falha ao enviar notificação WhatsApp via webhook:`, err);
+                  });
+                }
+              } catch (notificationError) {
+                console.warn(`⚠️ Erro ao processar notificação:`, notificationError);
+              }
+            }
           }
         } catch (error) {
           console.error(`❌ Exception ao atualizar order ${orderId}:`, error);
