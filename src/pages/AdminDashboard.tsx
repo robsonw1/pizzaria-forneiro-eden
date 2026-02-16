@@ -46,6 +46,7 @@ import {
   Sun,
   Moon,
   CreditCard,
+  Bell,
 } from 'lucide-react';
 import {
   Product,
@@ -64,7 +65,7 @@ import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { DateRangeFilter } from '@/components/admin/DateRangeFilter';
 import { ScheduleSettings } from '@/components/admin/ScheduleSettings';
 import { PrintNodeSettings } from '@/components/admin/PrintNodeSettings';
-import { WhatsAppSettingsPanel } from '@/components/admin/WhatsAppSettingsPanel';
+import { NotificationsTab } from '@/components/admin/NotificationsTab';
 import { LoyaltySettingsPanel } from '@/components/admin/LoyaltySettingsPanel';
 import { FaithfulCustomersAdmin } from '@/components/admin/FaithfulCustomersAdmin';
 import { CouponManagementPanel } from '@/components/admin/CouponManagementPanel';
@@ -616,6 +617,10 @@ const AdminDashboard = () => {
             <TabsTrigger value="payments" className="gap-2">
               <CreditCard className="w-4 h-4" />
               Pagamentos
+            </TabsTrigger>
+            <TabsTrigger value="notifications" className="gap-2">
+              <Bell className="w-4 h-4" />
+              Notificações
             </TabsTrigger>
           </TabsList>
 
@@ -1255,8 +1260,6 @@ const AdminDashboard = () => {
               <LoyaltySettingsPanel />
 
               <PrintNodeSettings />
-
-              <WhatsAppSettingsPanel />
             </div>
           </TabsContent>
 
@@ -1273,6 +1276,11 @@ const AdminDashboard = () => {
           {/* Payments Tab */}
           <TabsContent value="payments">
             <PaymentSettingsPanel />
+          </TabsContent>
+
+          {/* Notifications Tab */}
+          <TabsContent value="notifications">
+            <NotificationsTab />
           </TabsContent>
         </Tabs>
       </div>
