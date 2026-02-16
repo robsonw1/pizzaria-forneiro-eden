@@ -125,7 +125,8 @@ serve(async (req: Request) => {
       },
       body: JSON.stringify({
         instanceName: instance_name,
-        number: '', // Will be set when connecting
+        // NÃO enviar 'number' vazio - será preenchido quando conectar via WhatsApp
+        // number: '', // Remover para evitar erro de validação
         clientSecret: '',
         serverUrl: supabaseUrl,
         token: supabaseKey,
