@@ -81,25 +81,28 @@ serve(async (req: Request) => {
       );
     }
 
-    // Validar se instance já existe no banco
-    console.log('📋 Verificando se instance já existe:', instance_name);
-    const { data: existing, error: checkError } = await supabase
+    // Validar se tenant já tem uma instância (apenas 1 por tenant)
+    console.log('📋 Verificando se tenant já tem instância...');
+    const { data: tenantInstances, error: tenantInstError } = await supabase
       .from('whatsapp_instances')
       .select('id')
-      .eq('evolution_instance_name', instance_name);
+      .eq('tenant_id', tenant_id);
     
-    if (checkError) {
-      console.error('❌ Erro ao verificar instância existente:', checkError);
+    if (tenantInstError) {
+      console.error('❌ Erro ao verificar instâncias do tenant:', tenantInstError);
       return new Response(
-        JSON.stringify({ success: false, message: 'Erro ao verificar instância' }),
+        JSON.stringify({ success: false, message: 'Erro ao verificar instâncias' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    if (existing && existing.length > 0) {
-      console.error('❌ Instance já existe:', instance_name);
+    if (tenantInstances && tenantInstances.length >= 1) {
+      console.error('❌ Tenant já possui uma instância WhatsApp');
       return new Response(
-        JSON.stringify({ success: false, message: 'Nome de instância já em uso' }),
+        JSON.stringify({ 
+          success: false, 
+          message: 'Este estabelecimento já possui uma instância WhatsApp configurada. Apenas uma instância é permitida por estabelecimento.' 
+        }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -115,7 +118,14 @@ serve(async (req: Request) => {
 
     const createInstanceUrl = `${evolutionUrl.replace(/\/$/, '')}/instance/create`;
     
-    console.log(`📱 [EVOLUTION] Criando instância em: ${createInstanceUrl}`);
+    // Payload mínimo para Evolution API
+    const requestPayload = {
+      instanceName: instance_name,
+    };
+
+    console.log(`📱 [EVOLUTION] URL: ${createInstanceUrl}`);
+    console.log(`📱 [EVOLUTION] API Key presente: ${evolutionKey ? 'SIM' : 'NÃO'}`);
+    console.log(`📱 [EVOLUTION] Payload:`, JSON.stringify(requestPayload));
 
     const evolutionResponse = await fetch(createInstanceUrl, {
       method: 'POST',
@@ -123,17 +133,14 @@ serve(async (req: Request) => {
         'apikey': evolutionKey,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        instanceName: instance_name,
-        // NÃO enviar 'number' vazio - será preenchido quando conectar via WhatsApp
-        // number: '', // Remover para evitar erro de validação
-        clientSecret: '',
-        serverUrl: supabaseUrl,
-        token: supabaseKey,
-      }),
+      body: JSON.stringify(requestPayload),
     });
 
+    console.log(`📱 [EVOLUTION] Response status: ${evolutionResponse.status}`);
+    
     const evolutionData = await evolutionResponse.json();
+    
+    console.log(`📱 [EVOLUTION] Response completa:`, JSON.stringify(evolutionData, null, 2));
 
     if (!evolutionResponse.ok) {
       console.error('❌ Evolution API retornou erro:', { status: evolutionResponse.status, data: evolutionData });
