@@ -81,28 +81,25 @@ serve(async (req: Request) => {
       );
     }
 
-    // Validar se tenant já tem uma instância (apenas 1 por tenant)
-    console.log('📋 Verificando se tenant já tem instância...');
-    const { data: tenantInstances, error: tenantInstError } = await supabase
+    // Validar se instance já existe no banco
+    console.log('📋 Verificando se instance já existe:', instance_name);
+    const { data: existing, error: checkError } = await supabase
       .from('whatsapp_instances')
       .select('id')
-      .eq('tenant_id', tenant_id);
+      .eq('evolution_instance_name', instance_name);
     
-    if (tenantInstError) {
-      console.error('❌ Erro ao verificar instâncias do tenant:', tenantInstError);
+    if (checkError) {
+      console.error('❌ Erro ao verificar instância existente:', checkError);
       return new Response(
-        JSON.stringify({ success: false, message: 'Erro ao verificar instâncias' }),
+        JSON.stringify({ success: false, message: 'Erro ao verificar instância' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    if (tenantInstances && tenantInstances.length >= 1) {
-      console.error('❌ Tenant já possui uma instância WhatsApp');
+    if (existing && existing.length > 0) {
+      console.error('❌ Instance já existe:', instance_name);
       return new Response(
-        JSON.stringify({ 
-          success: false, 
-          message: 'Este estabelecimento já possui uma instância WhatsApp configurada. Apenas uma instância é permitida por estabelecimento.' 
-        }),
+        JSON.stringify({ success: false, message: 'Nome de instância já em uso' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -118,14 +115,14 @@ serve(async (req: Request) => {
 
     const createInstanceUrl = `${evolutionUrl.replace(/\/$/, '')}/instance/create`;
     
-    // Payload mínimo para Evolution API
+    // Payload MINIMAL - Evolution API rejeita campos adicionais com "Invalid integration"
     const requestPayload = {
       instanceName: instance_name,
     };
 
     console.log(`📱 [EVOLUTION] URL: ${createInstanceUrl}`);
-    console.log(`📱 [EVOLUTION] API Key presente: ${evolutionKey ? 'SIM' : 'NÃO'}`);
-    console.log(`📱 [EVOLUTION] Payload:`, JSON.stringify(requestPayload));
+    console.log(`📱 [EVOLUTION] Headers - apikey: ${evolutionKey ? '***' : 'MISSING'}`);
+    console.log(`📱 [EVOLUTION] Body:`, JSON.stringify(requestPayload));
 
     const evolutionResponse = await fetch(createInstanceUrl, {
       method: 'POST',
@@ -140,7 +137,7 @@ serve(async (req: Request) => {
     
     const evolutionData = await evolutionResponse.json();
     
-    console.log(`📱 [EVOLUTION] Response completa:`, JSON.stringify(evolutionData, null, 2));
+    console.log(`📱 [EVOLUTION] Response body:`, JSON.stringify(evolutionData, null, 2));
 
     if (!evolutionResponse.ok) {
       console.error('❌ Evolution API retornou erro:', { status: evolutionResponse.status, data: evolutionData });
