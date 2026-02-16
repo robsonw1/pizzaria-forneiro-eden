@@ -34,9 +34,34 @@ export const NotificationsTab = () => {
   const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
   const [generatingQR, setGeneratingQR] = useState<string | null>(null);
   const [qrCodeData, setQrCodeData] = useState<{ [key: string]: string }>({});
+  const [tenantId, setTenantId] = useState<string>('');
   
   // Usar hook de sincronização
   useWhatsAppInstanceSync();
+
+  // Buscar tenant_id do usuário
+  useEffect(() => {
+    const getTenantId = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: profile } = await (supabase as any)
+            .from('profiles')
+            .select('tenant_id')
+            .eq('id', user.id)
+            .single();
+          
+          if (profile?.tenant_id) {
+            setTenantId(profile.tenant_id);
+          }
+        }
+      } catch (err) {
+        console.error('Erro ao obter tenant_id:', err);
+      }
+    };
+    
+    getTenantId();
+  }, []);
 
   // Buscar instâncias existentes
   useEffect(() => {
@@ -110,6 +135,7 @@ export const NotificationsTab = () => {
           body: {
             establishment_name: establishmentName,
             instance_name: instanceName,
+            tenant_id: tenantId,
           },
         }
       );
