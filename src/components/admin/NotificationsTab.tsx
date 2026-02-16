@@ -40,77 +40,51 @@ export const NotificationsTab = () => {
   // Usar hook de sincronização
   useWhatsAppInstanceSync();
 
-  // Buscar tenant_id do usuário
-  useEffect(() => {
-    const getTenantId = async () => {
-      try {
-        setLoadingTenant(true);
-        console.log('🔄 Iniciando carregamento de tenant...');
-        
-        // Verificar se há token de admin
-        const adminToken = localStorage.getItem('admin-token');
-        console.log('🔑 Admin token:', adminToken ? 'sim' : 'não');
-        
-        // Tentar obter tenant_id armazenado
-        let storedTenantId = localStorage.getItem('admin-tenant-id');
-        
-        if (!storedTenantId) {
-          // Se não houver, tentar obter do user Supabase (fallback)
-          console.log('📋 Tentando fallback com Supabase Auth...');
-          const { data: { user } } = await supabase.auth.getUser();
-          
-          if (user) {
-            const { data: profile, error: profileError } = await (supabase as any)
-              .from('profiles')
-              .select('tenant_id')
-              .eq('id', user.id);
-            
-            if (!profileError && profile && profile.length > 0) {
-              storedTenantId = profile[0].tenant_id;
-              console.log('✅ Tenant ID recuperado de Supabase:', storedTenantId);
-            }
-          }
-        } else {
-          console.log('✅ Tenant ID recuperado do localStorage:', storedTenantId);
-        }
-        
-        // Se ainda não há tenant_id, buscar o primeiro tenant padrão
-        if (!storedTenantId) {
-          console.log('📋 Buscando tenant padrão...');
-          const { data: tenants, error: tenantsError } = await (supabase as any)
-            .from('tenants')
-            .select('id')
-            .limit(1);
-          
-          if (!tenantsError && tenants && tenants.length > 0) {
-            storedTenantId = tenants[0].id;
-            console.log('✅ Tenant padrão encontrado:', storedTenantId);
-            localStorage.setItem('admin-tenant-id', storedTenantId);
-          }
-        }
-        
-        if (storedTenantId) {
-          setTenantId(storedTenantId);
-          console.log('✅ Tenant ID finalizado:', storedTenantId);
-        } else {
-          console.error('❌ Nenhum tenant encontrado');
-          toast.error('Nenhum tenant configurado');
-        }
-      } catch (err) {
-        console.error('❌ Erro ao obter tenant_id:', err);
-        toast.error('Erro ao carregar configurações');
-      } finally {
-        setLoadingTenant(false);
-      }
-    };
-    
-    getTenantId();
-  }, []);
-
-  // Buscar instâncias existentes
+  // Buscar instâncias existentes ao montar
   useEffect(() => {
     loadInstances();
   }, []);
+
+  // Carregar tenant_id quando a modal abre (lazy loading)
+  useEffect(() => {
+    if (openModal && !tenantId) {
+      getTenantIdLazy();
+    }
+  }, [openModal]);
+
+  const getTenantIdLazy = async () => {
+    try {
+      setLoadingTenant(true);
+      console.log('🔄 Carregando tenant ID (lazy)...');
+      
+      // Tentar obter tenant_id armazenado
+      let storedTenantId = localStorage.getItem('admin-tenant-id');
+      
+      if (storedTenantId) {
+        setTenantId(storedTenantId);
+        console.log('✅ Tenant ID do localStorage:', storedTenantId);
+      } else {
+        // Se não houver, buscar o primeiro tenant padrão
+        console.log('📋 Buscando tenant padrão...');
+        const { data: tenants } = await (supabase as any)
+          .from('tenants')
+          .select('id')
+          .limit(1);
+        
+        if (tenants && tenants.length > 0) {
+          storedTenantId = tenants[0].id;
+          setTenantId(storedTenantId);
+          localStorage.setItem('admin-tenant-id', storedTenantId);
+          console.log('✅ Tenant padrão encontrado:', storedTenantId);
+        }
+      }
+    } catch (err) {
+      console.error('❌ Erro ao carregar tenant:', err);
+      toast.error('Erro ao carregar tenant');
+    } finally {
+      setLoadingTenant(false);
+    }
+  };
 
   const loadInstances = async () => {
     try {
@@ -193,7 +167,9 @@ export const NotificationsTab = () => {
 
       if (error) {
         console.error('❌ Erro na função:', error);
-        throw error;
+        // Tentar extrair mensagem de erro mais útil
+        const errorMsg = error?.message || 'Erro desconhecido';
+        throw new Error(errorMsg);
       }
 
       console.log('✅ Resposta da função:', data);
