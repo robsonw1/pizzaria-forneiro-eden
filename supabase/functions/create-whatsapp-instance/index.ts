@@ -9,7 +9,7 @@ const corsHeaders = {
 interface CreateInstanceRequest {
   establishment_name: string;
   instance_name: string;
-  tenant_id?: string;
+  tenant_id: string;
 }
 
 serve(async (req: Request) => {
@@ -26,12 +26,12 @@ serve(async (req: Request) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const body = await req.json() as CreateInstanceRequest;
-    const { establishment_name, instance_name } = body;
+    const { establishment_name, instance_name, tenant_id } = body;
 
     console.log(`🚀 [CREATE-INSTANCE] ${instance_name} - ${establishment_name}`);
 
     // Validar entrada
-    if (!establishment_name || !instance_name) {
+    if (!establishment_name || !instance_name || !tenant_id) {
       return new Response(
         JSON.stringify({ success: false, message: 'Missing required fields' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -51,43 +51,6 @@ serve(async (req: Request) => {
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
-    // Obter tenant_id do contexto de autenticação
-    const authHeader = req.headers.get('authorization');
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ success: false, message: 'No authorization' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const { data: { user }, error: userError } = await supabase.auth.getUser(
-      authHeader.replace('Bearer ', '')
-    );
-
-    if (userError || !user) {
-      return new Response(
-        JSON.stringify({ success: false, message: 'Invalid token' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Obter tenant_id do usuário
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('tenant_id')
-      .eq('id', user.id)
-      .single();
-
-    if (profileError || !profile?.tenant_id) {
-      console.error('Profile error:', profileError);
-      return new Response(
-        JSON.stringify({ success: false, message: 'Tenant not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const tenantId = profile.tenant_id;
 
     // Criar instância na Evolution API
     if (!evolutionUrl || !evolutionKey) {
