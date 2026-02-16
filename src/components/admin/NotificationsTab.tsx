@@ -45,24 +45,39 @@ export const NotificationsTab = () => {
     const getTenantId = async () => {
       try {
         setLoadingTenant(true);
+        console.log('🔄 Iniciando carregamento de tenant...');
+        
         const { data: { user } } = await supabase.auth.getUser();
+        console.log('👤 User:', user?.id);
+        
         if (user) {
-          const { data: profile } = await (supabase as any)
+          const { data: profile, error: profileError } = await (supabase as any)
             .from('profiles')
             .select('tenant_id')
-            .eq('id', user.id)
-            .single();
+            .eq('id', user.id);
           
-          if (profile?.tenant_id) {
-            setTenantId(profile.tenant_id);
-            console.log('✅ Tenant ID carregado:', profile.tenant_id);
-          } else {
-            console.error('❌ Tenant ID não encontrado no perfil');
-            toast.error('Erro ao carregar tenant');
+          console.log('📋 Query result:', { profile, error: profileError });
+          
+          if (profileError) {
+            console.error('❌ Erro na query:', profileError);
+            toast.error('Erro ao carregar perfil');
+            setLoadingTenant(false);
+            return;
           }
+          
+          if (profile && profile.length > 0 && profile[0]?.tenant_id) {
+            setTenantId(profile[0].tenant_id);
+            console.log('✅ Tenant ID carregado:', profile[0].tenant_id);
+          } else {
+            console.error('❌ Tenant ID não encontrado. Profile:', profile);
+            toast.error('Tenant não configurado');
+          }
+        } else {
+          console.error('❌ Usuário não autenticado');
+          toast.error('Você não está autenticado');
         }
       } catch (err) {
-        console.error('Erro ao obter tenant_id:', err);
+        console.error('❌ Erro ao obter tenant_id:', err);
         toast.error('Erro ao carregar configurações');
       } finally {
         setLoadingTenant(false);
