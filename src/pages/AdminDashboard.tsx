@@ -64,6 +64,7 @@ import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { DateRangeFilter } from '@/components/admin/DateRangeFilter';
 import { ScheduleSettings } from '@/components/admin/ScheduleSettings';
 import { PrintNodeSettings } from '@/components/admin/PrintNodeSettings';
+import { WhatsAppSettingsPanel } from '@/components/admin/WhatsAppSettingsPanel';
 import { LoyaltySettingsPanel } from '@/components/admin/LoyaltySettingsPanel';
 import { FaithfulCustomersAdmin } from '@/components/admin/FaithfulCustomersAdmin';
 import { CouponManagementPanel } from '@/components/admin/CouponManagementPanel';
@@ -1254,6 +1255,8 @@ const AdminDashboard = () => {
               <LoyaltySettingsPanel />
 
               <PrintNodeSettings />
+
+              <WhatsAppSettingsPanel />
             </div>
           </TabsContent>
 
