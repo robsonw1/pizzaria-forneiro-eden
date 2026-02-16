@@ -35,6 +35,7 @@ export const NotificationsTab = () => {
   const [generatingQR, setGeneratingQR] = useState<string | null>(null);
   const [qrCodeData, setQrCodeData] = useState<{ [key: string]: string }>({});
   const [tenantId, setTenantId] = useState<string>('');
+  const [loadingTenant, setLoadingTenant] = useState(true);
   
   // Usar hook de sincronização
   useWhatsAppInstanceSync();
@@ -43,6 +44,7 @@ export const NotificationsTab = () => {
   useEffect(() => {
     const getTenantId = async () => {
       try {
+        setLoadingTenant(true);
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
           const { data: profile } = await (supabase as any)
@@ -53,10 +55,17 @@ export const NotificationsTab = () => {
           
           if (profile?.tenant_id) {
             setTenantId(profile.tenant_id);
+            console.log('✅ Tenant ID carregado:', profile.tenant_id);
+          } else {
+            console.error('❌ Tenant ID não encontrado no perfil');
+            toast.error('Erro ao carregar tenant');
           }
         }
       } catch (err) {
         console.error('Erro ao obter tenant_id:', err);
+        toast.error('Erro ao carregar configurações');
+      } finally {
+        setLoadingTenant(false);
       }
     };
     
@@ -113,6 +122,11 @@ export const NotificationsTab = () => {
       return;
     }
 
+    if (!tenantId) {
+      toast.error('Tenant não carregado. Tente novamente.');
+      return;
+    }
+
     try {
       setCreatingInstance(true);
       
@@ -128,6 +142,8 @@ export const NotificationsTab = () => {
         return;
       }
 
+      console.log('📤 Enviando para função:', { establishment_name: establishmentName, instance_name: instanceName, tenant_id: tenantId });
+
       // Chamar função para criar instância na Evolution API
       const { data, error } = await supabase.functions.invoke(
         'create-whatsapp-instance',
@@ -140,7 +156,12 @@ export const NotificationsTab = () => {
         }
       );
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Erro na função:', error);
+        throw error;
+      }
+
+      console.log('✅ Resposta da função:', data);
 
       if (data?.success) {
         toast.success('Instance de WhatsApp criada com sucesso! Clique em "Criar conexão" para escanear o QR code');
@@ -263,20 +284,27 @@ export const NotificationsTab = () => {
                   />
                 </div>
 
-                <Button
-                  onClick={handleAddWhatsApp}
-                  disabled={creatingInstance || !establishmentName.trim()}
-                  className="w-full"
-                >
-                  {creatingInstance ? (
-                    <>
-                      <Loader className="w-4 h-4 mr-2 animate-spin" />
-                      Criando...
-                    </>
-                  ) : (
-                    'Salvar Configuração'
-                  )}
-                </Button>
+                {loadingTenant ? (
+                  <Button disabled className="w-full" variant="secondary">
+                    <Loader className="w-4 h-4 mr-2 animate-spin" />
+                    Carregando tenant...
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={handleAddWhatsApp}
+                    disabled={creatingInstance || !establishmentName.trim()}
+                    className="w-full"
+                  >
+                    {creatingInstance ? (
+                      <>
+                        <Loader className="w-4 h-4 mr-2 animate-spin" />
+                        Criando...
+                      </>
+                    ) : (
+                      'Salvar Configuração'
+                    )}
+                  </Button>
+                )}
               </div>
             </DialogContent>
           </Dialog>
