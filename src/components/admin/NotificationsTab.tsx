@@ -47,34 +47,54 @@ export const NotificationsTab = () => {
         setLoadingTenant(true);
         console.log('🔄 Iniciando carregamento de tenant...');
         
-        const { data: { user } } = await supabase.auth.getUser();
-        console.log('👤 User:', user?.id);
+        // Verificar se há token de admin
+        const adminToken = localStorage.getItem('admin-token');
+        console.log('🔑 Admin token:', adminToken ? 'sim' : 'não');
         
-        if (user) {
-          const { data: profile, error: profileError } = await (supabase as any)
-            .from('profiles')
-            .select('tenant_id')
-            .eq('id', user.id);
+        // Tentar obter tenant_id armazenado
+        let storedTenantId = localStorage.getItem('admin-tenant-id');
+        
+        if (!storedTenantId) {
+          // Se não houver, tentar obter do user Supabase (fallback)
+          console.log('📋 Tentando fallback com Supabase Auth...');
+          const { data: { user } } = await supabase.auth.getUser();
           
-          console.log('📋 Query result:', { profile, error: profileError });
-          
-          if (profileError) {
-            console.error('❌ Erro na query:', profileError);
-            toast.error('Erro ao carregar perfil');
-            setLoadingTenant(false);
-            return;
-          }
-          
-          if (profile && profile.length > 0 && profile[0]?.tenant_id) {
-            setTenantId(profile[0].tenant_id);
-            console.log('✅ Tenant ID carregado:', profile[0].tenant_id);
-          } else {
-            console.error('❌ Tenant ID não encontrado. Profile:', profile);
-            toast.error('Tenant não configurado');
+          if (user) {
+            const { data: profile, error: profileError } = await (supabase as any)
+              .from('profiles')
+              .select('tenant_id')
+              .eq('id', user.id);
+            
+            if (!profileError && profile && profile.length > 0) {
+              storedTenantId = profile[0].tenant_id;
+              console.log('✅ Tenant ID recuperado de Supabase:', storedTenantId);
+            }
           }
         } else {
-          console.error('❌ Usuário não autenticado');
-          toast.error('Você não está autenticado');
+          console.log('✅ Tenant ID recuperado do localStorage:', storedTenantId);
+        }
+        
+        // Se ainda não há tenant_id, buscar o primeiro tenant padrão
+        if (!storedTenantId) {
+          console.log('📋 Buscando tenant padrão...');
+          const { data: tenants, error: tenantsError } = await (supabase as any)
+            .from('tenants')
+            .select('id')
+            .limit(1);
+          
+          if (!tenantsError && tenants && tenants.length > 0) {
+            storedTenantId = tenants[0].id;
+            console.log('✅ Tenant padrão encontrado:', storedTenantId);
+            localStorage.setItem('admin-tenant-id', storedTenantId);
+          }
+        }
+        
+        if (storedTenantId) {
+          setTenantId(storedTenantId);
+          console.log('✅ Tenant ID finalizado:', storedTenantId);
+        } else {
+          console.error('❌ Nenhum tenant encontrado');
+          toast.error('Nenhum tenant configurado');
         }
       } catch (err) {
         console.error('❌ Erro ao obter tenant_id:', err);
