@@ -167,8 +167,22 @@ export const NotificationsTab = () => {
 
       if (error) {
         console.error('❌ Erro na função:', error);
+        console.error('❌ Status:', error.status);
+        console.error('❌ Message:', error.message);
+        
         // Tentar extrair mensagem de erro mais útil
-        const errorMsg = error?.message || 'Erro desconhecido';
+        let errorMsg = error?.message || 'Erro desconhecido';
+        
+        // Se tiver resposta JSON, tentar parsear
+        if (error?.context?.response) {
+          try {
+            const response = await error.context.response.json();
+            errorMsg = response?.message || response?.error || errorMsg;
+          } catch (e) {
+            // Se não conseguir parsear, usar message padrão
+          }
+        }
+        
         throw new Error(errorMsg);
       }
 
