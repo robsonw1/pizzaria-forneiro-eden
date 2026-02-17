@@ -53,6 +53,24 @@ export const useOrdersStore = create<OrdersStore>()(
           // Salvar no Supabase com hora local correta
           const localISO = getLocalISOString();
           
+          // ✅ CRÍTICO: Garantir tenant_id sempre valid ou usar padrão
+          let finalTenantId = newOrder.tenantId;
+          if (!finalTenantId) {
+            console.warn('⚠️ [ADDORDER] tenant_id não fornecido, buscando padrão...');
+            const { data: tenants } = await (supabase as any)
+              .from('tenants')
+              .select('id')
+              .limit(1);
+            if (tenants?.length > 0) {
+              finalTenantId = tenants[0].id;
+              console.log('📍 [ADDORDER] Usando tenant padrão:', finalTenantId);
+            } else {
+              console.error('❌ [ADDORDER] Nenhum tenant encontrado no banco!');
+            }
+          } else {
+            console.log('📍 [ADDORDER] Usando tenant fornecido:', finalTenantId);
+          }
+          
           // 🔍 LOG: Verificar dados do cliente
           console.log('📦 [ADDORDER] Criando pedido com dados:', {
             id: newOrder.id,
@@ -61,7 +79,8 @@ export const useOrdersStore = create<OrdersStore>()(
             customerEmail: newOrder.customer.email,
             total: newOrder.total,
             pointsRedeemed: newOrder.pointsRedeemed,
-            status: newOrder.status
+            status: newOrder.status,
+            tenantId: finalTenantId,
           });
 
           // Validar que email não é vazio
@@ -105,7 +124,7 @@ export const useOrdersStore = create<OrdersStore>()(
               payment_method: newOrder.paymentMethod,
               created_at: localISO,
               address: addressWithMetadata,
-              tenant_id: newOrder.tenantId, // ✅ CRÍTICO: Tenant para multi-tenancy
+              tenant_id: finalTenantId, // ✅ CRÍTICO: Sempre com fallback
             },
           ] as any);
 
@@ -113,7 +132,7 @@ export const useOrdersStore = create<OrdersStore>()(
             console.error('❌ Erro ao inserir order:', error);
             throw error;
           }
-          console.log('✅ Order inserida com sucesso:', newOrder.id, 'em', localISO, 'com email:', customerEmail, 'pending_points:', pendingPoints);
+          console.log('✅ Order inserida com sucesso:', newOrder.id, 'em', localISO, 'com email:', customerEmail, 'pending_points:', pendingPoints, 'tenant_id:', finalTenantId);
 
           // Salvar itens do pedido - APENAS os campos que existem na tabela order_items
           const orderItems = newOrder.items.map((item) => ({
