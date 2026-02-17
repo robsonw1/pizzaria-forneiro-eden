@@ -28,6 +28,11 @@ export const AdminPDFReports = ({ analyticsData }: PDFReportProps) => {
 
   const generatePDF = async () => {
     try {
+      if (!analyticsData) {
+        setError('Nenhum dado de analytics disponível ainda. Aguarde o carregamento dos dados.');
+        return;
+      }
+
       setIsGenerating(true);
       setError(null);
 
