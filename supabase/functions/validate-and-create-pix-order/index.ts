@@ -135,7 +135,7 @@ serve(async (req) => {
       .from('orders')
       .insert([{
         ...orderPayload,
-        status: 'confirmado', // PIX aprovado = pedido confirmado
+        status: 'confirmed', // PIX aprovado = pedido confirmado
         payment_status: 'approved',
         payment_confirmed_at: new Date().toISOString(),
         mercado_pago_id: paymentId.toString(),
