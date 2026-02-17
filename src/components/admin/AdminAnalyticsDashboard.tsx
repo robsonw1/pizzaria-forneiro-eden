@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { AdminPDFReports } from './AdminPDFReports';
 import {
   TrendingUp,
   TrendingDown,
@@ -198,7 +199,18 @@ export const AdminAnalyticsDashboard = () => {
     );
   }
 
-  if (!data) return null;
+  if (!data) {
+    return (
+      <div className="space-y-6">
+        <Card className="border-blue-200 bg-blue-50">
+          <CardContent className="text-blue-800 pt-6">
+            Carregando dados de analytics... Aguarde alguns momentos.
+          </CardContent>
+        </Card>
+        <AdminPDFReports analyticsData={undefined} />
+      </div>
+    );
+  }
 
   const growthPercentage =
     data.totalRevenueLastMonth > 0
@@ -366,7 +378,9 @@ export const AdminAnalyticsDashboard = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* PDF Reports Export */}
+      <AdminPDFReports analyticsData={data} />
     </div>
   );
 };
-
