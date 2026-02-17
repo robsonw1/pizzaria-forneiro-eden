@@ -105,6 +105,7 @@ export const useOrdersStore = create<OrdersStore>()(
               payment_method: newOrder.paymentMethod,
               created_at: localISO,
               address: addressWithMetadata,
+              tenant_id: newOrder.tenantId, // ✅ CRÍTICO: Tenant para multi-tenancy
             },
           ] as any);
 
