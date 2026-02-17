@@ -27,7 +27,8 @@ interface StatusMessage {
 }
 
 const DEFAULT_MESSAGES = {
-  confirmado: '🍕 Oi {nome}! Seu pedido #{pedido} foi confirmado! ⏱️ Saindo do forno em ~25min',
+  pending: '📋 Oi {nome}! Recebemos seu pedido #{pedido}. Você receberá uma confirmação em breve!',
+  confirmed: '🍕 Oi {nome}! Seu pedido #{pedido} foi confirmado! ⏱️ Saindo do forno em ~25min',
   preparing: '👨‍🍳 Seu pedido #{pedido} está sendo preparado com capricho!',
   delivering: '🚗 Seu pedido #{pedido} está a caminho! 📍 Chega em ~15min',
   delivered: '✅ Pedido #{pedido} entregue! Valeu pela compra 🙏',
@@ -104,12 +105,15 @@ export const WhatsAppSettingsPanel = () => {
       const { data } = await (supabase as any)
         .from('whatsapp_status_messages')
         .select('*')
-        .eq('tenant_id', tenantId);
+        .eq('tenant_id', tenantId)
+        .order('status', { ascending: true });
 
       if (data && data.length > 0) {
+        console.log('✅ Mensagens carregadas:', data);
         setStatusMessages(data as StatusMessage[]);
       } else {
-        // Criar mensagens padrão se não existirem
+        // ✅ NOVO: Criar mensagens padrão E salvar automaticamente
+        console.log('📝 Nenhuma mensagem encontrada, criando padrões...');
         const defaultMsgs = Object.entries(DEFAULT_MESSAGES).map(([status, message]) => ({
           id: '',
           status,
@@ -117,9 +121,36 @@ export const WhatsAppSettingsPanel = () => {
           enabled: true,
         }));
         setStatusMessages(defaultMsgs);
+        
+        // Salvar automaticamente as mensagens padrão
+        await saveDefaultMessages(tenantId, defaultMsgs);
       }
     } catch (error) {
-      console.error('Erro ao carregar mensagens:', error);
+      console.error('❌ Erro ao carregar mensagens:', error);
+      toast.error('Erro ao carregar mensagens');
+    }
+  };
+
+  // ✅ NOVO: Função para salvar mensagens padrão
+  const saveDefaultMessages = async (tenantId: string, messages: any[]) => {
+    try {
+      const messagesToInsert = messages.map(msg => ({
+        tenant_id: tenantId,
+        status: msg.status,
+        message_template: msg.message_template,
+        enabled: msg.enabled,
+      }));
+
+      const { error } = await (supabase as any)
+        .from('whatsapp_status_messages')
+        .insert(messagesToInsert);
+
+      if (error) throw error;
+      console.log('✅ Mensagens padrão salvas automaticamente');
+      toast.success('✅ Mensagens padrão configuradas automaticamente!');
+    } catch (error) {
+      console.error('⚠️ Erro ao salvar mensagens padrão:', error);
+      // Não mostrar erro ao usuário, pois é automático
     }
   };
 
