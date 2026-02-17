@@ -275,7 +275,7 @@ export function CheckoutModal() {
       .on('*', async (payload: any) => {
         console.log('📡 Realtime update received:', payload);
 
-        if (payload.new?.id === lastOrderId && payload.new?.status === 'confirmado') {
+        if (payload.new?.id === lastOrderId && payload.new?.status === 'confirmed') {
           console.log('✅ Payment confirmed automatically via webhook!');
           
           // Atualizar state com informações do pedido criado
