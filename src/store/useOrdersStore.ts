@@ -231,26 +231,32 @@ export const useOrdersStore = create<OrdersStore>()(
 
           if (error) throw error;
 
-          // 📱 Enviar notificação WhatsApp se configurado (assíncrono, não bloqueia)
+          // 📱 CRÍTICO: Enviar notificação WhatsApp (fire-and-forget com logs)
           if (orderData?.customer_phone && orderData?.tenant_id) {
-            try {
-              supabase.functions.invoke('send-whatsapp-notification', {
-                body: {
-                  orderId: id,
-                  status: status,
-                  phone: orderData.customer_phone,
-                  customerName: orderData.customer_name || 'Cliente',
-                  tenantId: orderData.tenant_id,
-                },
-              }).catch((err) => {
-                console.warn('⚠️ Aviso: Falha ao enviar notificação WhatsApp:', err);
+            console.log(`🔔 [ORDER-UPDATE] Disparando notificação WhatsApp para pedido ${id}`);
+            console.log(`📱 Telefone: ${orderData.customer_phone}, Status: ${status}`);
+            
+            // Não aguarda pois é assíncrono, mas faz log de sucesso/erro
+            supabase.functions.invoke('send-whatsapp-notification', {
+              body: {
+                orderId: id,
+                status: status,
+                phone: orderData.customer_phone,
+                customerName: orderData.customer_name || 'Cliente',
+                tenantId: orderData.tenant_id,
+              },
+            })
+              .then((response) => {
+                console.log(`✅ [WHATSAPP] Notificação disparada com sucesso:`, response.data);
+              })
+              .catch((err) => {
+                console.error(`❌ [WHATSAPP] Erro ao enviar notificação:`, err);
               });
-            } catch (notificationError) {
-              console.warn('⚠️ Aviso: Erro ao chamar função de notificação:', notificationError);
-            }
+          } else {
+            console.warn(`⚠️ [WHATSAPP] Sem telefone ou tenant_id, notificação não disparada`);
           }
         } catch (error) {
-          console.error('Erro ao atualizar status no Supabase:', error);
+          console.error('❌ Erro ao atualizar status no Supabase:', error);
         }
 
         set((state) => ({
