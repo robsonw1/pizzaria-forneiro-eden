@@ -247,9 +247,9 @@ export const useOrdersStore = create<OrdersStore>()(
 ╚═══════════════════════════════════════╝
 `);
           
-          // Buscar order completo para enviar notificação
+          // Buscar order completo para enviar notificação e reversão de pontos
           const { data: orderData } = await (supabase as any).from('orders')
-            .select('id, customer_name, email, tenant_id, customer_phone, address')
+            .select('id, customer_name, email, tenant_id, customer_phone, customer_id, pending_points, points_redeemed, address')
             .eq('id', id)
             .single();
 
@@ -263,7 +263,19 @@ export const useOrdersStore = create<OrdersStore>()(
           if (error) throw error;
           console.log(`✅ Status atualizado no banco: ${status}`);
 
-          // 📱 CRÍTICO: Enviar notificação WhatsApp (fire-and-forget com logs)
+          // � CRÍTICO: Se cancelado, os pontos devem ser revertidos automaticamente via trigger
+          if (status === 'cancelled') {
+            console.log(`
+💎 [REVERSÃO-PONTOS] Cancelamento detectado!
+   Pedido: ${id}
+   Cliente ID: ${orderData?.customer_id}
+   Pontos Pendentes: ${orderData?.pending_points}
+   Pontos Resgatados: ${orderData?.points_redeemed}
+   ⚠️ Trigger no banco irá reverter automaticamente
+`);
+          }
+
+          // �📱 CRÍTICO: Enviar notificação WhatsApp (fire-and-forget com logs)
           if (orderData?.customer_phone && orderData?.tenant_id) {
             console.log(`
 🔔 [DISPARO-NOTIFICAÇÃO] Iniciando envio...
