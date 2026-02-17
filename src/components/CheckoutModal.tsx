@@ -114,6 +114,7 @@ export function CheckoutModal() {
   const [couponDiscount, setCouponDiscount] = useState<number>(0);
   const [appliedCoupon, setAppliedCoupon] = useState<string>('');
   const [couponValidationMessage, setCouponValidationMessage] = useState<string>('');
+  const [tenantId, setTenantId] = useState<string>('');
 
   const validateAndUseCoupon = useCouponManagementStore((s) => s.validateAndUseCoupon);
   const markCouponAsUsed = useCouponManagementStore((s) => s.markCouponAsUsed);
@@ -148,6 +149,41 @@ export function CheckoutModal() {
     // 11 dígitos: (XX) XXXXX-XXXX
     return `(${cleaned.slice(0, 2)}) ${cleaned.slice(2, 7)}-${cleaned.slice(7, 11)}`;
   };
+
+  // ✅ CRÍTICO: Buscar tenant_id na primeira montagem do componente
+  useEffect(() => {
+    const fetchTenantId = async () => {
+      try {
+        // 1️⃣ Tentar obter do localStorage (se estiver logado como admin)
+        const storedId = localStorage.getItem('admin-tenant-id');
+        if (storedId) {
+          setTenantId(storedId);
+          console.log('📍 Tenant ID do localStorage:', storedId);
+          return;
+        }
+
+        // 2️⃣ Fallback: Buscar primeiro tenant padrão
+        const { data: tenants, error } = await (supabase as any)
+          .from('tenants')
+          .select('id')
+          .limit(1);
+
+        if (error) {
+          console.error('❌ Erro ao buscar tenant:', error);
+          return;
+        }
+
+        if (tenants && tenants.length > 0) {
+          setTenantId(tenants[0].id);
+          console.log('📍 Tenant ID padrão:', tenants[0].id);
+        }
+      } catch (err) {
+        console.error('❌ Erro ao obter tenant_id:', err);
+      }
+    };
+
+    fetchTenantId();
+  }, []);
 
   // Pré-preencher dados de contato quando cliente logado abre checkout
   useEffect(() => {
@@ -645,6 +681,7 @@ export function CheckoutModal() {
       appliedCoupon: orderPayload.totals.appliedCoupon,
       status: 'pending',
       observations,
+      tenantId, // ✅ CRÍTICO: Incluir tenant_id para notificações
     }, shouldAutoPrint);
     
     console.log('Pedido criado com ID:', createdOrder.id);
