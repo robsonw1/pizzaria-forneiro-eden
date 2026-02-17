@@ -132,6 +132,23 @@ export function CheckoutModal() {
     refreshCurrentCustomer
   );
 
+  // ✅ Função para formatar telefone
+  const formatPhoneNumber = (phone: string): string => {
+    const cleaned = phone.replace(/\D/g, '');
+    
+    if (cleaned.length === 0) return '';
+    if (cleaned.length <= 2) return `(${cleaned}`;
+    if (cleaned.length <= 7) return `(${cleaned.slice(0, 2)}) ${cleaned.slice(2)}`;
+    
+    // 10 dígitos: (XX) XXXX-XXXX
+    if (cleaned.length === 10) {
+      return `(${cleaned.slice(0, 2)}) ${cleaned.slice(2, 6)}-${cleaned.slice(6)}`;
+    }
+    
+    // 11 dígitos: (XX) XXXXX-XXXX
+    return `(${cleaned.slice(0, 2)}) ${cleaned.slice(2, 7)}-${cleaned.slice(7, 11)}`;
+  };
+
   // Pré-preencher dados de contato quando cliente logado abre checkout
   useEffect(() => {
     if (isCheckoutOpen && currentCustomer && isRemembered) {
@@ -139,7 +156,8 @@ export function CheckoutModal() {
         setCustomer({ name: currentCustomer.name });
       }
       if (currentCustomer.phone && !customer.phone) {
-        setCustomer({ phone: currentCustomer.phone });
+        // ✅ Pré-preencher telefone já formatado
+        setCustomer({ phone: formatPhoneNumber(currentCustomer.phone) });
       }
       // 🔑 CRÍTICO: Pré-preencher email do cliente autenticado
       if (currentCustomer.email && !customer.email) {
@@ -439,19 +457,7 @@ export function CheckoutModal() {
   };
 
   const handlePhoneInput = (value: string) => {
-    const cleaned = value.replace(/\D/g, '');
-    let formatted = cleaned;
-    
-    if (cleaned.length >= 2) {
-      formatted = `(${cleaned.slice(0, 2)}`;
-    }
-    if (cleaned.length >= 3) {
-      formatted += `) ${cleaned.slice(2, 7)}`;
-    }
-    if (cleaned.length >= 8) {
-      formatted = `(${cleaned.slice(0, 2)}) ${cleaned.slice(2, 7)}-${cleaned.slice(7, 11)}`;
-    }
-    
+    const formatted = formatPhoneNumber(value);
     setCustomer({ phone: formatted });
   };
 
