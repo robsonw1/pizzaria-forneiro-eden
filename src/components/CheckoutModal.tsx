@@ -158,7 +158,7 @@ export function CheckoutModal() {
         const storedId = localStorage.getItem('admin-tenant-id');
         if (storedId) {
           setTenantId(storedId);
-          console.log('📍 Tenant ID do localStorage:', storedId);
+          console.log('✅ [CHECKOUT] Tenant ID do localStorage:', storedId);
           return;
         }
 
@@ -169,16 +169,20 @@ export function CheckoutModal() {
           .limit(1);
 
         if (error) {
-          console.error('❌ Erro ao buscar tenant:', error);
+          console.error('❌ [CHECKOUT] Erro ao buscar tenants:', error);
           return;
         }
 
         if (tenants && tenants.length > 0) {
-          setTenantId(tenants[0].id);
-          console.log('📍 Tenant ID padrão:', tenants[0].id);
+          const defaultTenant = tenants[0].id;
+          setTenantId(defaultTenant);
+          localStorage.setItem('default-tenant-id', defaultTenant);
+          console.log('✅ [CHECKOUT] Usando Tenant padrão:', defaultTenant);
+        } else {
+          console.error('❌ [CHECKOUT] CRÍTICO: Nenhum tenant encontrado no banco!');
         }
       } catch (err) {
-        console.error('❌ Erro ao obter tenant_id:', err);
+        console.error('❌ [CHECKOUT] Erro ao obter tenant_id:', err);
       }
     };
 
@@ -681,10 +685,10 @@ export function CheckoutModal() {
       appliedCoupon: orderPayload.totals.appliedCoupon,
       status: 'pending',
       observations,
-      tenantId, // ✅ CRÍTICO: Incluir tenant_id para notificações
+      tenantId: tenantId || '', // ✅ CRÍTICO: Sempre enviar (vazio ou não - useOrdersStore trata fallback)
     }, shouldAutoPrint);
     
-    console.log('Pedido criado com ID:', createdOrder.id);
+    console.log('✅ [CHECKOUT] Pedido criado com ID:', createdOrder.id, 'Tenant:', tenantId || 'será auto-detectado');
 
     // 🔒 CRÍTICO: Se cliente usou pontos, sincronizar IMEDIATAMENTE com BD
     // Isso evita fraude onde cliente abre outra aba e usa os mesmos pontos
