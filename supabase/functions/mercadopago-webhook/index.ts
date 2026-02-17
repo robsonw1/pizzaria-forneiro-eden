@@ -120,12 +120,12 @@ serve(async (req) => {
 
       // Map Mercado Pago status to our status
       const statusMap: Record<string, string> = {
-        'approved': 'confirmado',
-        'pending': 'pendente',
-        'in_process': 'processando',
-        'rejected': 'rejeitado',
-        'cancelled': 'cancelado',
-        'refunded': 'reembolsado'
+        'approved': 'confirmed',
+        'pending': 'pending',
+        'in_process': 'processing',
+        'rejected': 'rejected',
+        'cancelled': 'cancelled',
+        'refunded': 'refunded'
       };
 
       const mappedStatus = statusMap[status] || status;
@@ -161,7 +161,7 @@ serve(async (req) => {
                 .insert([{
                   ...pendingOrder.order_payload,
                   id: orderId,
-                  status: 'confirmado',
+                  status: 'confirmed',
                   payment_status: 'approved',
                   payment_confirmed_at: new Date().toISOString(),
                   mercado_pago_id: paymentId.toString(),
@@ -208,11 +208,11 @@ serve(async (req) => {
             mercado_pago_id: paymentId.toString(),
           };
 
-          // PIX aprovado: mudar para "confirmado" automatically
+          // PIX aprovado: mudar para "confirmed" automatically
           if (shouldAutoConfirm) {
-            updateData.status = 'confirmado';
+            updateData.status = 'confirmed';
             updateData.auto_confirmed_by_pix = true;
-            console.log(`🤖 PIX aprovado! Alterando automaticamente status para "confirmado"...`);
+            console.log(`🤖 PIX aprovado! Alterando automaticamente status para "confirmed"...`);
           }
 
           const { error: updateError } = await supabase
@@ -248,7 +248,7 @@ serve(async (req) => {
                     },
                     body: JSON.stringify({
                       orderId: orderId,
-                      status: 'confirmado',
+                      status: 'confirmed',
                       phone: orderData.customer_phone,
                       customerName: orderData.customer_name || 'Cliente',
                       tenantId: orderData.tenant_id,
