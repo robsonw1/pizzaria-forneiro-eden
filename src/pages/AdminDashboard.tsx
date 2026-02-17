@@ -70,6 +70,7 @@ import { LoyaltySettingsPanel } from '@/components/admin/LoyaltySettingsPanel';
 import { FaithfulCustomersAdmin } from '@/components/admin/FaithfulCustomersAdmin';
 import { CouponManagementPanel } from '@/components/admin/CouponManagementPanel';
 import { PaymentSettingsPanel } from '@/components/admin/PaymentSettingsPanel';
+import { AdminAnalyticsDashboard } from '@/components/admin/AdminAnalyticsDashboard';
 import { toast } from 'sonner';
 import { format, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -79,7 +80,7 @@ import logoForneiro from '@/assets/logo-forneiro.jpg';
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState('analytics');
   const [isNewProductOpen, setIsNewProductOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [search, setSearch] = useState('');
@@ -586,6 +587,10 @@ const AdminDashboard = () => {
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="mb-8 flex-wrap">
+            <TabsTrigger value="analytics" className="gap-2">
+              <TrendingUp className="w-4 h-4" />
+              Analytics
+            </TabsTrigger>
             <TabsTrigger value="overview" className="gap-2">
               <TrendingUp className="w-4 h-4" />
               Visão Geral
@@ -1281,6 +1286,11 @@ const AdminDashboard = () => {
           {/* Notifications Tab */}
           <TabsContent value="notifications">
             <NotificationsTab />
+          </TabsContent>
+
+          {/* Analytics Tab */}
+          <TabsContent value="analytics">
+            <AdminAnalyticsDashboard />
           </TabsContent>
         </Tabs>
       </div>
