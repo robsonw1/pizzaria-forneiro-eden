@@ -16,6 +16,16 @@ import { Bell, Plus, Trash2, QrCode, CheckCircle, XCircle, Loader, RefreshCw } f
 import { toast } from 'sonner';
 import { useWhatsAppInstanceSync } from '@/hooks/use-whatsapp-instance-sync';
 
+// ✅ Templates padrão em inglês (CORRETO)
+const DEFAULT_WHATSAPP_MESSAGES = {
+  pending: '📋 Oi {nome}! Recebemos seu pedido #{pedido}. Você receberá uma confirmação em breve!',
+  confirmed: '🍕 Oi {nome}! Seu pedido #{pedido} foi confirmado! ⏱️ Saindo do forno em ~25min',
+  preparing: '👨‍🍳 Seu pedido #{pedido} está sendo preparado com capricho!',
+  delivering: '🚗 Seu pedido #{pedido} está a caminho! 📍 Chega em ~15min',
+  delivered: '✅ Pedido #{pedido} entregue! Valeu pela compra 🙏',
+  cancelled: '❌ Pedido #{pedido} foi cancelado. Em caso de dúvidas, nos contate!',
+};
+
 interface WhatsAppInstance {
   id: string;
   establishment_name: string;
@@ -39,6 +49,66 @@ export const NotificationsTab = () => {
   
   // Usar hook de sincronização
   useWhatsAppInstanceSync();
+
+  // ✅ NOVO: Garantir que templates existem na primeira carga
+  useEffect(() => {
+    const initializeTemplates = async () => {
+      try {
+        // 1. Obter tenant ID
+        let storedTenantId = localStorage.getItem('admin-tenant-id');
+        
+        if (!storedTenantId) {
+          const { data: tenants } = await (supabase as any)
+            .from('tenants')
+            .select('id')
+            .limit(1);
+          
+          if (tenants && tenants.length > 0) {
+            storedTenantId = tenants[0].id;
+            localStorage.setItem('admin-tenant-id', storedTenantId);
+          }
+        }
+
+        if (!storedTenantId) return;
+
+        // 2. Verificar se templates existem
+        const { data: existingTemplates } = await (supabase as any)
+          .from('whatsapp_status_messages')
+          .select('status')
+          .eq('tenant_id', storedTenantId);
+
+        if (!existingTemplates || existingTemplates.length === 0) {
+          console.log('📝 Criando templates padrão de WhatsApp...');
+          
+          // 3. Criar templates padrão
+          const messagesToInsert = Object.entries(DEFAULT_WHATSAPP_MESSAGES).map(([status, message]) => ({
+            tenant_id: storedTenantId,
+            status,
+            message_template: message,
+            enabled: true,
+          }));
+
+          const { error } = await (supabase as any)
+            .from('whatsapp_status_messages')
+            .insert(messagesToInsert);
+
+          if (error) {
+            console.error('⚠️ Erro ao criar templates:', error);
+          } else {
+            console.log('✅ Templates padrão criados automaticamente');
+            toast.success('✅ Notificações WhatsApp configuradas!');
+          }
+        } else {
+          console.log('✅ Templates já existem:', existingTemplates.map((t: any) => t.status));
+        }
+      } catch (err) {
+        console.error('❌ Erro ao inicializar templates:', err);
+      }
+    };
+
+    // Executar apenas UMA vez ao montar
+    initializeTemplates();
+  }, []);
 
   // Buscar instâncias existentes ao montar
   useEffect(() => {
