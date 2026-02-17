@@ -218,11 +218,22 @@ export const useOrdersStore = create<OrdersStore>()(
 
       updateOrderStatus: async (id, status) => {
         try {
+          console.log(`
+╔═══════════════════════════════════════╗
+║  UPDATE ORDER STATUS                  ║
+╠═══════════════════════════════════════╣
+║  Pedido:  ${id}
+║  Status:  ${status}
+╚═══════════════════════════════════════╝
+`);
+          
           // Buscar order completo para enviar notificação
           const { data: orderData } = await (supabase as any).from('orders')
             .select('id, customer_name, email, tenant_id, customer_phone, address')
             .eq('id', id)
             .single();
+
+          console.log(`📦 Order data:`, orderData);
 
           // Atualizar no Supabase
           const { error } = await supabase.from('orders')
@@ -230,11 +241,18 @@ export const useOrdersStore = create<OrdersStore>()(
             .eq('id', id);
 
           if (error) throw error;
+          console.log(`✅ Status atualizado no banco: ${status}`);
 
           // 📱 CRÍTICO: Enviar notificação WhatsApp (fire-and-forget com logs)
           if (orderData?.customer_phone && orderData?.tenant_id) {
-            console.log(`🔔 [ORDER-UPDATE] Disparando notificação WhatsApp para pedido ${id}`);
-            console.log(`📱 Telefone: ${orderData.customer_phone}, Status: ${status}`);
+            console.log(`
+🔔 [DISPARO-NOTIFICAÇÃO] Iniciando envio...
+   Pedido: ${id}
+   Status: ${status}
+   Telefone: ${orderData.customer_phone}
+   Tenant: ${orderData.tenant_id}
+   Cliente: ${orderData.customer_name || 'Desconhecido'}
+`);
             
             // Não aguarda pois é assíncrono, mas faz log de sucesso/erro
             supabase.functions.invoke('send-whatsapp-notification', {
@@ -253,7 +271,9 @@ export const useOrdersStore = create<OrdersStore>()(
                 console.error(`❌ [WHATSAPP] Erro ao enviar notificação:`, err);
               });
           } else {
-            console.warn(`⚠️ [WHATSAPP] Sem telefone ou tenant_id, notificação não disparada`);
+            console.warn(`⚠️ [WHATSAPP] Sem telefone ou tenant_id:`);
+            console.warn(`   - phone: ${orderData?.customer_phone}`);
+            console.warn(`   - tenant_id: ${orderData?.tenant_id}`);
           }
         } catch (error) {
           console.error('❌ Erro ao atualizar status no Supabase:', error);
