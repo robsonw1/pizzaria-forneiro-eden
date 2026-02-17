@@ -70,6 +70,7 @@ export interface Order {
   appliedCoupon?: string;
   status: 'pending' | 'confirmed' | 'preparing' | 'delivering' | 'delivered' | 'cancelled';
   observations?: string;
+  tenantId?: string; // ✅ CRÍTICO: Para multi-tenancy e notificações
   createdAt: Date;
   paymentId?: string;
   printedAt?: string;
