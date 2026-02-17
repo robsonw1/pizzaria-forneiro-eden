@@ -43,6 +43,23 @@ export function PostCheckoutLoyaltyModal({
   const currentCustomer = useLoyaltyStore((s) => s.currentCustomer);
   const isRemembered = useLoyaltyStore((s) => s.isRemembered);
 
+  // ✅ Função para formatar telefone
+  const formatPhoneNumber = (phone: string): string => {
+    const cleaned = phone.replace(/\D/g, '');
+    
+    if (cleaned.length === 0) return '';
+    if (cleaned.length <= 2) return `(${cleaned}`;
+    if (cleaned.length <= 7) return `(${cleaned.slice(0, 2)}) ${cleaned.slice(2)}`;
+    
+    // 10 dígitos: (XX) XXXX-XXXX
+    if (cleaned.length === 10) {
+      return `(${cleaned.slice(0, 2)}) ${cleaned.slice(2, 6)}-${cleaned.slice(6)}`;
+    }
+    
+    // 11 dígitos: (XX) XXXXX-XXXX
+    return `(${cleaned.slice(0, 2)}) ${cleaned.slice(2, 7)}-${cleaned.slice(7, 11)}`;
+  };
+
   const handleClose = () => {
     // Reset internal state quando fecha, mas não toca no loyalty store se estiver logado
     if (!isRemembered) {
@@ -362,17 +379,11 @@ export function PostCheckoutLoyaltyModal({
                   placeholder="(11) 99999-9999"
                   value={formData.phone}
                   onChange={(e) => {
-                    let value = e.target.value.replace(/\D/g, '');
-                    if (value.length > 11) value = value.slice(0, 11);
-                    if (value.length <= 2) {
-                      setFormData({ ...formData, phone: value });
-                    } else if (value.length <= 7) {
-                      setFormData({ ...formData, phone: `(${value.slice(0, 2)}) ${value.slice(2)}` });
-                    } else {
-                      setFormData({ ...formData, phone: `(${value.slice(0, 2)}) ${value.slice(2, 7)}-${value.slice(7)}` });
-                    }
+                    const formatted = formatPhoneNumber(e.target.value);
+                    setFormData({ ...formData, phone: formatted });
                   }}
                   disabled={isLoading}
+                  maxLength={15}
                 />
               </div>
             </div>
