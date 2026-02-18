@@ -1,6 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -37,16 +36,11 @@ import {
   DollarSign,
   Package,
   Users,
-  Gift,
   Edit,
   Trash2,
   Plus,
   CheckCircle,
   XCircle,
-  Sun,
-  Moon,
-  CreditCard,
-  Bell,
 } from 'lucide-react';
 import {
   Product,
@@ -64,23 +58,14 @@ import { NeighborhoodFormDialog } from '@/components/admin/NeighborhoodFormDialo
 import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { DateRangeFilter } from '@/components/admin/DateRangeFilter';
 import { ScheduleSettings } from '@/components/admin/ScheduleSettings';
-import { PrintNodeSettings } from '@/components/admin/PrintNodeSettings';
-import { NotificationsTab } from '@/components/admin/NotificationsTab';
-import { LoyaltySettingsPanel } from '@/components/admin/LoyaltySettingsPanel';
-import { FaithfulCustomersAdmin } from '@/components/admin/FaithfulCustomersAdmin';
-import { CouponManagementPanel } from '@/components/admin/CouponManagementPanel';
-import { PaymentSettingsPanel } from '@/components/admin/PaymentSettingsPanel';
 import { AdminAnalyticsDashboard } from '@/components/admin/AdminAnalyticsDashboard';
 import { toast } from 'sonner';
 import { format, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { useTheme } from '@/hooks/use-theme';
-import logoForneiro from '@/assets/logo-forneiro.jpg';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
-  const { theme, toggleTheme } = useTheme();
-  const [activeTab, setActiveTab] = useState('analytics');
+  const [activeTab, setActiveTab] = useState('overview');
   const [isNewProductOpen, setIsNewProductOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [search, setSearch] = useState('');
@@ -89,24 +74,26 @@ const AdminDashboard = () => {
 
   // Product store
   const productsById = useCatalogStore((s) => s.productsById);
+  const syncProducts = useCatalogStore((s) => s.syncFromSupabase);
   const toggleActive = useCatalogStore((s) => s.toggleActive);
   const removeProduct = useCatalogStore((s) => s.removeProduct);
 
   // Settings store
   const settings = useSettingsStore((s) => s.settings);
+  const syncSettings = useSettingsStore((s) => s.syncFromSupabase);
   const updateSettings = useSettingsStore((s) => s.updateSettings);
   const changePassword = useSettingsStore((s) => s.changePassword);
 
   // Neighborhoods store
   const neighborhoods = useNeighborhoodsStore((s) => s.neighborhoods);
+  const syncNeighborhoods = useNeighborhoodsStore((s) => s.syncFromSupabase);
   const toggleNeighborhoodActive = useNeighborhoodsStore((s) => s.toggleActive);
   const updateNeighborhood = useNeighborhoodsStore((s) => s.updateNeighborhood);
   const removeNeighborhood = useNeighborhoodsStore((s) => s.removeNeighborhood);
 
   // Orders store
   const orders = useOrdersStore((s) => s.orders);
-  const syncOrdersFromSupabase = useOrdersStore((s) => s.syncOrdersFromSupabase);
-  const updateOrderPrintedAt = useOrdersStore((s) => s.updateOrderPrintedAt);
+  const syncOrders = useOrdersStore((s) => s.syncFromSupabase);
   const getStats = useOrdersStore((s) => s.getStats);
   const removeOrder = useOrdersStore((s) => s.removeOrder);
 
@@ -136,47 +123,24 @@ const AdminDashboard = () => {
     end: endOfDay(new Date()),
   });
 
-  // Order filters
-  const [orderStatusFilter, setOrderStatusFilter] = useState<string>('all');
-  const [orderSort, setOrderSort] = useState<'newest' | 'oldest'>('newest');
-
   useEffect(() => {
     const token = localStorage.getItem('admin-token');
     if (!token) {
       navigate('/admin');
     }
-  }, [navigate]);
 
-  // Sincronizar pedidos do Supabase quando o painel carrega
-  useEffect(() => {
-    const token = localStorage.getItem('admin-token');
-    if (!token) return;
-
-    // Sincronizar imediatamente
-    console.log('📥 Sincronizando pedidos do Supabase...');
-    syncOrdersFromSupabase();
-
-    // Configurar intervalo para sincronizar a cada 3 segundos
-    const syncInterval = setInterval(() => {
-      syncOrdersFromSupabase();
-    }, 3000);
-
-    // Configurar real-time subscription para novos pedidos
-    const subscription = supabase
-      .channel('public:orders')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
-        console.log('🔄 Mudança em orders detectada:', payload.eventType);
-        syncOrdersFromSupabase();
-      })
-      .subscribe((status) => {
-        console.log('📡 Subscription status:', status);
-      });
-
-    return () => {
-      clearInterval(syncInterval);
-      subscription.unsubscribe();
+    // Sincroniza todos os dados do Supabase ao entrar no admin
+    const syncAllData = async () => {
+      await Promise.all([
+        syncProducts(),
+        syncSettings(),
+        syncNeighborhoods(),
+        syncOrders(),
+      ]);
     };
-  }, [syncOrdersFromSupabase]);
+
+    syncAllData();
+  }, [navigate, syncProducts, syncSettings, syncNeighborhoods, syncOrders]);
 
   useEffect(() => {
     setSettingsForm(settings);
@@ -192,216 +156,6 @@ const AdminDashboard = () => {
       style: 'currency',
       currency: 'BRL',
     }).format(price);
-  };
-
-  // Ativar/Desativar Produto e sincronizar com Supabase
-  const handleToggleProductActive = async (productId: string) => {
-    const product = productsById[productId];
-    if (!product) return;
-
-    try {
-      const newActiveState = !product.isActive;
-      const dataJson = {
-        description: product.description,
-        category: product.category,
-        price: product.price || undefined,
-        price_small: product.priceSmall || null,
-        price_large: product.priceLarge || null,
-        ingredients: product.ingredients || [],
-        image: product.image || undefined,
-        is_active: newActiveState,
-        is_popular: product.isPopular || false,
-        is_vegetarian: product.isVegetarian || false,
-        is_customizable: product.isCustomizable || false,
-        is_new: product.isNew || false,
-      };
-
-      // Atualizar no Supabase PRIMEIRO
-      const { error } = await (supabase as any)
-        .from('products')
-        .update({ data: dataJson })
-        .eq('id', productId);
-
-      if (error) {
-        console.error('❌ Erro ao sincronizar produto:', error);
-        toast.error('Erro ao sincronizar produto');
-        return;
-      }
-
-      // Atualizar o store localmente também (o realtime vai sincronizar para todos)
-      toggleActive(productId);
-      console.log(`✅ Produto ${productId} atualizado: isActive = ${newActiveState}`);
-    } catch (error) {
-      console.error('Erro ao sincronizar ativação do produto:', error);
-      toast.error('Erro ao sincronizar produto');
-    }
-  };
-
-  // Atualizar Bairro e sincronizar com Supabase
-  const handleUpdateNeighborhood = async (neighborhoodId: string, updates: any) => {
-    updateNeighborhood(neighborhoodId, updates);
-
-    try {
-      await (supabase as any)
-        .from('neighborhoods')
-        .update(updates)
-        .eq('id', neighborhoodId);
-    } catch (error) {
-      console.error('Erro ao sincronizar bairro:', error);
-      toast.error('Erro ao sincronizar bairro');
-    }
-  };
-
-  // Ativar/Desativar Bairro e sincronizar com Supabase
-  const handleToggleNeighborhoodActive = async (neighborhoodId: string) => {
-    const neighborhood = neighborhoods.find(n => n.id === neighborhoodId);
-    if (!neighborhood) return;
-
-    toggleNeighborhoodActive(neighborhoodId);
-
-    try {
-      const newActiveState = !neighborhood.isActive;
-      await (supabase as any)
-        .from('neighborhoods')
-        .update({ isActive: newActiveState })
-        .eq('id', neighborhoodId);
-    } catch (error) {
-      console.error('Erro ao sincronizar ativação do bairro:', error);
-      toast.error('Erro ao sincronizar bairro');
-    }
-  };
-
-  // Atualizar horário e sincronizar com Supabase
-  const handleScheduleChange = async (day: any, updates: any) => {
-    try {
-      const newSchedule = {
-        ...settingsForm.schedule,
-        [day]: { ...settingsForm.schedule[day], ...updates },
-      };
-      setSettingsForm({ ...settingsForm, schedule: newSchedule });
-      await updateSettings({ ...settingsForm, schedule: newSchedule });
-    } catch (error) {
-      console.error('Erro ao sincronizar horário:', error);
-      toast.error('Erro ao salvar horário');
-    }
-  };
-
-  // Alternar aberto/fechado manualmente e sincronizar com Supabase
-  const handleManualOpenToggle = async () => {
-    try {
-      const newState = !settingsForm.isManuallyOpen;
-      setSettingsForm({ ...settingsForm, isManuallyOpen: newState });
-      await updateSettings({ ...settingsForm, isManuallyOpen: newState });
-    } catch (error) {
-      console.error('Erro ao sincronizar status da loja:', error);
-      toast.error('Erro ao atualizar status da loja');
-    }
-  };
-
-  // Determinar status de impressão e renderizar componente apropriado
-  const getPrintStatusDisplay = (order: Order) => {
-    if (order.printedAt && order.printedAt.trim()) {
-      // Verde: Já foi impresso (só se printedAt NÃO é vazio)
-      return (
-        <div className="flex flex-col gap-1">
-          <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
-            Impresso
-          </Badge>
-          <span className="text-xs text-muted-foreground">
-            {format(new Date(order.printedAt), "HH:mm", { locale: ptBR })}
-          </span>
-        </div>
-      );
-    } else {
-      // Vermelho: Não foi impresso
-      return (
-        <div className="flex flex-col gap-1">
-          <Badge variant="destructive">
-            Não impresso
-          </Badge>
-          <Button 
-            variant="outline" 
-            size="sm"
-            className="text-xs h-7"
-            onClick={() => handlePrintOrder(order)}
-          >
-            Imprimir
-          </Button>
-        </div>
-      );
-    }
-  };
-
-  // Imprimir pedido manualmente com RETRY robusto
-  const handlePrintOrder = async (order: Order) => {
-    let toastId: string | number | undefined;
-    
-    try {
-      console.log('Iniciando impressão manual para:', order.id);
-      toastId = toast.loading('Enviando pedido para impressora...');
-      
-      // Tentar invocar printorder com retry (3x com backoff curto)
-      let lastError: any = null;
-      for (let attempt = 1; attempt <= 3; attempt++) {
-        try {
-          console.log(`Tentativa ${attempt}/3 de invocar printorder...`);
-          const { data, error } = await supabase.functions.invoke('printorder', {
-            body: {
-              orderId: order.id,
-              force: true,
-            },
-          });
-
-          if (error) {
-            console.error(`Tentativa ${attempt}: Erro -`, error.message || error);
-            lastError = error;
-            if (attempt < 3) {
-              const delayMs = 500 * attempt; // Backoff mais curto (500ms, 1s, 1.5s)
-              console.log(`Aguardando ${delayMs}ms antes da próxima tentativa...`);
-              await new Promise(r => setTimeout(r, delayMs));
-              continue;
-            }
-          } else {
-            console.log(`Printorder OK na tentativa ${attempt}:`, data);
-            
-            // Atualizar printed_at no store IMEDIATAMENTE (otimistic update) com hora local
-            const printTime = new Date();
-            const printOffset = printTime.getTimezoneOffset() * 60000;
-            const localPrintTime = new Date(printTime.getTime() - printOffset);
-            const printedAtTime = localPrintTime.toISOString().split('Z')[0];
-            await updateOrderPrintedAt(order.id, printedAtTime);
-            
-            // Fechar loading toast e mostrar sucesso
-            if (toastId !== undefined) {
-              toast.dismiss(toastId);
-            }
-            toast.success('Pedido enviado para impressora!');
-            
-            return; // Sucesso - sair da função
-          }
-        } catch (err) {
-          console.error(`Tentativa ${attempt} capturou erro:`, err);
-          lastError = err;
-          if (attempt < 3) {
-            const delayMs = 500 * attempt;
-            console.log(`Aguardando ${delayMs}ms ...`);
-            await new Promise(r => setTimeout(r, delayMs));
-          }
-        }
-      }
-
-      // Se chegou aqui, todas as tentativas falharam
-      throw lastError || new Error('Erro ao enviar para impressora');
-      
-    } catch (error) {
-      console.error('Erro ao imprimir pedido:', error);
-      
-      // Fechar loading toast e mostrar erro
-      if (toastId !== undefined) {
-        toast.dismiss(toastId);
-      }
-      toast.error(`Erro ao enviar: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
-    }
   };
 
   const allProducts: Product[] = useMemo(() => Object.values(productsById), [productsById]);
@@ -443,34 +197,16 @@ const AdminDashboard = () => {
     return orders.slice(0, 5);
   }, [orders]);
 
-  // Filtered orders by date range - com log para debug
+  // Filtered orders by date range
   const filteredOrders = useMemo(() => {
-    let filtered = orders.filter((order) => {
+    return orders.filter((order) => {
       const orderDate = new Date(order.createdAt);
-      const isInRange = orderDate >= dateRange.start && orderDate <= dateRange.end;
-      
-      // Apply status filter
-      const statusMatch = orderStatusFilter === 'all' || order.status === orderStatusFilter;
-      
-      return isInRange && statusMatch;
+      return orderDate >= dateRange.start && orderDate <= dateRange.end;
     });
-    
-    // Apply sorting
-    filtered.sort((a, b) => {
-      const dateA = new Date(a.createdAt).getTime();
-      const dateB = new Date(b.createdAt).getTime();
-      return orderSort === 'newest' ? dateB - dateA : dateA - dateB;
-    });
-    
-    console.log(`📊 Filtragem: ${orders.length} pedidos totais → ${filtered.length} no período ${format(dateRange.start, 'dd/MM')} a ${format(dateRange.end, 'dd/MM')}`);
-    
-    return filtered;
-  }, [orders, dateRange, orderStatusFilter, orderSort]);
+  }, [orders, dateRange]);
 
-  const handleSaveSettings = async () => {
-    // Atualizar o store e salvar no Supabase
-    await updateSettings(settingsForm);
-    
+  const handleSaveSettings = () => {
+    updateSettings(settingsForm);
     toast.success('Configurações salvas com sucesso!');
   };
 
@@ -488,16 +224,10 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleDeleteConfirm = async () => {
+  const handleDeleteConfirm = () => {
     switch (deleteDialog.type) {
       case 'product':
         removeProduct(deleteDialog.id);
-        // Deletar do Supabase
-        const deleteProductsQuery = (supabase as any)
-          .from('products')
-          .delete()
-          .eq('id', deleteDialog.id);
-        await deleteProductsQuery;
         toast.success('Produto excluído com sucesso!');
         break;
       case 'order':
@@ -506,12 +236,6 @@ const AdminDashboard = () => {
         break;
       case 'neighborhood':
         removeNeighborhood(deleteDialog.id);
-        // Deletar do Supabase
-        const deleteNeighborhoodsQuery = (supabase as any)
-          .from('neighborhoods')
-          .delete()
-          .eq('id', deleteDialog.id);
-        await deleteNeighborhoodsQuery;
         toast.success('Bairro excluído com sucesso!');
         break;
     }
@@ -523,19 +247,16 @@ const AdminDashboard = () => {
     setIsOrderDialogOpen(true);
   };
 
-  const getStatusBadge = (status: Order['status'] | undefined) => {
-    if (!status) return <Badge variant="outline">Desconhecido</Badge>;
-    
-    const statusConfig: Record<string, { label: string; variant: any }> = {
-      pending: { label: 'Pendente', variant: 'destructive' },
-      confirmed: { label: 'Confirmado', variant: 'outline' },
-      preparing: { label: 'Preparando', variant: 'outline' },
-      delivering: { label: 'Em Entrega', variant: 'secondary' },
-      delivered: { label: 'Entregue', variant: 'default' },
-      cancelled: { label: 'Cancelado', variant: 'destructive' },
+  const getStatusBadge = (status: Order['status']) => {
+    const statusConfig = {
+      pending: { label: 'Pendente', variant: 'destructive' as const },
+      confirmed: { label: 'Confirmado', variant: 'outline' as const },
+      preparing: { label: 'Preparando', variant: 'outline' as const },
+      delivering: { label: 'Em Entrega', variant: 'secondary' as const },
+      delivered: { label: 'Entregue', variant: 'default' as const },
+      cancelled: { label: 'Cancelado', variant: 'destructive' as const },
     };
-    const config = statusConfig[status] || { label: String(status), variant: 'outline' };
-    // @ts-ignore - Ensure variant is valid
+    const config = statusConfig[status];
     return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
@@ -544,27 +265,19 @@ const AdminDashboard = () => {
       {/* Header */}
       <header className="sticky top-0 z-50 bg-card border-b">
         <div className="container mx-auto px-4">
-          <div className="flex items-center justify-between h-16 md:h-20">
+          <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 <img 
-                  src={logoForneiro} 
+                  src="/src/assets/logo-forneiro.jpg" 
                   alt="Forneiro Éden" 
-                  className="w-12 h-12 md:w-14 md:h-14 rounded-full object-cover border-2 border-primary"
+                  className="w-8 h-8 rounded-full object-cover"
                 />
-                <span className="font-display font-bold text-lg">Admin</span>
+                <span className="font-display font-bold">Admin</span>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 md:gap-4">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={toggleTheme}
-                className="text-muted-foreground hover:text-foreground"
-              >
-                {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
-              </Button>
+            <div className="flex items-center gap-4">
               <Link to="/">
                 <Button variant="ghost" size="sm" className="gap-2">
                   <Home className="w-4 h-4" />
@@ -587,13 +300,13 @@ const AdminDashboard = () => {
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="mb-8 flex-wrap">
-            <TabsTrigger value="analytics" className="gap-2">
-              <TrendingUp className="w-4 h-4" />
-              Analytics
-            </TabsTrigger>
             <TabsTrigger value="overview" className="gap-2">
               <TrendingUp className="w-4 h-4" />
               Visão Geral
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="gap-2">
+              <TrendingUp className="w-4 h-4" />
+              Analytics
             </TabsTrigger>
             <TabsTrigger value="products" className="gap-2">
               <Pizza className="w-4 h-4" />
@@ -610,22 +323,6 @@ const AdminDashboard = () => {
             <TabsTrigger value="settings" className="gap-2">
               <Settings className="w-4 h-4" />
               Configurações
-            </TabsTrigger>
-            <TabsTrigger value="customers" className="gap-2">
-              <Users className="w-4 h-4" />
-              Clientes Fiéis
-            </TabsTrigger>
-            <TabsTrigger value="coupons" className="gap-2">
-              <Gift className="w-4 h-4" />
-              Cupons
-            </TabsTrigger>
-            <TabsTrigger value="payments" className="gap-2">
-              <CreditCard className="w-4 h-4" />
-              Pagamentos
-            </TabsTrigger>
-            <TabsTrigger value="notifications" className="gap-2">
-              <Bell className="w-4 h-4" />
-              Notificações
             </TabsTrigger>
           </TabsList>
 
@@ -713,35 +410,28 @@ const AdminDashboard = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {(recentOrders ?? []).filter(Boolean).map((order: any) => {
-                          if (!order?.id) return null;
-                          return (
+                        {recentOrders.map((order) => (
                           <TableRow key={order.id}>
                             <TableCell className="font-medium">{order.id}</TableCell>
-                            <TableCell>{order.customer?.name || 'N/A'}</TableCell>
-                            <TableCell>
-                              <div className="flex flex-col gap-1">
-                                <span className="font-semibold">{formatPrice(order.total || 0)}</span>
-                                {order.pointsRedeemed && order.pointsRedeemed > 0 && (
-                                  <span className="text-xs text-green-600 font-medium">
-                                    -{order.pointsRedeemed} pontos
-                                  </span>
-                                )}
-                              </div>
-                            </TableCell>
+                            <TableCell>{order.customer.name}</TableCell>
+                            <TableCell>{formatPrice(order.total)}</TableCell>
                             <TableCell>{getStatusBadge(order.status)}</TableCell>
                             <TableCell>
-                              {order.createdAt ? format(new Date(order.createdAt), "dd/MM/yyyy HH:mm", { locale: ptBR }) : 'N/A'}
+                              {format(new Date(order.createdAt), "dd/MM/yyyy HH:mm", { locale: ptBR })}
                             </TableCell>
                           </TableRow>
-                          );
-                        })}
+                        ))}
                       </TableBody>
                     </Table>
                   )}
                 </CardContent>
               </Card>
             </div>
+          </TabsContent>
+
+          {/* Analytics Tab */}
+          <TabsContent value="analytics">
+            <AdminAnalyticsDashboard />
           </TabsContent>
 
           {/* Products Tab */}
@@ -776,14 +466,11 @@ const AdminDashboard = () => {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">Todas as categorias</SelectItem>
-                        {Object.entries(categoryLabels ?? {}).filter(Boolean).map(([key, label]: any) => {
-                          if (!key) return null;
-                          return (
+                        {Object.entries(categoryLabels).map(([key, label]) => (
                           <SelectItem key={key} value={key}>
                             {label}
                           </SelectItem>
-                          );
-                        })}
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -814,10 +501,8 @@ const AdminDashboard = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {(filteredProducts ?? []).filter(Boolean).map((product: any) => {
-                        if (!product?.id) return null;
-                        return (
-                        <TableRow key={product.id} className={!product?.isActive ? 'opacity-50' : ''}>
+                      {filteredProducts.map((product) => (
+                        <TableRow key={product.id} className={!product.isActive ? 'opacity-50' : ''}>
                           <TableCell className="font-medium">{product.name}</TableCell>
                           <TableCell>
                             <Badge variant="outline" className="capitalize">
@@ -834,7 +519,7 @@ const AdminDashboard = () => {
                           <TableCell>
                             <Switch
                               checked={product.isActive}
-                              onCheckedChange={() => handleToggleProductActive(product.id)}
+                              onCheckedChange={() => toggleActive(product.id)}
                             />
                           </TableCell>
                           <TableCell>
@@ -865,8 +550,7 @@ const AdminDashboard = () => {
                             </div>
                           </TableCell>
                         </TableRow>
-                        );
-                      })}
+                      ))}
                     </TableBody>
                   </Table>
                 </ScrollArea>
@@ -894,38 +578,6 @@ const AdminDashboard = () => {
                   <DateRangeFilter onRangeChange={(start, end) => setDateRange({ start, end })} />
                 </div>
 
-                {/* Order Filter and Sort Controls */}
-                <div className="mb-4 flex gap-4 flex-wrap">
-                  <div className="flex-1 min-w-[200px]">
-                    <label className="text-sm font-medium mb-2 block">Filtrar por Status</label>
-                    <select
-                      value={orderStatusFilter}
-                      onChange={(e) => setOrderStatusFilter(e.target.value)}
-                      className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
-                    >
-                      <option value="all">Todos os Status</option>
-                      <option value="pending">Pendente</option>
-                      <option value="confirmed">Confirmado</option>
-                      <option value="preparing">Preparando</option>
-                      <option value="delivering">Em Entrega</option>
-                      <option value="delivered">Entregue</option>
-                      <option value="cancelled">Cancelado</option>
-                    </select>
-                  </div>
-
-                  <div className="flex-1 min-w-[200px]">
-                    <label className="text-sm font-medium mb-2 block">Ordenar por Data</label>
-                    <select
-                      value={orderSort}
-                      onChange={(e) => setOrderSort(e.target.value as 'newest' | 'oldest')}
-                      className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
-                    >
-                      <option value="newest">Mais Recentes</option>
-                      <option value="oldest">Mais Antigas</option>
-                    </select>
-                  </div>
-                </div>
-
                 {filteredOrders.length === 0 ? (
                   <div className="text-center py-12 text-muted-foreground">
                     Nenhum pedido encontrado no período selecionado.
@@ -940,34 +592,17 @@ const AdminDashboard = () => {
                         <TableHead>Total</TableHead>
                         <TableHead>Pagamento</TableHead>
                         <TableHead>Status</TableHead>
-                        <TableHead>Impressão</TableHead>
                         <TableHead>Data</TableHead>
                         <TableHead>Ações</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {(filteredOrders || []).filter(Boolean).map((order) => {
-                        if (!order || !order.id) return null;
-                        return (
+                      {filteredOrders.map((order) => (
                         <TableRow key={order.id}>
-                          <TableCell className="font-medium">{order.id || 'N/A'}</TableCell>
-                          <TableCell>{order.customer?.name || 'Desconhecido'}</TableCell>
-                          <TableCell>{order.items?.length || 0} itens</TableCell>
-                          <TableCell>
-                            <div className="flex flex-col gap-1">
-                              <span className="font-semibold">{formatPrice(order.total || 0)}</span>
-                              {order.pointsRedeemed && order.pointsRedeemed > 0 && (
-                                <span className="text-xs text-green-600 font-medium">
-                                  -{order.pointsRedeemed} pontos
-                                </span>
-                              )}
-                              {order.appliedCoupon && order.couponDiscount && order.couponDiscount > 0 && (
-                                <span className="text-xs text-purple-600 font-medium">
-                                  -{formatPrice(order.couponDiscount)} ({order.appliedCoupon})
-                                </span>
-                              )}
-                            </div>
-                          </TableCell>
+                          <TableCell className="font-medium">{order.id}</TableCell>
+                          <TableCell>{order.customer.name}</TableCell>
+                          <TableCell>{order.items.length} itens</TableCell>
+                          <TableCell>{formatPrice(order.total)}</TableCell>
                           <TableCell>
                             <Badge variant="outline">
                               {order.paymentMethod === 'pix' ? 'PIX' : order.paymentMethod === 'card' ? 'Cartão' : 'Dinheiro'}
@@ -975,10 +610,7 @@ const AdminDashboard = () => {
                           </TableCell>
                           <TableCell>{getStatusBadge(order.status)}</TableCell>
                           <TableCell>
-                            {getPrintStatusDisplay(order)}
-                          </TableCell>
-                          <TableCell>
-                            {order.createdAt ? format(new Date(order.createdAt), "dd/MM/yyyy HH:mm", { locale: ptBR }) : 'N/A'}
+                            {format(new Date(order.createdAt), "dd/MM/yyyy HH:mm", { locale: ptBR })}
                           </TableCell>
                           <TableCell>
                             <div className="flex gap-2">
@@ -1005,8 +637,7 @@ const AdminDashboard = () => {
                             </div>
                           </TableCell>
                         </TableRow>
-                        );
-                      })}
+                      ))}
                     </TableBody>
                   </Table>
                 )}
@@ -1047,10 +678,8 @@ const AdminDashboard = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {(neighborhoods ?? []).filter(Boolean).map((nb: any) => {
-                      if (!nb?.id) return null;
-                      return (
-                      <TableRow key={nb.id} className={!nb?.isActive ? 'opacity-50' : ''}>
+                    {neighborhoods.map((nb) => (
+                      <TableRow key={nb.id} className={!nb.isActive ? 'opacity-50' : ''}>
                         <TableCell className="font-medium">{nb.name}</TableCell>
                         <TableCell>
                           <Input 
@@ -1061,7 +690,7 @@ const AdminDashboard = () => {
                             onChange={(e) => {
                               const value = parseFloat(e.target.value);
                               if (!isNaN(value) && value >= 0) {
-                                handleUpdateNeighborhood(nb.id, { deliveryFee: value });
+                                updateNeighborhood(nb.id, { deliveryFee: value });
                               }
                             }}
                           />
@@ -1069,7 +698,7 @@ const AdminDashboard = () => {
                         <TableCell>
                           <Switch 
                             checked={nb.isActive} 
-                            onCheckedChange={() => handleToggleNeighborhoodActive(nb.id)}
+                            onCheckedChange={() => toggleNeighborhoodActive(nb.id)}
                           />
                         </TableCell>
                         <TableCell>
@@ -1100,8 +729,7 @@ const AdminDashboard = () => {
                           </div>
                         </TableCell>
                       </TableRow>
-                      );
-                    })}
+                    ))}
                   </TableBody>
                 </Table>
               </CardContent>
@@ -1169,10 +797,7 @@ const AdminDashboard = () => {
 
                   <Separator />
 
-                  <ScheduleSettings 
-                    onScheduleChange={handleScheduleChange}
-                    onManualOpenToggle={handleManualOpenToggle}
-                  />
+                  <ScheduleSettings />
 
                   <Separator />
 
@@ -1261,36 +886,7 @@ const AdminDashboard = () => {
                   </Button>
                 </CardContent>
               </Card>
-
-              <LoyaltySettingsPanel />
-
-              <PrintNodeSettings />
             </div>
-          </TabsContent>
-
-          {/* Customers Loyalty Tab */}
-          <TabsContent value="customers">
-            <FaithfulCustomersAdmin />
-          </TabsContent>
-
-          {/* Coupons Tab */}
-          <TabsContent value="coupons">
-            <CouponManagementPanel />
-          </TabsContent>
-
-          {/* Payments Tab */}
-          <TabsContent value="payments">
-            <PaymentSettingsPanel />
-          </TabsContent>
-
-          {/* Notifications Tab */}
-          <TabsContent value="notifications">
-            <NotificationsTab />
-          </TabsContent>
-
-          {/* Analytics Tab */}
-          <TabsContent value="analytics">
-            <AdminAnalyticsDashboard />
           </TabsContent>
         </Tabs>
       </div>
