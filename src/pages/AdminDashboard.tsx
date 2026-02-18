@@ -58,7 +58,6 @@ import { NeighborhoodFormDialog } from '@/components/admin/NeighborhoodFormDialo
 import { ConfirmDeleteDialog } from '@/components/admin/ConfirmDeleteDialog';
 import { DateRangeFilter } from '@/components/admin/DateRangeFilter';
 import { ScheduleSettings } from '@/components/admin/ScheduleSettings';
-import { AdminAnalyticsDashboard } from '@/components/admin/AdminAnalyticsDashboard';
 import { toast } from 'sonner';
 import { format, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -304,10 +303,6 @@ const AdminDashboard = () => {
               <TrendingUp className="w-4 h-4" />
               Visão Geral
             </TabsTrigger>
-            <TabsTrigger value="analytics" className="gap-2">
-              <TrendingUp className="w-4 h-4" />
-              Analytics
-            </TabsTrigger>
             <TabsTrigger value="products" className="gap-2">
               <Pizza className="w-4 h-4" />
               Cardápio
@@ -427,11 +422,6 @@ const AdminDashboard = () => {
                 </CardContent>
               </Card>
             </div>
-          </TabsContent>
-
-          {/* Analytics Tab */}
-          <TabsContent value="analytics">
-            <AdminAnalyticsDashboard />
           </TabsContent>
 
           {/* Products Tab */}
