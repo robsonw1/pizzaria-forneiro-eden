@@ -1,316 +1,242 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import {
-  FileText,
-  Download,
-  Loader,
-} from 'lucide-react';
+import { FileDown, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
-interface PDFReportProps {
-  analyticsData?: {
-    totalRevenueMtd: number;
-    totalRevenueLastMonth: number;
-    totalOrders: number;
-    newCustomers: number;
-    repeatCustomers: number;
-    topProducts: Array<{ name: string; quantity: number; revenue: number }>;
-    weeklyData: Array<{ date: string; orders: number; revenue: number }>;
-  };
+interface AnalyticsData {
+  totalRevenueMtd: number;
+  totalRevenueLastMonth: number;
+  totalOrders: number;
+  newCustomers: number;
+  repeatCustomers: number;
+  topProducts: Array<{ name: string; quantity: number; revenue: number }>;
+  weeklyData: Array<{ date: string; orders: number; revenue: number }>;
 }
 
-export const AdminPDFReports = ({ analyticsData }: PDFReportProps) => {
-  const [isGenerating, setIsGenerating] = useState(false);
+interface AdminPDFReportsProps {
+  analyticsData?: AnalyticsData;
+}
+
+export const AdminPDFReports = ({ analyticsData }: AdminPDFReportsProps) => {
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const generatePDF = async () => {
     try {
+      setLoading(true);
+      setError(null);
+
       if (!analyticsData) {
-        setError('Nenhum dado de analytics disponível ainda. Aguarde o carregamento dos dados.');
+        setError('Dados de analytics ainda estão sendo carregados. Aguarde alguns momentos.');
         return;
       }
 
-      setIsGenerating(true);
-      setError(null);
-
-      // Dynamic import de jsPDF para evitar bloat
+      // Dynamically import jsPDF to avoid larger bundle
       const { jsPDF } = await import('jspdf');
-      const doc = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4',
-      });
+      const doc = new jsPDF();
 
+      // Setup page style
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
-      let yPosition = 20;
+      const margin = 15;
+      let yPosition = margin;
 
-      // Header
-      doc.setFontSize(20);
-      doc.setFont('helvetica', 'bold');
-      doc.text('Relatório de Vendas', pageWidth / 2, yPosition, { align: 'center' });
-
-      yPosition += 10;
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      doc.text(
-        `Gerado em ${format(new Date(), 'dd/MM/yyyy HH:mm', { locale: ptBR })}`,
-        pageWidth / 2,
-        yPosition,
-        { align: 'center' }
-      );
-
-      yPosition += 15;
-
-      // Seção 1: Resumo Executivo
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'bold');
-      doc.text('📊 Resumo Executivo', 20, yPosition);
-
-      yPosition += 10;
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-
-      if (analyticsData) {
-        const growthPercentage =
-          analyticsData.totalRevenueLastMonth > 0
-            ? ((analyticsData.totalRevenueMtd - analyticsData.totalRevenueLastMonth) /
-                analyticsData.totalRevenueLastMonth) *
-              100
-            : 0;
-
-        const metrics = [
-          [
-            'Vendas Este Mês:',
-            `R$ ${analyticsData.totalRevenueMtd.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`,
-          ],
-          [
-            'Crescimento vs Mês Anterior:',
-            `${growthPercentage >= 0 ? '+' : ''}${growthPercentage.toFixed(1)}%`,
-          ],
-          [
-            'Total de Pedidos:',
-            `${analyticsData.totalOrders}`,
-          ],
-          [
-            'Ticket Médio:',
-            `R$ ${(analyticsData.totalRevenueMtd / (analyticsData.totalOrders || 1)).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}`,
-          ],
-          [
-            'Clientes Novos:',
-            `${analyticsData.newCustomers}`,
-          ],
-          [
-            'Taxa de Repetição:',
-            `${analyticsData.newCustomers > 0 ? ((analyticsData.repeatCustomers / analyticsData.newCustomers) * 100).toFixed(0) : 0}%`,
-          ],
-        ];
-
-        metrics.forEach((metric) => {
-          doc.text(`${metric[0]}`, 25, yPosition);
-          doc.setFont('helvetica', 'bold');
-          doc.text(`${metric[1]}`, 100, yPosition);
-          doc.setFont('helvetica', 'normal');
-          yPosition += 8;
-        });
-      }
-
-      yPosition += 8;
-
-      // Seção 2: Top Produtos
-      if (analyticsData && analyticsData.topProducts.length > 0) {
-        doc.setFontSize(14);
-        doc.setFont('helvetica', 'bold');
-        doc.text('🏆 Produtos Top Este Mês', 20, yPosition);
-
-        yPosition += 10;
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'normal');
-
-        // Cabeçalho da tabela
-        doc.setFont('helvetica', 'bold');
-        doc.text('Produto', 25, yPosition);
-        doc.text('Quantidade', 110, yPosition);
-        doc.text('Faturamento', 160, yPosition);
-
-        yPosition += 7;
-        doc.setFont('helvetica', 'normal');
-
-        analyticsData.topProducts.forEach((product, idx) => {
-          if (yPosition > pageHeight - 40) {
-            doc.addPage();
-            yPosition = 20;
-          }
-
-          const productName =
-            product.name.length > 40
-              ? product.name.substring(0, 37) + '...'
-              : product.name;
-
-          doc.text(`${idx + 1}. ${productName}`, 25, yPosition);
-          doc.text(`${product.quantity}`, 110, yPosition);
-          doc.text(
-            `R$ ${product.revenue.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}`,
-            160,
-            yPosition
-          );
-
-          yPosition += 7;
-        });
-      }
-
-      yPosition += 8;
-
-      // Seção 3: Desempenho Semanal
-      if (analyticsData && analyticsData.weeklyData.length > 0) {
-        doc.setFontSize(14);
-        doc.setFont('helvetica', 'bold');
-        doc.text('📈 Desempenho Semanal', 20, yPosition);
-
-        yPosition += 10;
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'normal');
-
-        // Cabeçalho
-        doc.setFont('helvetica', 'bold');
-        doc.text('Data', 25, yPosition);
-        doc.text('Pedidos', 80, yPosition);
-        doc.text('Receita', 140, yPosition);
-
-        yPosition += 7;
-        doc.setFont('helvetica', 'normal');
-
-        analyticsData.weeklyData.forEach((day) => {
-          if (yPosition > pageHeight - 40) {
-            doc.addPage();
-            yPosition = 20;
-          }
-
-          doc.text(day.date, 25, yPosition);
-          doc.text(`${day.orders}`, 80, yPosition);
-          doc.text(
-            `R$ ${day.revenue.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`,
-            140,
-            yPosition
-          );
-
-          yPosition += 7;
-        });
-      }
-
-      yPosition += 12;
-
-      // Seção 4: Recomendações
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'bold');
-      doc.text('💡 Recomendações', 20, yPosition);
-
-      yPosition += 10;
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'normal');
-
-      const recommendations = [
-        '✓ Acompanhe seus top 3 produtos e considere criar promoções',
-        '✓ Analise os horários com picos de vendas para melhor alocação',
-        '✓ Mantenha relacionamento com clientes recorrentes (maior margem)',
-        '✓ Considere desativar produtos com 0 vendas por 30+ dias',
-        '✓ Use estes dados para negociar com fornecedores',
-      ];
-
-      recommendations.forEach((rec) => {
-        if (yPosition > pageHeight - 20) {
-          doc.addPage();
-          yPosition = 20;
+      // Helper function to add text with line wrapping
+      const addWrappedText = (text: string, fontSize: number, isBold: boolean = false) => {
+        doc.setFontSize(fontSize);
+        if (isBold) {
+          doc.setFont(undefined, 'bold');
+        } else {
+          doc.setFont(undefined, 'normal');
         }
 
-        doc.text(rec, 25, yPosition);
-        yPosition += 8;
-      });
+        const lines = doc.splitTextToSize(text, pageWidth - margin * 2);
+        doc.text(lines, margin, yPosition);
+        yPosition += lines.length * (fontSize / 2.5) + 2;
 
-      yPosition += 12;
+        if (yPosition > pageHeight - margin) {
+          doc.addPage();
+          yPosition = margin;
+        }
+      };
 
-      // Footer
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'italic');
-      doc.setTextColor(150, 150, 150);
+      // Header
+      doc.setFillColor(34, 197, 94); // Green
+      doc.rect(0, 0, pageWidth, 30, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(20);
+      doc.setFont(undefined, 'bold');
+      doc.text('Relatório de Vendas', margin, 20);
+
+      // Date
+      doc.setFontSize(10);
+      doc.setFont(undefined, 'normal');
       doc.text(
-        'Este relatório foi gerado automaticamente pelo sistema Forneiro Eden.',
-        pageWidth / 2,
-        pageHeight - 10,
-        { align: 'center' }
+        `Gerado em ${format(new Date(), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}`,
+        margin,
+        27
       );
 
-      // Download
-      const filename = `relatorio_vendas_${format(new Date(), 'dd-MM-yyyy', { locale: ptBR })}.pdf`;
-      doc.save(filename);
+      yPosition = 40;
+      doc.setTextColor(0, 0, 0);
 
-      setIsGenerating(false);
+      // Executive Summary
+      addWrappedText('Resumo Executivo', 14, true);
+      yPosition += 3;
+
+      const growthPercentage =
+        analyticsData.totalRevenueLastMonth > 0
+          ? (
+              ((analyticsData.totalRevenueMtd - analyticsData.totalRevenueLastMonth) /
+                analyticsData.totalRevenueLastMonth) *
+              100
+            ).toFixed(1)
+          : '0.0';
+
+      const summaryText = `
+Receita Total (Mês Atual): R$ ${analyticsData.totalRevenueMtd.toLocaleString('pt-BR')}
+Crescimento vs Mês Anterior: ${growthPercentage}%
+Total de Pedidos: ${analyticsData.totalOrders}
+Clientes Novos: ${analyticsData.newCustomers}
+Taxa de Repetição: ${analyticsData.newCustomers > 0 ? ((analyticsData.repeatCustomers / analyticsData.newCustomers) * 100).toFixed(1) : '0.0'}%
+Ticket Médio: R$ ${(analyticsData.totalRevenueMtd / (analyticsData.totalOrders || 1)).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}
+      `.trim();
+
+      addWrappedText(summaryText, 11);
+      yPosition += 5;
+
+      // Top Products
+      addWrappedText('Produtos Mais Vendidos', 14, true);
+      yPosition += 3;
+
+      analyticsData.topProducts.forEach((product, index) => {
+        const productText = `${index + 1}. ${product.name}
+   ${product.quantity} vendas | R$ ${product.revenue.toLocaleString('pt-BR')}`;
+        addWrappedText(productText, 10);
+        yPosition += 2;
+      });
+
+      yPosition += 3;
+
+      // Weekly Performance
+      addWrappedText('Desempenho Semanal', 14, true);
+      yPosition += 3;
+
+      analyticsData.weeklyData.forEach((day) => {
+        const dayText = `${day.date}: ${day.orders} pedidos | R$ ${day.revenue.toLocaleString('pt-BR')}`;
+        addWrappedText(dayText, 10);
+      });
+
+      yPosition += 5;
+
+      // Strategic Recommendations
+      addWrappedText('Recomendações Estratégicas', 14, true);
+      yPosition += 3;
+
+      const recommendations = [];
+
+      if (growthPercentage && parseFloat(growthPercentage) > 10) {
+        recommendations.push('✓ Crescimento positivo detectado. Mantenha as estratégias atuais de marketing.');
+      } else if (growthPercentage && parseFloat(growthPercentage) < -10) {
+        recommendations.push(
+          '✗ Queda de vendas detectada. Considere revisar preços, promoções ou qualidade.'
+        );
+      }
+
+      if (analyticsData.repeatCustomers > analyticsData.newCustomers * 0.5) {
+        recommendations.push('✓ Excelente taxa de repetição. Foco em manutenção de clientes existentes.');
+      } else {
+        recommendations.push(
+          '→ Taxa de repetição baixa. Implemente programa de fidelização ou seguimento.'
+        );
+      }
+
+      if (analyticsData.topProducts.length > 0) {
+        recommendations.push(
+          `→ Produto destaque: "${analyticsData.topProducts[0].name}". Aumente quantidade em estoque.`
+        );
+      }
+
+      recommendations.forEach((rec) => {
+        addWrappedText(rec, 10);
+        yPosition += 2;
+      });
+
+      // Footer
+      doc.setFont(undefined, 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(150, 150, 150);
+      const pageCount = doc.internal.pages.length - 1;
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.text(
+          `Página ${i} de ${pageCount}`,
+          pageWidth / 2,
+          pageHeight - 10,
+          { align: 'center' }
+        );
+        doc.text(
+          '© ' + new Date().getFullYear() + ' Forneiro Eden - Sistema de Vendas',
+          pageWidth / 2,
+          pageHeight - 5,
+          { align: 'center' }
+        );
+      }
+
+      // Download PDF
+      const filename = `relatorio_vendas_${format(new Date(), 'dd-MM-yyyy')}.pdf`;
+      doc.save(filename);
     } catch (err: any) {
-      console.error('Erro ao gerar PDF:', err);
-      setError(err.message || 'Erro ao gerar relatório');
-      setIsGenerating(false);
+      console.error('PDF generation error:', err);
+      setError(`Erro ao gerar PDF: ${err.message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <Card className="border-l-4 border-l-indigo-500">
+    <Card className="border-yellow-200 bg-gradient-to-br from-yellow-50 to-orange-50">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <FileText className="w-5 h-5" />
+          <FileDown className="w-5 h-5 text-yellow-600" />
           Exportar Relatório
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent>
         <div className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            Gere um relatório em PDF com análise completa de vendas, produtos e tendências.
-            Ideal para compartilhar com contador ou análise financeira.
-          </p>
-
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-800">
+            <div className="p-3 bg-red-100 border border-red-300 rounded text-red-800 text-sm">
               {error}
             </div>
           )}
-
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-2">
-            <p className="text-sm font-medium text-blue-900">📄 Conteúdo do Relatório:</p>
-            <ul className="text-xs text-blue-800 space-y-1 ml-4">
-              <li>✓ Resumo executivo de vendas</li>
-              <li>✓ Top 3 produtos do mês</li>
-              <li>✓ Desempenho semanal</li>
-              <li>✓ Recomendações estratégicas</li>
-            </ul>
-          </div>
-
+          <p className="text-sm text-muted-foreground">
+            Gere um relatório em PDF com todos os dados de vendas do mês, análises e recomendações
+            estratégicas.
+          </p>
           <Button
             onClick={generatePDF}
-            disabled={isGenerating}
-            className="w-full gap-2 bg-indigo-600 hover:bg-indigo-700"
+            disabled={loading || !analyticsData}
+            className="w-full bg-yellow-600 hover:bg-yellow-700"
           >
-            {isGenerating ? (
+            {loading ? (
               <>
-                <Loader className="w-4 h-4 animate-spin" />
-                Gerando Relatório...
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Gerando PDF...
               </>
             ) : (
               <>
-                <Download className="w-4 h-4" />
-                Gerar e Baixar PDF
+                <FileDown className="w-4 h-4 mr-2" />
+                Baixar Relatório em PDF
               </>
             )}
           </Button>
-
-          <p className="text-xs text-muted-foreground text-center mt-3">
-            💡 Pro tip: Envie este relatório ao seu contador para fins fiscais
-          </p>
-
-          <Badge variant="outline" className="w-full justify-center">
-            Gerado em tempo real com dados atualizados
-          </Badge>
+          {!analyticsData && (
+            <p className="text-xs text-muted-foreground text-center">
+              Aguarde o carregamento dos dados...
+            </p>
+          )}
         </div>
       </CardContent>
     </Card>
